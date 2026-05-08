@@ -4,11 +4,15 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict
 
 from simulate.component import Component
-from simulate.config import LinearPlantConfig
+from simulate.config import LinearPlantConfig, PlantConfig
 
 
 class Plant[T, L: BaseModel](Component[T, L], abc.ABC):
     """Abstract base class for all plants."""
+
+    def __init__(self, config: PlantConfig) -> None:
+        """Initialize the plant."""
+        super().__init__(config)
 
     @abc.abstractmethod
     def step(self, t: float, u: np.ndarray) -> tuple[T, L]:

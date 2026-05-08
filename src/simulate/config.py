@@ -12,7 +12,15 @@ class ComponentConfig(BaseModel):
     dt: float = Field(..., gt=0, description="Sample time / update period of the component")
 
 
-class LinearPlantConfig(ComponentConfig):
+class PlantConfig(ComponentConfig):
+    """Base configuration for the plant."""
+
+
+class ControllerConfig(ComponentConfig):
+    """Base configuration for the controller."""
+
+
+class LinearPlantConfig(PlantConfig):
     """Configuration for the linear plant."""
 
     a: list[list[float]] = Field(..., description="System matrix A")
@@ -21,7 +29,7 @@ class LinearPlantConfig(ComponentConfig):
     d: list[list[float]] = Field(..., description="Feedthrough matrix D")
 
 
-class PIDControllerConfig(ComponentConfig):
+class PIDControllerConfig(ControllerConfig):
     """Configuration for the PID controller."""
 
     kp: list[list[float]] = Field(..., description="Proportional gain matrix")
@@ -29,15 +37,15 @@ class PIDControllerConfig(ComponentConfig):
     kd: list[list[float]] = Field(..., description="Derivative gain matrix")
 
 
-class SimulationConfig(BaseModel):
+class SimulationConfig[P: PlantConfig, C: ControllerConfig](BaseModel):
     """Root configuration object for the entire simulation."""
 
-    plant: LinearPlantConfig
-    controller: PIDControllerConfig
+    plant: P
+    controller: C
     t_end: float = Field(..., gt=0, description="End time of the simulation")
 
     @model_validator(mode="after")
-    def validate_sample_times(self) -> "SimulationConfig":
+    def validate_sample_times(self) -> "SimulationConfig[P, C]":
         """Validate that all component sample times are integer multiples of the plant's base dt."""
         base_dt = self.plant.dt
 
@@ -51,9 +59,11 @@ class SimulationConfig(BaseModel):
         return self
 
 
-def load_config(filepath: str | Path) -> SimulationConfig:
+def load_config(filepath: str | Path) -> SimulationConfig[Any, Any]:
     """Load and validate a YAML configuration file."""
     with Path(filepath).open() as f:
         raw_config: dict[str, Any] = yaml.safe_load(f)
 
+    # Note: In a real system, we'd need a discriminator or custom logic to instantiate
+    # the correct subclasses based on the yaml. For now, this serves the basic structure.
     return SimulationConfig(**raw_config)

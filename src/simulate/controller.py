@@ -4,11 +4,15 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict
 
 from simulate.component import Component
-from simulate.config import PIDControllerConfig
+from simulate.config import ControllerConfig, PIDControllerConfig
 
 
 class Controller[T, L: BaseModel](Component[T, L], abc.ABC):
     """Abstract base class for all controllers."""
+
+    def __init__(self, config: ControllerConfig) -> None:
+        """Initialize the controller."""
+        super().__init__(config)
 
     @abc.abstractmethod
     def step(self, t: float, ref: np.ndarray, y_mea: np.ndarray) -> tuple[T, L]:

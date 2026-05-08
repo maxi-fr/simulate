@@ -1,21 +1,24 @@
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
-from simulate.config import SimulationConfig
-from simulate.controller import PIDController
+from simulate.config import ControllerConfig, PlantConfig, SimulationConfig
+from simulate.controller import Controller
 from simulate.logger import Logger, UniversalLog
-from simulate.plant import LinearPlant
+from simulate.plant import Plant
 
 
-class Simulation:
+class Simulation[P: PlantConfig, C: ControllerConfig]:
     """Central orchestrator for the simulation loop."""
 
-    def __init__(self, config: SimulationConfig) -> None:
-        """Initialize the simulation with the given configuration."""
+    def __init__(
+        self, config: SimulationConfig[P, C], plant: Plant[Any, Any], controller: Controller[Any, Any]
+    ) -> None:
+        """Initialize the simulation with the given configuration and instantiated components."""
         self.config = config
-        self.plant = LinearPlant(config.plant)
-        self.controller = PIDController(config.controller)
+        self.plant = plant
+        self.controller = controller
         self.logger = Logger()
 
         # The base tick is dictated by the plant's update period
@@ -27,24 +30,18 @@ class Simulation:
         Generate the reference signal for the current time.
 
         In a full implementation, this might be a separate component.
-        For now, we provide a simple step response vector based on plant dimensions.
+        For now, we provide a simple step response scalar wrapped in a 2D array.
         """
-        # Determine dimension from plant's C matrix shape (rows)
-        # to ensure the reference has the same shape as plant output y
-        dim = len(self.config.plant.c)
-        ref_val = 1.0 if t >= 0.5 else 0.0  # noqa: PLR2004
-        return np.full((dim, 1), ref_val, dtype=float)
+        val = 1.0 if t >= 0.5 else 0.0  # noqa: PLR2004
+        return np.array([[val]])
 
     def run(self) -> None:
         """Run the simulation loop until t_end."""
         t = 0.0
 
-        # Initial states based on matrix dimensions
-        u_dim = len(self.config.plant.b[0])
-        y_dim = len(self.config.plant.c)
-
-        u_k = np.zeros((u_dim, 1), dtype=float)
-        y_k = np.zeros((y_dim, 1), dtype=float)
+        # Initial states - 2D arrays that will broadcast or be resized by components if needed
+        u_k = np.array([[0.0]])
+        y_k = np.array([[0.0]])
 
         # Use round(t, 9) to prevent floating point accumulation drift in the loop condition
         while round(t, 9) <= self.t_end:

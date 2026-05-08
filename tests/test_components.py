@@ -114,13 +114,18 @@ def test_floating_point_precision_handling():
 
 def test_simulation_execution_and_logging():
     """Test full simulation execution, ensuring correct loop length and log aggregation."""
+    plant_cfg = get_test_plant_config(dt=0.1)
+    controller_cfg = get_test_controller_config(dt=0.2)
     sim_cfg = SimulationConfig(
-        plant=get_test_plant_config(dt=0.1),
-        controller=get_test_controller_config(dt=0.2), # Multi-rate controller
+        plant=plant_cfg,
+        controller=controller_cfg,
         t_end=1.0
     )
 
-    sim = Simulation(sim_cfg)
+    plant = LinearPlant(plant_cfg)
+    controller = PIDController(controller_cfg)
+
+    sim = Simulation(sim_cfg, plant, controller)
     sim.run()
 
     # Check that universal logs have 11 entries
