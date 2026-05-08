@@ -1,12 +1,12 @@
 from simulate.config import ControllerConfig, PlantConfig
-from simulate.controller import Controller
-from simulate.plant import DiscretePlant
+from simulate.controller import PIDController
+from simulate.plant import LinearPlant
 
 
 def test_plant_step_logic():
     """Test standard plant update dynamics."""
     config = PlantConfig(dt=0.1)
-    plant = DiscretePlant(config)
+    plant = LinearPlant(config)
 
     # Initial state should be 0.0
     assert plant.x == 0.0
@@ -25,7 +25,7 @@ def test_plant_step_logic():
 def test_controller_step_logic():
     """Test PI controller behavior and integration accumulation."""
     config = ControllerConfig(dt=0.1)
-    controller = Controller(config)
+    controller = PIDController(config)
 
     # Step 1: ref=1.0, y=0.0 -> error=1.0
     # integral = 0 + 1.0*0.1 = 0.1
@@ -39,7 +39,7 @@ def test_controller_step_logic():
 def test_component_zoh_behavior():
     """Test that a component retains its last output between scheduled updates."""
     config = ControllerConfig(dt=0.2)
-    controller = Controller(config)
+    controller = PIDController(config)
 
     # Time 0.0: Update should happen
     u1, log1 = controller.step(0.0, 1.0, 0.0)
