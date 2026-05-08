@@ -91,3 +91,13 @@ The framework adheres to the `src/` layout best practice. The core simulation al
 `$ python main.py --config configs/experiment_01.yaml --export npz`
 
 By routing all execution through a thin CLI script, users can script automated workflows without ever modifying the underlying control system logic. Data is cleanly routed to a disjointed `results/` directory, keeping the version-controlled codebase pristine.
+
+## 7. Intended Use and Workflow
+
+The framework is designed as a foundational library rather than a rigid, plug-and-play application. The primary intended use of this package is for engineers and researchers to **subclass all of the core components** with their specific, custom implementations and then orchestrate them through the provided simulation and experimentation pipelines.
+
+To utilize the framework effectively, users should adhere to the following general workflow:
+
+1.  **Subclass Components:** Create project-specific Python classes that inherit from the framework's base `Plant`, `Sensor`, `Estimator`, and `Controller` classes. Within these subclasses, implement the specialized mathematical models, filtering algorithms, and control laws required for the specific application.
+2.  **Define Configuration:** Construct a strict, type-safe YAML configuration file. This file dictates the specific parameters, sample times, and structural setup for the newly created subclasses, ensuring that experimental parameters remain fully decoupled from the source code.
+3.  **Execute Simulation/Experiments:** Invoke the framework's CLI, passing the configuration file. The orchestrator will automatically instantiate the custom subclasses, enforce the multi-rate timing requirements, execute the simulation loop (or a batch of experiments), and export the resulting data logs to disk for post-processing.
