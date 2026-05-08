@@ -12,8 +12,8 @@ To ensure a modular and extensible environment, the framework adopts a block-bas
 
 The Plant encapsulates the mathematical model of the physical system. To fulfill advanced design constraints, the Plant class is engineered to support both discrete and continuous dynamics.
 
-*   **Discrete Time:** Modeled using difference equations where the state advances as `x_k+1 = f(x_k, u_k, w_k)`.
-*   **Continuous Time:** The Plant class utilizes custom-coded numerical integrators (e.g., internal Runge-Kutta or Euler schemes). The standard `update(u_k, t_k)` method dynamically routes the control input through the selected custom integrator to advance the internal state efficiently without the overhead of external solver initializations per step.
+*   **Discrete Time:** Modeled using difference equations where the state advances as `x_k+1 = f(t_k, x_k, u_k, w_k)`.
+*   **Continuous Time:** The Plant class utilizes custom-coded numerical integrators (e.g., internal Runge-Kutta or Euler schemes). The standard `update(t_k, u_k)` method dynamically routes the control input through the selected custom integrator to advance the internal state efficiently without the overhead of external solver initializations per step.
 
 ### 1.2. The Sensor, Estimator, and Controller
 
@@ -25,7 +25,11 @@ To accurately model hardware limitations and computational realities, the remain
 
 ## 2. The Simulation Orchestrator
 
-A centralized `Simulation` class manages the chronological progression of time and data routing. To support physically accurate **multi-rate systems**, the orchestrator passes the current simulation time (`t_k`) to each block. Modules independently evaluate this timestamp against their configured internal update frequencies to determine if a new computation is required, or if they should hold and return their previous state.
+A centralized `Simulation` class manages the chronological progression of time and data routing. To support physically accurate **multi-rate systems**, the orchestrator implements a "Base Tick" architecture driven by the physical plant.
+
+During initialization, the simulation's fundamental time step is automatically set to match the Plant's configured update period. To guarantee synchronous execution and avoid floating-point time drift, the configuration manager strictly enforces that the update periods of all other modules (Sensors, Estimators, Controllers) are integer multiples of this base period.
+
+During the execution loop, the orchestrator passes the current simulation time (`t_k`) to each block. Modules independently evaluate this timestamp against their configured internal sample times. If an update is due, the module executes its logic; otherwise, it performs a **Zero-Order Hold (ZOH)**, bypassing computation and returning its previously held state.
 
 The execution sequence rigorously follows causal logic to prevent algebraic loops:
 
@@ -54,9 +58,9 @@ The `Logger` implements a standardized interface supporting multiple export form
 
 ### 4.1. Component-Driven Dual Logging Architecture
 
-To ensure comprehensive data collection without tightly coupling the central simulation orchestrator to the internal logic of individual components, the framework employs a component-driven dual logging architecture. Standardized signal vectors—such as the plant state (`x`), control effort (`u`), estimated state (`x_hat`), and sensor measurements (`y_mea`)—are inherent to every control loop and are logged universally across all simulations. 
+To ensure comprehensive data collection without tightly coupling the central simulation orchestrator to the internal logic of individual components, the framework employs a component-driven dual logging architecture. Standardized signal vectors—such as the plant state (`x`), control effort (`u`), estimated state (`x_hat`), and sensor measurements (`y_mea`)—are inherent to every control loop and are logged universally across all simulations.
 
-However, advanced algorithms require tracking specialized internal variables. To bridge the gap between dynamic internal states and strict type-safety, **components must define their logging schema using Pydantic models**. 
+However, advanced algorithms require tracking specialized internal variables. To bridge the gap between dynamic internal states and strict type-safety, **components must define their logging schema using Pydantic models**.
 
 When the orchestrator calls a component's step function, the method returns a tuple containing both the primary operational output and an instance of its defined Pydantic log model. The orchestrator unpacks these tuples, aggregating the universal signals into a standard dictionary snapshot, while capturing the strictly-typed component logs into a secondary snapshot. Both are appended to accumulation lists. Upon termination, these lists are converted into structured formats (such as Pandas DataFrames) and flushed to disk. Using Pydantic for internal logs prevents mid-simulation schema changes (e.g., dynamically adding a key to a dictionary) that would otherwise crash the final DataFrame compilation.
 

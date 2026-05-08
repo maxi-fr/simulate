@@ -20,8 +20,8 @@ dev = [
 ]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.10.8,<0.12"]
+build-backend = "uv_build"
 
 [tool.uv]
 default-groups = ["dev"]
