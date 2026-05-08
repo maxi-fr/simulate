@@ -1,10 +1,10 @@
 import abc
-from typing import Any
 
-from pydantic import BaseModel
+import numpy as np
+from pydantic import BaseModel, ConfigDict
 
 from simulate.component import Component
-from simulate.config import PlantConfig
+from simulate.config import LinearPlantConfig, PlantConfig
 
 
 class Plant[T, L: BaseModel](Component[T, L], abc.ABC):
@@ -14,38 +14,59 @@ class Plant[T, L: BaseModel](Component[T, L], abc.ABC):
         """Initialize the plant."""
         super().__init__(config)
 
+    @abc.abstractmethod
+    def step(self, t: float, u: np.ndarray) -> tuple[T, L]:
+        """Advance the plant state by one step. Must be implemented by subclasses."""
+
+    @abc.abstractmethod
+    def update(self, t: float, u: np.ndarray) -> tuple[T, L]:
+        """Execute internal update dynamics. Must be implemented by subclasses."""
+
 
 class LinearPlantLog(BaseModel):
     """Pydantic model for internal LinearPlant state logging."""
 
-    x: float
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    x: np.ndarray
 
 
-class LinearPlant(Plant[float, LinearPlantLog]):
-    """Generic discrete-time linear plant implementation."""
+class LinearPlant(Plant[np.ndarray, LinearPlantLog]):
+    """Generic discrete-time linear plant implementation using state space matrices."""
 
-    def __init__(self, config: PlantConfig) -> None:
+    def __init__(self, config: LinearPlantConfig) -> None:
         """Initialize the linear plant."""
         super().__init__(config)
-        self.x: float = 0.0  # Internal state
-        # A simple linear discrete system: x_k+1 = a*x_k + b*u_k
-        self.a: float = 0.9
-        self.b: float = 1.0
 
-    def update(self, t: float, *args: Any, **kwargs: Any) -> tuple[float, LinearPlantLog]:  # noqa: ARG002, ANN401
+        # Load matrices as numpy arrays
+        self.a = np.array(config.a, dtype=float)
+        self.b = np.array(config.b, dtype=float)
+        self.c = np.array(config.c, dtype=float)
+        self.d = np.array(config.d, dtype=float)
+
+        # Initialize state vector to zeros based on A matrix dimension
+        self.x = np.zeros((self.a.shape[0], 1), dtype=float)
+
+    def step(self, t: float, u: np.ndarray) -> tuple[np.ndarray, LinearPlantLog]:
+        """Execute the public step method to be called by the orchestrator."""
+        return self._execute_zoh(t, self.update, u)
+
+    def update(self, t: float, u: np.ndarray) -> tuple[np.ndarray, LinearPlantLog]:  # noqa: ARG002
         """
         Advance the discrete dynamics by one time step.
 
         Args:
             t: Simulation time.
-            args: Expects the control input `u` as the first argument.
+            u: Control input vector.
         """
-        u: float = args[0] if args else 0.0
+        # Ensure u is shaped correctly as a column vector
+        u = np.atleast_2d(u)
+        if u.shape[0] == 1 and u.shape[1] > 1:
+            u = u.T
 
-        # Advance state
-        self.x = self.a * self.x + self.b * u
+        # Advance state: x_k+1 = A*x_k + B*u_k
+        self.x = self.a @ self.x + self.b @ u
 
-        # Output y = x
-        y = self.x
+        y = self.c @ self.x + self.d @ u
 
-        return y, LinearPlantLog(x=self.x)
+        return y, LinearPlantLog(x=self.x.copy())

@@ -1,10 +1,10 @@
 import abc
-from typing import Any
 
-from pydantic import BaseModel
+import numpy as np
+from pydantic import BaseModel, ConfigDict
 
 from simulate.component import Component
-from simulate.config import ControllerConfig
+from simulate.config import ControllerConfig, PIDControllerConfig
 
 
 class Controller[T, L: BaseModel](Component[T, L], abc.ABC):
@@ -14,42 +14,75 @@ class Controller[T, L: BaseModel](Component[T, L], abc.ABC):
         """Initialize the controller."""
         super().__init__(config)
 
+    @abc.abstractmethod
+    def step(self, t: float, ref: np.ndarray, y_mea: np.ndarray) -> tuple[T, L]:
+        """Compute control action based on reference and measurement. Must be implemented by subclasses."""
+
+    @abc.abstractmethod
+    def update(self, t: float, ref: np.ndarray, y_mea: np.ndarray) -> tuple[T, L]:
+        """Execute internal update dynamics. Must be implemented by subclasses."""
+
 
 class PIDControllerLog(BaseModel):
     """Pydantic model for internal PIDController logging."""
 
-    error: float
-    integral: float
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    error: np.ndarray
+    integral: np.ndarray
 
 
-class PIDController(Controller[float, PIDControllerLog]):
-    """Generic discrete-time PID controller (currently functioning as PI)."""
+class PIDController(Controller[np.ndarray, PIDControllerLog]):
+    """Generic discrete-time PID controller using matrix gains."""
 
-    def __init__(self, config: ControllerConfig) -> None:
+    def __init__(self, config: PIDControllerConfig) -> None:
         """Initialize the PID controller."""
         super().__init__(config)
-        self.integral: float = 0.0
-        # PI Gains - hardcoded for simplicity in this iteration
-        self.kp: float = 0.5
-        self.ki: float = 0.1
 
-    def update(self, t: float, *args: Any, **kwargs: Any) -> tuple[float, PIDControllerLog]:  # noqa: ARG002, ANN401
+        self.kp = np.array(config.kp, dtype=float)
+        self.ki = np.array(config.ki, dtype=float)
+        self.kd = np.array(config.kd, dtype=float)
+
+        # Initialize integral and previous error dynamically during first step based on input shape
+        self.integral: np.ndarray | None = None
+        self.prev_error: np.ndarray | None = None
+
+    def step(self, t: float, ref: np.ndarray, y_mea: np.ndarray) -> tuple[np.ndarray, PIDControllerLog]:
+        """Execute the public step method to be called by the orchestrator."""
+        return self._execute_zoh(t, self.update, ref, y_mea)
+
+    def update(self, t: float, ref: np.ndarray, y_mea: np.ndarray) -> tuple[np.ndarray, PIDControllerLog]:  # noqa: ARG002
         """
         Compute control action based on reference and measurement.
 
         Args:
             t: Simulation time.
-            args: Expects `ref` and `y_mea` (measured output).
+            ref: Reference trajectory vector.
+            y_mea: Measured output vector.
         """
-        ref: float = args[0] if len(args) > 0 else 0.0
-        y_mea: float = args[1] if len(args) > 1 else 0.0
+        ref = np.atleast_2d(ref)
+        if ref.shape[0] == 1 and ref.shape[1] > 1:
+            ref = ref.T
+
+        y_mea = np.atleast_2d(y_mea)
+        if y_mea.shape[0] == 1 and y_mea.shape[1] > 1:
+            y_mea = y_mea.T
 
         error = ref - y_mea
+
+        if self.integral is None:
+            self.integral = np.zeros_like(error)
+        if self.prev_error is None:
+            self.prev_error = np.zeros_like(error)
 
         # Accumulate integral
         self.integral += error * self.config.dt
 
-        # Compute control effort
-        u = self.kp * error + self.ki * self.integral
+        # Compute derivative (discrete difference)
+        derivative = (error - self.prev_error) / self.config.dt
+        self.prev_error = error.copy()
 
-        return u, PIDControllerLog(error=error, integral=self.integral)
+        # Compute control effort: u = Kp*e + Ki*∫e + Kd*de/dt
+        u = self.kp @ error + self.ki @ self.integral + self.kd @ derivative
+
+        return u, PIDControllerLog(error=error.copy(), integral=self.integral.copy())
