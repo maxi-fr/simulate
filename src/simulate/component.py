@@ -1,5 +1,6 @@
 import abc
 import math
+from collections.abc import Callable
 from typing import Any, TypeVar
 
 from pydantic import BaseModel
@@ -25,15 +26,16 @@ class Component[T, L: BaseModel](abc.ABC):
         # Use math.isclose to mitigate floating-point precision issues
         return math.isclose(t, self.next_update_time, rel_tol=1e-9, abs_tol=1e-9) or t >= self.next_update_time
 
-    def step(self, t: float, *args: Any, **kwargs: Any) -> tuple[T, L]:  # noqa: ANN401
+    def _execute_zoh(self, t: float, update_fn: Callable[..., tuple[T, L]], *args: Any, **kwargs: Any) -> tuple[T, L]:  # noqa: ANN401
         """
-        Execute the public step method to be called by the orchestrator.
+        Encapsulate Zero-Order Hold logic, delegating to the provided update function.
 
-        Handles ZOH logic and delegates to the internal update method.
+        This allows subclasses to define explicitly typed `step` and `update` methods
+        without duplicating ZOH logic.
         """
         if self.should_update(t) or self.last_output is None or self.last_log is None:
             # Time to update
-            primary_output, log_output = self.update(t, *args, **kwargs)
+            primary_output, log_output = update_fn(t, *args, **kwargs)
             self.last_output = primary_output
             self.last_log = log_output
             # Advance next update time
@@ -42,9 +44,5 @@ class Component[T, L: BaseModel](abc.ABC):
         return self.last_output, self.last_log
 
     @abc.abstractmethod
-    def update(self, t: float, *args: Any, **kwargs: Any) -> tuple[T, L]:  # noqa: ANN401
-        """
-        Execute the internal update method. Must be implemented by subclasses.
-
-        Returns the primary output and the component's log model.
-        """
+    def step(self, t: float, *args: Any, **kwargs: Any) -> tuple[T, L]:  # noqa: ANN401
+        """Execute the public step method to be called by the orchestrator. Must be implemented by subclasses."""

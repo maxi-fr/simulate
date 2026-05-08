@@ -12,19 +12,28 @@ class ComponentConfig(BaseModel):
     dt: float = Field(..., gt=0, description="Sample time / update period of the component")
 
 
-class PlantConfig(ComponentConfig):
-    """Configuration for the plant."""
+class LinearPlantConfig(ComponentConfig):
+    """Configuration for the linear plant."""
+
+    a: list[list[float]] = Field(..., description="System matrix A")
+    b: list[list[float]] = Field(..., description="Input matrix B")
+    c: list[list[float]] = Field(..., description="Output matrix C")
+    d: list[list[float]] = Field(..., description="Feedthrough matrix D")
 
 
-class ControllerConfig(ComponentConfig):
-    """Configuration for the controller."""
+class PIDControllerConfig(ComponentConfig):
+    """Configuration for the PID controller."""
+
+    kp: list[list[float]] = Field(..., description="Proportional gain matrix")
+    ki: list[list[float]] = Field(..., description="Integral gain matrix")
+    kd: list[list[float]] = Field(..., description="Derivative gain matrix")
 
 
 class SimulationConfig(BaseModel):
     """Root configuration object for the entire simulation."""
 
-    plant: PlantConfig
-    controller: ControllerConfig
+    plant: LinearPlantConfig
+    controller: PIDControllerConfig
     t_end: float = Field(..., gt=0, description="End time of the simulation")
 
     @model_validator(mode="after")

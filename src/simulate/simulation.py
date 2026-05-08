@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import numpy as np
+
 from simulate.config import SimulationConfig
 from simulate.controller import PIDController
 from simulate.logger import Logger, UniversalLog
@@ -20,23 +22,29 @@ class Simulation:
         self.dt = self.config.plant.dt
         self.t_end = self.config.t_end
 
-    def generate_reference(self, t: float) -> float:
+    def generate_reference(self, t: float) -> np.ndarray:
         """
         Generate the reference signal for the current time.
 
         In a full implementation, this might be a separate component.
-        For now, we provide a simple step response.
+        For now, we provide a simple step response vector based on plant dimensions.
         """
-        # Step response at t=0.5
-        return 1.0 if t >= 0.5 else 0.0  # noqa: PLR2004
+        # Determine dimension from plant's C matrix shape (rows)
+        # to ensure the reference has the same shape as plant output y
+        dim = len(self.config.plant.c)
+        ref_val = 1.0 if t >= 0.5 else 0.0  # noqa: PLR2004
+        return np.full((dim, 1), ref_val, dtype=float)
 
     def run(self) -> None:
         """Run the simulation loop until t_end."""
         t = 0.0
 
-        # Initial states
-        u_k = 0.0
-        y_k = 0.0
+        # Initial states based on matrix dimensions
+        u_dim = len(self.config.plant.b[0])
+        y_dim = len(self.config.plant.c)
+
+        u_k = np.zeros((u_dim, 1), dtype=float)
+        y_k = np.zeros((y_dim, 1), dtype=float)
 
         # Use round(t, 9) to prevent floating point accumulation drift in the loop condition
         while round(t, 9) <= self.t_end:
