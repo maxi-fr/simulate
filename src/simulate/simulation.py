@@ -1,9 +1,9 @@
 from pathlib import Path
 
 from simulate.config import SimulationConfig
-from simulate.controller import Controller
+from simulate.controller import PIDController
 from simulate.logger import Logger, UniversalLog
-from simulate.plant import DiscretePlant
+from simulate.plant import LinearPlant
 
 
 class Simulation:
@@ -12,8 +12,8 @@ class Simulation:
     def __init__(self, config: SimulationConfig) -> None:
         """Initialize the simulation with the given configuration."""
         self.config = config
-        self.plant = DiscretePlant(config.plant)
-        self.controller = Controller(config.controller)
+        self.plant = LinearPlant(config.plant)
+        self.controller = PIDController(config.controller)
         self.logger = Logger()
 
         # The base tick is dictated by the plant's update period
@@ -28,7 +28,7 @@ class Simulation:
         For now, we provide a simple step response.
         """
         # Step response at t=0.5
-        return 1.0 if t >= 0.5 else 0.0
+        return 1.0 if t >= 0.5 else 0.0  # noqa: PLR2004
 
     def run(self) -> None:
         """Run the simulation loop until t_end."""

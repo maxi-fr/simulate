@@ -1,3 +1,4 @@
+import abc
 import math
 from typing import Any, TypeVar
 
@@ -9,8 +10,8 @@ T = TypeVar("T")  # Type for primary output
 L = TypeVar("L", bound=BaseModel)  # Type for log model
 
 
-class Component[T, L: BaseModel]:
-    """Base class for all simulation components implementing Zero-Order Hold (ZOH)."""
+class Component[T, L: BaseModel](abc.ABC):
+    """Abstract base class for all simulation components implementing Zero-Order Hold (ZOH)."""
 
     def __init__(self, config: ComponentConfig) -> None:
         """Initialize the component."""
@@ -40,11 +41,10 @@ class Component[T, L: BaseModel]:
 
         return self.last_output, self.last_log
 
+    @abc.abstractmethod
     def update(self, t: float, *args: Any, **kwargs: Any) -> tuple[T, L]:  # noqa: ANN401
         """
         Execute the internal update method. Must be implemented by subclasses.
 
         Returns the primary output and the component's log model.
         """
-        msg = "Subclasses must implement the update method"
-        raise NotImplementedError(msg)
