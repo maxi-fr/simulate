@@ -1,42 +1,47 @@
 from pathlib import Path
+from typing import Any
 
-from simulate.config import SimulationConfig
-from simulate.controller import PIDController
+import numpy as np
+
+from simulate.config import ControllerConfig, PlantConfig, SimulationConfig
+from simulate.controller import Controller
 from simulate.logger import Logger, UniversalLog
-from simulate.plant import LinearPlant
+from simulate.plant import Plant
 
 
-class Simulation:
+class Simulation[P: PlantConfig, C: ControllerConfig]:
     """Central orchestrator for the simulation loop."""
 
-    def __init__(self, config: SimulationConfig) -> None:
-        """Initialize the simulation with the given configuration."""
+    def __init__(
+        self, config: SimulationConfig[P, C], plant: Plant[Any, Any], controller: Controller[Any, Any]
+    ) -> None:
+        """Initialize the simulation with the given configuration and instantiated components."""
         self.config = config
-        self.plant = LinearPlant(config.plant)
-        self.controller = PIDController(config.controller)
+        self.plant = plant
+        self.controller = controller
         self.logger = Logger()
 
         # The base tick is dictated by the plant's update period
         self.dt = self.config.plant.dt
         self.t_end = self.config.t_end
 
-    def generate_reference(self, t: float) -> float:
+    def generate_reference(self, t: float) -> np.ndarray:
         """
         Generate the reference signal for the current time.
 
         In a full implementation, this might be a separate component.
-        For now, we provide a simple step response.
+        For now, we provide a simple step response scalar wrapped in a 2D array.
         """
-        # Step response at t=0.5
-        return 1.0 if t >= 0.5 else 0.0  # noqa: PLR2004
+        val = 1.0 if t >= 0.5 else 0.0  # noqa: PLR2004
+        return np.array([[val]])
 
     def run(self) -> None:
         """Run the simulation loop until t_end."""
         t = 0.0
 
-        # Initial states
-        u_k = 0.0
-        y_k = 0.0
+        # Initial states - 2D arrays that will broadcast or be resized by components if needed
+        u_k = np.array([[0.0]])
+        y_k = np.array([[0.0]])
 
         # Use round(t, 9) to prevent floating point accumulation drift in the loop condition
         while round(t, 9) <= self.t_end:
