@@ -2,7 +2,7 @@
 
 #### Executive Summary
 
-This whitepaper outlines the software development process and architectural design for a custom, modular Python framework dedicated to control system simulation. Moving away from monolithic proprietary platforms, this framework emphasizes simplicity, object-oriented principles, and robust software engineering. It incorporates modern tooling standards, utilizing `Pydantic` and YAML for rigid configuration parsing, a standardized `Logger` for multi-format data persistence, integrated Continuous/Discrete plant dynamics via custom integrators, and a scalable multiprocessing architecture for batch experimentation.
+This whitepaper outlines the software development process and architectural design for a custom, modular Python framework dedicated to control system simulation. Moving away from monolithic proprietary platforms, this framework emphasizes simplicity, object-oriented principles, and robust software engineering. It incorporates modern tooling standards, utilizing YAML with dynamic class loading for configuration parsing, a standardized `Logger` for multi-format data persistence, integrated Continuous/Discrete plant dynamics via custom integrators, and a scalable multiprocessing architecture for batch experimentation.
 
 ## 1. Object-Oriented Architectural Paradigm
 
@@ -41,11 +41,11 @@ The execution sequence rigorously follows causal logic to prevent algebraic loop
 
 ## 3. Configuration Management
 
-A fundamental requirement of this framework is the strict separation of code and experimental parameters. The framework adopts a configuration-driven architecture using YAML and `Pydantic`.
+A fundamental requirement of this framework is the strict separation of code and experimental parameters. The framework adopts a configuration-driven architecture using YAML and dynamic class resolution.
 
-#### Configuration Toolchain: YAML + Pydantic
+#### Configuration Toolchain: YAML + Dynamic Loading
 
-While `PyYAML` (specifically `yaml.safe_load()`) parses the human-readable configuration files, passing raw dictionaries through the codebase is error-prone. Therefore, the parsed dictionary is immediately fed into structured **Pydantic** dataclass models. This ensures strict type validation, enables dot-notation access (e.g., `config.plant.mass`), and provides fail-fast error handling if a user provides an invalid data type before the simulation initializes.
+While `PyYAML` (specifically `yaml.safe_load()`) parses the human-readable configuration files, hardcoding component classes limits extensibility. Instead, the YAML dictates the specific component to instantiate by providing a `class_path` string (e.g., `simulate.plant.LinearPlant`). The central orchestrator dynamically imports these classes and passes their respective parameter dictionaries to a `from_config` factory method required on each component. This approach relies on normal class constructors and manual parameter extraction and type validation within the `from_config` methods, giving developers maximum flexibility to define their components without enforcing heavy external schema dependencies.
 
 ## 4. Data Logging and Persistence
 
@@ -70,7 +70,7 @@ When the orchestrator calls a component's step function, the method returns a tu
 
 For robustness analysis and controller tuning, the framework incorporates an `ExperimentManager` to conduct batch parameter sweeps. To bypass Python's Global Interpreter Lock (GIL), the framework utilizes process-based concurrency via `multiprocessing.Pool`.
 
-To guarantee peak performance and adhere to strict pickling constraints, the orchestrator only passes the lightweight, Pydantic configuration objects to the worker processes. The worker processes instantiate the simulation components locally, run the loop, and **write their resulting aggregated data directly to disk as isolated `.npz` files.** The workers then return only a lightweight completion status to the parent process. This architecture completely eliminates Inter-Process Communication (IPC) bottlenecks that would otherwise occur if massive data arrays were passed back through the multiprocessing queues.
+To guarantee peak performance and adhere to strict pickling constraints, the orchestrator only passes the lightweight configuration dictionaries to the worker processes. The worker processes instantiate the simulation components locally via the `class_path` properties, run the loop, and **write their resulting aggregated data directly to disk as isolated `.npz` files.** The workers then return only a lightweight completion status to the parent process. This architecture completely eliminates Inter-Process Communication (IPC) bottlenecks that would otherwise occur if massive data arrays were passed back through the multiprocessing queues.
 
 ## 6. Software Development Process & Tooling
 
@@ -81,7 +81,7 @@ To maintain high code quality, predictability, and efficiency, the project templ
 *   **uv:** Used for dependency management and virtual environment resolution, replacing legacy tools like pip/poetry.
 *   **Ruff:** A Python linter and code formatter, ensuring consistent stylistic adherence across the codebase.
 *   **Mypy:** For static type checking.
-*   **Pytest:** The standard testing framework, heavily utilized to unit test mathematical operations within the Plant, state tracking in the Controller, and type-validation within the Pydantic configurations.
+*   **Pytest:** The standard testing framework, heavily utilized to unit test mathematical operations within the Plant, state tracking in the Controller, and parameter validation within the component `from_config` factories.
 *   **Git Commit Hooks:** Pre-commit hooks are configured to trigger Ruff formatting, syntax validation, mypy type checking and unit tests automatically to ensure code stability before any merge.
 
 ### 6.1. CLI Execution and Project Structure
@@ -99,5 +99,5 @@ The framework is designed as a foundational library rather than a rigid, plug-an
 To utilize the framework effectively, users should adhere to the following general workflow:
 
 1.  **Subclass Components:** Create project-specific Python classes that inherit from the framework's base `Plant`, `Sensor`, `Estimator`, and `Controller` classes. Within these subclasses, implement the specialized mathematical models, filtering algorithms, and control laws required for the specific application.
-2.  **Define Configuration:** Construct a strict, type-safe YAML configuration file. This file dictates the specific parameters, sample times, and structural setup for the newly created subclasses, ensuring that experimental parameters remain fully decoupled from the source code.
+2.  **Define Configuration:** Construct a YAML configuration file. This file must include a `class_path` for each component to dictate the exact subclasses to instantiate, alongside their specific parameters and sample times. This dynamic loading ensures that experimental parameters remain fully decoupled from the source code.
 3.  **Execute Simulation/Experiments:** Invoke the framework's CLI, passing the configuration file. The orchestrator will automatically instantiate the custom subclasses, enforce the multi-rate timing requirements, execute the simulation loop (or a batch of experiments), and export the resulting data logs to disk for post-processing.

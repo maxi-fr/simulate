@@ -1,15 +1,11 @@
+import importlib
+import math
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
-from simulate.config import (
-    ControllerConfig,
-    EstimatorConfig,
-    PlantConfig,
-    SensorConfig,
-    SimulationConfig,
-)
+from simulate.config import load_config
 from simulate.controller import Controller
 from simulate.estimator import Estimator
 from simulate.logger import Logger, UniversalLog
@@ -17,19 +13,19 @@ from simulate.plant import Plant
 from simulate.sensor import Sensor
 
 
-class Simulation[P: PlantConfig, S: SensorConfig, E: EstimatorConfig, C: ControllerConfig]:
+class Simulation:
     """Central orchestrator for the simulation loop."""
 
     def __init__(
         self,
-        config: SimulationConfig[P, S, E, C],
+        t_end: float,
         plant: Plant[Any],
         sensor: Sensor[Any],
         estimator: Estimator[Any],
         controller: Controller[Any],
     ) -> None:
-        """Initialize the simulation with the given configuration and instantiated components."""
-        self.config = config
+        """Initialize the simulation with instantiated components."""
+        self.t_end = t_end
         self.plant = plant
         self.sensor = sensor
         self.estimator = estimator
@@ -37,26 +33,61 @@ class Simulation[P: PlantConfig, S: SensorConfig, E: EstimatorConfig, C: Control
         self.logger = Logger()
 
         # The base tick is dictated by the plant's update period
-        self.dt = self.config.plant.dt
-        self.t_end = self.config.t_end
+        self.dt = self.plant.dt
 
-    def generate_reference(self, t: float) -> np.ndarray:
+        # Multi-rate timing validation
+        base_dt = self.plant.dt
+        for name, comp in [
+            ("sensor", self.sensor),
+            ("estimator", self.estimator),
+            ("controller", self.controller),
+        ]:
+            dt = comp.dt
+            ratio = dt / base_dt
+            if not math.isclose(ratio, round(ratio), rel_tol=1e-9, abs_tol=1e-9):
+                msg = f"{name.capitalize()} dt ({dt}) must be an integer multiple of plant dt ({base_dt})"
+                raise ValueError(msg)
+
+    @classmethod
+    def from_yaml(cls, filepath: str | Path) -> "Simulation":
+        """Instantiate a simulation from a YAML configuration file using dynamic loading."""
+        config = load_config(filepath)
+
+        # 1. Instantiate Components dynamically
+        components: dict[str, Any] = {}
+        for key in ["plant", "sensor", "estimator", "controller"]:
+            comp_config = config[key]
+            class_path = comp_config.pop("class_path")
+            module_name, class_name = class_path.rsplit(".", 1)
+            module = importlib.import_module(module_name)
+            comp_class = getattr(module, class_name)
+            components[key] = comp_class.from_config(comp_config)
+
+        return cls(
+            t_end=float(config["t_end"]),
+            plant=components["plant"],
+            sensor=components["sensor"],
+            estimator=components["estimator"],
+            controller=components["controller"],
+        )
+
+    def generate_reference(self, t: float) -> float | np.ndarray:
         """
         Generate the reference signal for the current time.
 
         In a full implementation, this might be a separate component.
-        For now, we provide a simple step response scalar wrapped in a 1D array.
+        For now, we provide a simple step response scalar.
         """
         val = 1.0 if t >= 0.5 else 0.0  # noqa: PLR2004
-        return np.array([val])
+        return float(val)
 
     def run(self) -> None:
         """Run the simulation loop until t_end."""
         t = 0.0
 
-        # Initial states
-        u_k = np.array([0.0])
-        y_k = np.array([0.0])
+        # Initial states - using floats for SISO cases
+        u_k: float | np.ndarray = 0.0
+        y_k: float | np.ndarray = 0.0
 
         while t <= self.t_end:
             # 1. Reference Generation
@@ -81,11 +112,11 @@ class Simulation[P: PlantConfig, S: SensorConfig, E: EstimatorConfig, C: Control
             # 6. Logging
             uni_log = UniversalLog(
                 t=t,
-                y=y_k.flatten(),
-                y_mea=y_mea.flatten(),
-                x_hat=x_hat.flatten(),
-                u=u_k.flatten(),
-                ref=ref_k.flatten(),
+                y=y_k,
+                y_mea=y_mea,
+                x_hat=x_hat,
+                u=u_k,
+                ref=ref_k,
             )
             comp_logs = {
                 "plant": plant_log,
