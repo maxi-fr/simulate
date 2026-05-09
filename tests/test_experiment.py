@@ -19,6 +19,12 @@ def get_base_config() -> dict[str, Any]:
             "c": [[1.0]],
             "d": [[0.0]],
         },
+        "reference": {
+            "class_path": "simulate.reference.StepReference",
+            "dt": 0.01,
+            "step_value": 1.0,
+            "start_time": 0.0,
+        },
         "sensor": {
             "class_path": "simulate.sensor.GaussianSensor",
             "dt": 0.01,
