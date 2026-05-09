@@ -1,25 +1,26 @@
 import abc
+from typing import Any, Self
 
 import numpy as np
+from numpy.typing import ArrayLike
 from pydantic import BaseModel, ConfigDict
 
 from simulate.component import Component
-from simulate.config import ControllerConfig, PIDControllerConfig
 
 
 class Controller[L: BaseModel](Component[L], abc.ABC):
     """Abstract base class for all controllers."""
 
-    def __init__(self, config: ControllerConfig) -> None:
+    def __init__(self, dt: float) -> None:
         """Initialize the controller."""
-        super().__init__(config)
+        super().__init__(dt)
 
     @abc.abstractmethod
-    def step(self, t: float, ref: np.ndarray, y_mea: np.ndarray) -> tuple[np.ndarray, L]:
+    def step(self, t: float, ref: float | np.ndarray, y_mea: float | np.ndarray) -> tuple[float | np.ndarray, L]:
         """Compute control action based on reference and measurement. Must be implemented by subclasses."""
 
     @abc.abstractmethod
-    def update(self, t: float, ref: np.ndarray, y_mea: np.ndarray) -> tuple[np.ndarray, L]:
+    def update(self, t: float, ref: float | np.ndarray, y_mea: float | np.ndarray) -> tuple[float | np.ndarray, L]:
         """Execute internal update dynamics. Must be implemented by subclasses."""
 
 
@@ -28,30 +29,53 @@ class PIDControllerLog(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    error: np.ndarray
-    integral: np.ndarray
+    error: float | np.ndarray
+    integral: float | np.ndarray
 
 
 class PIDController(Controller[PIDControllerLog]):
     """Generic discrete-time PID controller using matrix gains."""
 
-    def __init__(self, config: PIDControllerConfig) -> None:
+    def __init__(
+        self,
+        dt: float,
+        kp: ArrayLike,
+        ki: ArrayLike,
+        kd: ArrayLike,
+    ) -> None:
         """Initialize the PID controller."""
-        super().__init__(config)
+        super().__init__(dt)
 
-        self.kp = np.array(config.kp, dtype=float)
-        self.ki = np.array(config.ki, dtype=float)
-        self.kd = np.array(config.kd, dtype=float)
+        self.kp = np.asarray(kp, dtype=float)
+        self.ki = np.asarray(ki, dtype=float)
+        self.kd = np.asarray(kd, dtype=float)
 
         # Initialize integral and previous error dynamically during first step based on input shape
         self.integral: np.ndarray | None = None
         self.prev_error: np.ndarray | None = None
 
-    def step(self, t: float, ref: np.ndarray, y_mea: np.ndarray) -> tuple[np.ndarray, PIDControllerLog]:
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> Self:
+        """Instantiate the component from a raw configuration dictionary."""
+        return cls(
+            dt=float(config["dt"]),
+            kp=config["kp"],
+            ki=config["ki"],
+            kd=config["kd"],
+        )
+
+    def step(
+        self, t: float, ref: float | np.ndarray, y_mea: float | np.ndarray
+    ) -> tuple[float | np.ndarray, PIDControllerLog]:
         """Execute the public step method to be called by the orchestrator."""
         return self._execute_zoh(t, self.update, ref, y_mea)
 
-    def update(self, t: float, ref: np.ndarray, y_mea: np.ndarray) -> tuple[np.ndarray, PIDControllerLog]:  # noqa: ARG002
+    def update(
+        self,
+        t: float,  # noqa: ARG002
+        ref: float | np.ndarray,
+        y_mea: float | np.ndarray,
+    ) -> tuple[float | np.ndarray, PIDControllerLog]:
         """
         Compute control action based on reference and measurement.
 
@@ -60,15 +84,10 @@ class PIDController(Controller[PIDControllerLog]):
             ref: Reference trajectory vector.
             y_mea: Measured output vector.
         """
-        ref = np.atleast_2d(ref)
-        if ref.shape[0] == 1 and ref.shape[1] > 1:
-            ref = ref.T
+        ref_vec = self.to_col_vec(ref)
+        y_mea_vec = self.to_col_vec(y_mea)
 
-        y_mea = np.atleast_2d(y_mea)
-        if y_mea.shape[0] == 1 and y_mea.shape[1] > 1:
-            y_mea = y_mea.T
-
-        error = ref - y_mea
+        error = ref_vec - y_mea_vec
 
         if self.integral is None:
             self.integral = np.zeros_like(error)
@@ -76,13 +95,13 @@ class PIDController(Controller[PIDControllerLog]):
             self.prev_error = np.zeros_like(error)
 
         # Accumulate integral
-        self.integral += error * self.config.dt
+        self.integral += error * self.dt
 
         # Compute derivative (discrete difference)
-        derivative = (error - self.prev_error) / self.config.dt
+        derivative = (error - self.prev_error) / self.dt
         self.prev_error = error.copy()
 
         # Compute control effort: u = Kp*e + Ki*∫e + Kd*de/dt
-        u = self.kp @ error + self.ki @ self.integral + self.kd @ derivative
+        u_vec = self.kp @ error + self.ki @ self.integral + self.kd @ derivative
 
-        return u, PIDControllerLog(error=error.copy(), integral=self.integral.copy())
+        return self.from_col_vec(u_vec), PIDControllerLog(error=error.copy(), integral=self.integral.copy())

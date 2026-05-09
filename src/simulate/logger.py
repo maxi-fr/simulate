@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -13,16 +14,18 @@ class UniversalLog(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     t: float
-    y: npt.NDArray[np.float64]  # True plant output
-    y_mea: npt.NDArray[np.float64]  # Measured output (from sensor)
-    x_hat: npt.NDArray[np.float64]  # Estimated state (from estimator)
-    u: npt.NDArray[np.float64]  # Control effort
-    ref: npt.NDArray[np.float64]  # Reference trajectory
+    y: float | npt.NDArray[np.float64]  # True plant output
+    y_mea: float | npt.NDArray[np.float64]  # Measured output (from sensor)
+    x_hat: float | npt.NDArray[np.float64]  # Estimated state (from estimator)
+    u: float | npt.NDArray[np.float64]  # Control effort
+    ref: float | npt.NDArray[np.float64]  # Reference trajectory
 
     @field_validator("y", "y_mea", "x_hat", "u", "ref", mode="after")
     @classmethod
-    def validate_1d(cls, v: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
-        """Validate that the array is 1D."""
+    def validate_1d(cls, v: float | npt.NDArray[np.float64]) -> float | npt.NDArray[np.float64]:
+        """Validate that the signal is a float or a 1D array."""
+        if isinstance(v, int | float | np.floating | np.integer):
+            return float(v)
         if v.ndim != 1:
             msg = f"Array must be 1D, but has shape {v.shape}"
             raise ValueError(msg)
@@ -37,7 +40,7 @@ class Logger:
         self.universal_logs: list[dict[str, Any]] = []
         self.component_logs: dict[str, list[dict[str, Any]]] = {}
 
-    def log(self, universal: UniversalLog, components: dict[str, BaseModel]) -> None:
+    def log(self, universal: UniversalLog, components: Mapping[str, BaseModel]) -> None:
         """
         Record a snapshot of the simulation state.
 
