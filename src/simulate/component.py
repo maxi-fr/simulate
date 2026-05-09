@@ -3,22 +3,22 @@ import math
 from collections.abc import Callable
 from typing import Any, TypeVar
 
+import numpy as np
 from pydantic import BaseModel
 
 from simulate.config import ComponentConfig
 
-T = TypeVar("T")  # Type for primary output
 L = TypeVar("L", bound=BaseModel)  # Type for log model
 
 
-class Component[T, L: BaseModel](abc.ABC):
+class Component[L: BaseModel](abc.ABC):
     """Abstract base class for all simulation components implementing Zero-Order Hold (ZOH)."""
 
     def __init__(self, config: ComponentConfig) -> None:
         """Initialize the component."""
         self.config = config
         self.next_update_time: float = 0.0
-        self.last_output: T | None = None
+        self.last_output: np.ndarray | None = None
         self.last_log: L | None = None
 
     def should_update(self, t: float) -> bool:
@@ -26,7 +26,13 @@ class Component[T, L: BaseModel](abc.ABC):
         # Use math.isclose to mitigate floating-point precision issues
         return math.isclose(t, self.next_update_time, rel_tol=1e-9, abs_tol=1e-9) or t >= self.next_update_time
 
-    def _execute_zoh(self, t: float, update_fn: Callable[..., tuple[T, L]], *args: Any, **kwargs: Any) -> tuple[T, L]:  # noqa: ANN401
+    def _execute_zoh(
+        self,
+        t: float,
+        update_fn: Callable[..., tuple[np.ndarray, L]],
+        *args: Any,  # noqa: ANN401
+        **kwargs: Any,  # noqa: ANN401
+    ) -> tuple[np.ndarray, L]:
         """
         Encapsulate Zero-Order Hold logic, delegating to the provided update function.
 
@@ -44,5 +50,5 @@ class Component[T, L: BaseModel](abc.ABC):
         return self.last_output, self.last_log
 
     @abc.abstractmethod
-    def step(self, t: float, *args: Any, **kwargs: Any) -> tuple[T, L]:  # noqa: ANN401
+    def step(self, t: float, *args: Any, **kwargs: Any) -> tuple[np.ndarray, L]:  # noqa: ANN401
         """Execute the public step method to be called by the orchestrator. Must be implemented by subclasses."""

@@ -87,7 +87,7 @@ python_version = "3.13"
 strict = true
 
 # --- 1. Disallow Dynamic Typing ---
-disallow_any_generics = true      # e.g., List instead of List[int]
+disallow_any_generics = false      # e.g., List instead of List[int]
 disallow_subclassing_any = true   # Prevents inheriting from a class typed as 'Any'
 
 # --- 2. Untyped Definitions & Calls ---

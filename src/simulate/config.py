@@ -16,6 +16,14 @@ class PlantConfig(ComponentConfig):
     """Base configuration for the plant."""
 
 
+class SensorConfig(ComponentConfig):
+    """Base configuration for the sensor."""
+
+
+class EstimatorConfig(ComponentConfig):
+    """Base configuration for the estimator."""
+
+
 class ControllerConfig(ComponentConfig):
     """Base configuration for the controller."""
 
@@ -29,6 +37,16 @@ class LinearPlantConfig(PlantConfig):
     d: list[list[float]] = Field(..., description="Feedthrough matrix D")
 
 
+class GaussianSensorConfig(SensorConfig):
+    """Configuration for a sensor with Gaussian noise."""
+
+    std_dev: float = Field(default=0.0, ge=0, description="Standard deviation of the Gaussian noise")
+
+
+class IdentityEstimatorConfig(EstimatorConfig):
+    """Configuration for an identity estimator."""
+
+
 class PIDControllerConfig(ControllerConfig):
     """Configuration for the PID controller."""
 
@@ -37,29 +55,32 @@ class PIDControllerConfig(ControllerConfig):
     kd: list[list[float]] = Field(..., description="Derivative gain matrix")
 
 
-class SimulationConfig[P: PlantConfig, C: ControllerConfig](BaseModel):
+class SimulationConfig[P: PlantConfig, S: SensorConfig, E: EstimatorConfig, C: ControllerConfig](BaseModel):
     """Root configuration object for the entire simulation."""
 
     plant: P
+    sensor: S
+    estimator: E
     controller: C
     t_end: float = Field(..., gt=0, description="End time of the simulation")
 
     @model_validator(mode="after")
-    def validate_sample_times(self) -> "SimulationConfig[P, C]":
+    def validate_sample_times(self) -> "SimulationConfig[P, S, E, C]":
         """Validate that all component sample times are integer multiples of the plant's base dt."""
         base_dt = self.plant.dt
 
-        # Check controller
-        controller_dt = self.controller.dt
-        ratio = controller_dt / base_dt
-        if not math.isclose(ratio, round(ratio), rel_tol=1e-9, abs_tol=1e-9):
-            msg = f"Controller dt ({controller_dt}) must be an integer multiple of plant dt ({base_dt})"
-            raise ValueError(msg)
+        for component_name in ["sensor", "estimator", "controller"]:
+            component = getattr(self, component_name)
+            dt = component.dt
+            ratio = dt / base_dt
+            if not math.isclose(ratio, round(ratio), rel_tol=1e-9, abs_tol=1e-9):
+                msg = f"{component_name.capitalize()} dt ({dt}) must be an integer multiple of plant dt ({base_dt})"
+                raise ValueError(msg)
 
         return self
 
 
-def load_config(filepath: str | Path) -> SimulationConfig[Any, Any]:
+def load_config(filepath: str | Path) -> SimulationConfig:
     """Load and validate a YAML configuration file."""
     with Path(filepath).open() as f:
         raw_config: dict[str, Any] = yaml.safe_load(f)

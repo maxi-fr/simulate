@@ -1,30 +1,40 @@
+import math
+
+import numpy as np
 import pytest
 from pydantic import ValidationError
-import numpy as np
 
-from simulate.config import PIDControllerConfig, LinearPlantConfig, SimulationConfig
+from simulate.config import (
+    GaussianSensorConfig,
+    IdentityEstimatorConfig,
+    LinearPlantConfig,
+    PIDControllerConfig,
+    SimulationConfig,
+)
 from simulate.controller import PIDController
+from simulate.estimator import IdentityEstimator
 from simulate.plant import LinearPlant
+from simulate.sensor import GaussianSensor
 from simulate.simulation import Simulation
 
-def get_test_plant_config(dt=0.1):
-    return LinearPlantConfig(
-        dt=dt,
-        a=[[0.9]],
-        b=[[1.0]],
-        c=[[1.0]],
-        d=[[0.0]]
-    )
 
-def get_test_controller_config(dt=0.2):
-    return PIDControllerConfig(
-        dt=dt,
-        kp=[[0.5]],
-        ki=[[0.1]],
-        kd=[[0.0]]
-    )
+def get_test_plant_config(dt: float = 0.1) -> LinearPlantConfig:
+    return LinearPlantConfig(dt=dt, a=[[0.9]], b=[[1.0]], c=[[1.0]], d=[[0.0]])
 
-def test_plant_step_logic():
+
+def get_test_sensor_config(dt: float = 0.1) -> GaussianSensorConfig:
+    return GaussianSensorConfig(dt=dt, std_dev=0.0)
+
+
+def get_test_estimator_config(dt: float = 0.1) -> IdentityEstimatorConfig:
+    return IdentityEstimatorConfig(dt=dt)
+
+
+def get_test_controller_config(dt: float = 0.2) -> PIDControllerConfig:
+    return PIDControllerConfig(dt=dt, kp=[[0.5]], ki=[[0.1]], kd=[[0.0]])
+
+
+def test_plant_step_logic() -> None:
     """Test standard plant update dynamics."""
     config = get_test_plant_config(dt=0.1)
     plant = LinearPlant(config)
@@ -44,7 +54,37 @@ def test_plant_step_logic():
     assert y[0, 0] == 1.4
     assert log.x[0, 0] == 1.4
 
-def test_controller_step_logic():
+
+def test_sensor_step_logic() -> None:
+    """Test sensor behavior with Gaussian noise."""
+    # Zero noise
+    config = get_test_sensor_config(dt=0.1)
+    sensor = GaussianSensor(config)
+    y = np.array([[1.0]])
+    y_mea, log = sensor.step(0.0, y)
+    assert y_mea[0, 0] == 1.0
+    assert log.noise[0, 0] == 0.0
+
+    # With noise
+    config_noise = GaussianSensorConfig(dt=0.1, std_dev=0.1)
+    sensor_noise = GaussianSensor(config_noise)
+    y_mea2, log2 = sensor_noise.step(0.0, y)
+    assert y_mea2[0, 0] != 1.0
+    assert log2.noise[0, 0] != 0.0
+
+
+def test_estimator_step_logic() -> None:
+    """Test identity estimator behavior."""
+    config = get_test_estimator_config(dt=0.1)
+    estimator = IdentityEstimator(config)
+    y_mea = np.array([[1.2]])
+    u = np.array([[0.5]])
+    x_hat, log = estimator.step(0.0, y_mea, u)
+    assert x_hat[0, 0] == 1.2
+    assert log.y_mea[0, 0] == 1.2
+
+
+def test_controller_step_logic() -> None:
     """Test PI controller behavior and integration accumulation."""
     config = get_test_controller_config(dt=0.1)
     controller = PIDController(config)
@@ -59,7 +99,8 @@ def test_controller_step_logic():
     assert log.error[0, 0] == 1.0
     assert log.integral[0, 0] == 0.1
 
-def test_component_zoh_behavior():
+
+def test_component_zoh_behavior() -> None:
     """Test that a component retains its last output between scheduled updates."""
     config = get_test_controller_config(dt=0.2)
     controller = PIDController(config)
@@ -82,50 +123,84 @@ def test_component_zoh_behavior():
     assert u3[0, 0] != u1[0, 0]
     assert log3.integral[0, 0] > log1.integral[0, 0]
 
-def test_valid_simulation_config():
+
+def test_valid_simulation_config() -> None:
     """Test that a valid configuration with integer multiple sample times is accepted."""
     plant_cfg = get_test_plant_config(dt=0.1)
+    sensor_cfg = get_test_sensor_config(dt=0.1)
+    estimator_cfg = get_test_estimator_config(dt=0.1)
     controller_cfg = get_test_controller_config(dt=0.2)
 
-    sim_cfg = SimulationConfig(plant=plant_cfg, controller=controller_cfg, t_end=1.0)
+    sim_cfg = SimulationConfig(
+        plant=plant_cfg,
+        sensor=sensor_cfg,
+        estimator=estimator_cfg,
+        controller=controller_cfg,
+        t_end=1.0,
+    )
 
     assert sim_cfg.plant.dt == 0.1
     assert sim_cfg.controller.dt == 0.2
     assert sim_cfg.t_end == 1.0
 
-def test_invalid_simulation_config_non_integer_multiple():
+
+def test_invalid_simulation_config_non_integer_multiple() -> None:
     """Test that a ValueError is raised when sample times are not integer multiples."""
     plant_cfg = get_test_plant_config(dt=0.1)
+    sensor_cfg = get_test_sensor_config(dt=0.1)
+    estimator_cfg = get_test_estimator_config(dt=0.1)
     controller_cfg = get_test_controller_config(dt=0.15)
 
     with pytest.raises(ValidationError) as exc_info:
-        SimulationConfig(plant=plant_cfg, controller=controller_cfg, t_end=1.0)
+        SimulationConfig(
+            plant=plant_cfg,
+            sensor=sensor_cfg,
+            estimator=estimator_cfg,
+            controller=controller_cfg,
+            t_end=1.0,
+        )
 
     assert "must be an integer multiple" in str(exc_info.value)
 
-def test_floating_point_precision_handling():
+
+def test_floating_point_precision_handling() -> None:
     """Test that precision issues (e.g. 0.3 / 0.1) are handled properly."""
     plant_cfg = get_test_plant_config(dt=0.1)
+    sensor_cfg = get_test_sensor_config(dt=0.1)
+    estimator_cfg = get_test_estimator_config(dt=0.1)
     controller_cfg = get_test_controller_config(dt=0.3)
 
     # Should not raise an error
-    sim_cfg = SimulationConfig(plant=plant_cfg, controller=controller_cfg, t_end=1.0)
+    sim_cfg = SimulationConfig(
+        plant=plant_cfg,
+        sensor=sensor_cfg,
+        estimator=estimator_cfg,
+        controller=controller_cfg,
+        t_end=1.0,
+    )
     assert sim_cfg.controller.dt == 0.3
 
-def test_simulation_execution_and_logging():
+
+def test_simulation_execution_and_logging() -> None:
     """Test full simulation execution, ensuring correct loop length and log aggregation."""
     plant_cfg = get_test_plant_config(dt=0.1)
+    sensor_cfg = get_test_sensor_config(dt=0.1)
+    estimator_cfg = get_test_estimator_config(dt=0.1)
     controller_cfg = get_test_controller_config(dt=0.2)
     sim_cfg = SimulationConfig(
         plant=plant_cfg,
+        sensor=sensor_cfg,
+        estimator=estimator_cfg,
         controller=controller_cfg,
-        t_end=1.0
+        t_end=1.0,
     )
 
     plant = LinearPlant(plant_cfg)
+    sensor = GaussianSensor(sensor_cfg)
+    estimator = IdentityEstimator(estimator_cfg)
     controller = PIDController(controller_cfg)
 
-    sim = Simulation(sim_cfg, plant, controller)
+    sim = Simulation(sim_cfg, plant, sensor, estimator, controller)
     sim.run()
 
     # Check that universal logs have 11 entries
@@ -133,6 +208,8 @@ def test_simulation_execution_and_logging():
 
     # Check that component logs have 11 entries
     assert len(sim.logger.component_logs["plant"]) == 11
+    assert len(sim.logger.component_logs["sensor"]) == 11
+    assert len(sim.logger.component_logs["estimator"]) == 11
     assert len(sim.logger.component_logs["controller"]) == 11
 
     # First step validation (t=0.0)
@@ -140,6 +217,5 @@ def test_simulation_execution_and_logging():
     assert np.all(sim.logger.universal_logs[0]["u"] == 0.0)
 
     # Final step validation (t=1.0)
-    import math
     assert math.isclose(sim.logger.universal_logs[-1]["t"], 1.0, rel_tol=1e-9)
     assert np.any(sim.logger.universal_logs[-1]["u"] != 0.0)

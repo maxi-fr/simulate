@@ -7,7 +7,7 @@ from simulate.component import Component
 from simulate.config import ControllerConfig, PIDControllerConfig
 
 
-class Controller[T, L: BaseModel](Component[T, L], abc.ABC):
+class Controller[L: BaseModel](Component[L], abc.ABC):
     """Abstract base class for all controllers."""
 
     def __init__(self, config: ControllerConfig) -> None:
@@ -15,11 +15,11 @@ class Controller[T, L: BaseModel](Component[T, L], abc.ABC):
         super().__init__(config)
 
     @abc.abstractmethod
-    def step(self, t: float, ref: np.ndarray, y_mea: np.ndarray) -> tuple[T, L]:
+    def step(self, t: float, ref: np.ndarray, y_mea: np.ndarray) -> tuple[np.ndarray, L]:
         """Compute control action based on reference and measurement. Must be implemented by subclasses."""
 
     @abc.abstractmethod
-    def update(self, t: float, ref: np.ndarray, y_mea: np.ndarray) -> tuple[T, L]:
+    def update(self, t: float, ref: np.ndarray, y_mea: np.ndarray) -> tuple[np.ndarray, L]:
         """Execute internal update dynamics. Must be implemented by subclasses."""
 
 
@@ -32,7 +32,7 @@ class PIDControllerLog(BaseModel):
     integral: np.ndarray
 
 
-class PIDController(Controller[np.ndarray, PIDControllerLog]):
+class PIDController(Controller[PIDControllerLog]):
     """Generic discrete-time PID controller using matrix gains."""
 
     def __init__(self, config: PIDControllerConfig) -> None:

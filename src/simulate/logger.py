@@ -2,19 +2,31 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class UniversalLog(BaseModel):
     """Standardized signal vectors logged universally across all simulations."""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     t: float
-    # We use list[float] or float for flexibility, depending on system dimensionality
-    # For initial iteration, let's keep it simple with floats or basic types
-    y: Any  # Plant output
-    u: Any  # Control effort
-    # Note: ref, x_hat, etc. could be added here as needed
+    y: npt.NDArray[np.float64]  # True plant output
+    y_mea: npt.NDArray[np.float64]  # Measured output (from sensor)
+    x_hat: npt.NDArray[np.float64]  # Estimated state (from estimator)
+    u: npt.NDArray[np.float64]  # Control effort
+    ref: npt.NDArray[np.float64]  # Reference trajectory
+
+    @field_validator("y", "y_mea", "x_hat", "u", "ref", mode="after")
+    @classmethod
+    def validate_1d(cls, v: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+        """Validate that the array is 1D."""
+        if v.ndim != 1:
+            msg = f"Array must be 1D, but has shape {v.shape}"
+            raise ValueError(msg)
+        return v
 
 
 class Logger:
@@ -67,7 +79,7 @@ class Logger:
         dir_path = Path(directory)
         dir_path.mkdir(parents=True, exist_ok=True)
 
-        arrays_to_save: dict[str, np.ndarray[Any, Any]] = {}
+        arrays_to_save: dict[str, np.ndarray] = {}
 
         # Universal
         if self.universal_logs:
