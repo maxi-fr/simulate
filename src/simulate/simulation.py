@@ -49,14 +49,12 @@ class Simulation:
                 raise ValueError(msg)
 
     @classmethod
-    def from_yaml(cls, filepath: str | Path) -> "Simulation":
-        """Instantiate a simulation from a YAML configuration file using dynamic loading."""
-        config = load_config(filepath)
-
+    def from_config(cls, config: dict[str, Any]) -> "Simulation":
+        """Instantiate a simulation from a configuration dictionary using dynamic loading."""
         # 1. Instantiate Components dynamically
         components: dict[str, Any] = {}
         for key in ["plant", "sensor", "estimator", "controller"]:
-            comp_config = config[key]
+            comp_config = config[key].copy()  # Copy to avoid mutating original config
             class_path = comp_config.pop("class_path")
             module_name, class_name = class_path.rsplit(".", 1)
             module = importlib.import_module(module_name)
@@ -70,6 +68,12 @@ class Simulation:
             estimator=components["estimator"],
             controller=components["controller"],
         )
+
+    @classmethod
+    def from_yaml(cls, filepath: str | Path) -> "Simulation":
+        """Instantiate a simulation from a YAML configuration file using dynamic loading."""
+        config = load_config(filepath)
+        return cls.from_config(config)
 
     def generate_reference(self, t: float) -> float | np.ndarray:
         """
