@@ -4,7 +4,7 @@
 * Make sure no formatting, linting, type or test errors are present. Sometimes it might be allowed to selectively ingore rules if it makes the code cleaner
 
     * ruff for linting and formatting: `uv run ruff check --fix --unsafe-fixes`
-    * mypy for type checking: `uv run mypy`
+    * mypy for type checking: `uv run mypy .`
     * pytest for testing: `uv run pytest`
 
 * Use the whitepaper.md as a guide. If you find that an implementation goes against what is proposed in the whitepaper flag it and make suggestions to change the whitepaper.
