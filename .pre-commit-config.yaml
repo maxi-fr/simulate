@@ -34,16 +34,15 @@ repos:
       - id: uv-lock
   - repo: local
     hooks:
-      - id: pytest
-        name: pytest
-        entry: uv run pytest
-        language: system
-        pass_filenames: false
-        always_run: true
-
       - id: mypy
         name: mypy
         entry: uv run mypy .
         language: system
         types: [python]
         pass_filenames: false
+      - id: pytest
+        name: pytest
+        entry: uv run pytest
+        language: system
+        pass_filenames: false
+        always_run: true

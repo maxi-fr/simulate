@@ -7,7 +7,7 @@ from simulate.component import Component
 from simulate.config import LinearPlantConfig, PlantConfig
 
 
-class Plant[T, L: BaseModel](Component[T, L], abc.ABC):
+class Plant[L: BaseModel](Component[L], abc.ABC):
     """Abstract base class for all plants."""
 
     def __init__(self, config: PlantConfig) -> None:
@@ -15,11 +15,11 @@ class Plant[T, L: BaseModel](Component[T, L], abc.ABC):
         super().__init__(config)
 
     @abc.abstractmethod
-    def step(self, t: float, u: np.ndarray) -> tuple[T, L]:
+    def step(self, t: float, u: np.ndarray) -> tuple[np.ndarray, L]:
         """Advance the plant state by one step. Must be implemented by subclasses."""
 
     @abc.abstractmethod
-    def update(self, t: float, u: np.ndarray) -> tuple[T, L]:
+    def update(self, t: float, u: np.ndarray) -> tuple[np.ndarray, L]:
         """Execute internal update dynamics. Must be implemented by subclasses."""
 
 
@@ -31,7 +31,7 @@ class LinearPlantLog(BaseModel):
     x: np.ndarray
 
 
-class LinearPlant(Plant[np.ndarray, LinearPlantLog]):
+class LinearPlant(Plant[LinearPlantLog]):
     """Generic discrete-time linear plant implementation using state space matrices."""
 
     def __init__(self, config: LinearPlantConfig) -> None:
