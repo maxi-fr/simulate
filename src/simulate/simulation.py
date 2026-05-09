@@ -1,25 +1,34 @@
+from __future__ import annotations
+
 import importlib
 import math
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from simulate.config import load_config
-from simulate.controller import Controller
-from simulate.estimator import Estimator
 from simulate.logger import Logger, UniversalLog
-from simulate.plant import Plant
-from simulate.sensor import Sensor
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import numpy as np
+
+    from simulate.controller import Controller
+    from simulate.estimator import Estimator
+    from simulate.plant import Plant
+    from simulate.reference import Reference
+    from simulate.sensor import Sensor
 
 
 class Simulation:
     """Central orchestrator for the simulation loop."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         t_end: float,
         plant: Plant[Any],
+        reference: Reference[Any],
         sensor: Sensor[Any],
         estimator: Estimator[Any],
         controller: Controller[Any],
@@ -27,6 +36,7 @@ class Simulation:
         """Initialize the simulation with instantiated components."""
         self.t_end = t_end
         self.plant = plant
+        self.reference = reference
         self.sensor = sensor
         self.estimator = estimator
         self.controller = controller
@@ -38,6 +48,7 @@ class Simulation:
         # Multi-rate timing validation
         base_dt = self.plant.dt
         for name, comp in [
+            ("reference", self.reference),
             ("sensor", self.sensor),
             ("estimator", self.estimator),
             ("controller", self.controller),
@@ -49,11 +60,11 @@ class Simulation:
                 raise ValueError(msg)
 
     @classmethod
-    def from_config(cls, config: dict[str, Any]) -> "Simulation":
+    def from_config(cls, config: dict[str, Any]) -> Simulation:
         """Instantiate a simulation from a configuration dictionary using dynamic loading."""
         # 1. Instantiate Components dynamically
         components: dict[str, Any] = {}
-        for key in ["plant", "sensor", "estimator", "controller"]:
+        for key in ["plant", "reference", "sensor", "estimator", "controller"]:
             comp_config = config[key].copy()  # Copy to avoid mutating original config
             class_path = comp_config.pop("class_path")
             module_name, class_name = class_path.rsplit(".", 1)
@@ -64,26 +75,17 @@ class Simulation:
         return cls(
             t_end=float(config["t_end"]),
             plant=components["plant"],
+            reference=components["reference"],
             sensor=components["sensor"],
             estimator=components["estimator"],
             controller=components["controller"],
         )
 
     @classmethod
-    def from_yaml(cls, filepath: str | Path) -> "Simulation":
+    def from_yaml(cls, filepath: str | Path) -> Simulation:
         """Instantiate a simulation from a YAML configuration file using dynamic loading."""
         config = load_config(filepath)
         return cls.from_config(config)
-
-    def generate_reference(self, t: float) -> float | np.ndarray:
-        """
-        Generate the reference signal for the current time.
-
-        In a full implementation, this might be a separate component.
-        For now, we provide a simple step response scalar.
-        """
-        val = 1.0 if t >= 0.5 else 0.0  # noqa: PLR2004
-        return float(val)
 
     def run(self) -> None:
         """Run the simulation loop until t_end."""
@@ -95,7 +97,7 @@ class Simulation:
 
         while t <= self.t_end:
             # 1. Reference Generation
-            ref_k = self.generate_reference(t)
+            ref_k, ref_log = self.reference.step(t)
 
             # 2. Measurement
             # Read the Plant's output via the Sensor at time t
@@ -123,6 +125,7 @@ class Simulation:
                 ref=ref_k,
             )
             comp_logs = {
+                "reference": ref_log,
                 "plant": plant_log,
                 "sensor": sensor_log,
                 "estimator": estim_log,

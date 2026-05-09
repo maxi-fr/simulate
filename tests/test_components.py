@@ -6,6 +6,7 @@ import pytest
 from simulate.controller import PIDController
 from simulate.estimator import IdentityEstimator
 from simulate.plant import LinearPlant
+from simulate.reference import StepReference
 from simulate.sensor import GaussianSensor
 from simulate.simulation import Simulation
 
@@ -130,6 +131,7 @@ def test_component_zoh_behavior() -> None:
 def test_invalid_simulation_config_non_integer_multiple() -> None:
     """Test that a ValueError is raised when sample times are not integer multiples."""
     plant = LinearPlant(dt=0.1, a=[[1]], b=[[1]], c=[[1]], d=[[0]])
+    reference = StepReference(dt=0.1)
     sensor = GaussianSensor(dt=0.1)
     estimator = IdentityEstimator(dt=0.1)
     controller = PIDController(dt=0.15, kp=[[1]], ki=[[0]], kd=[[0]])
@@ -138,6 +140,7 @@ def test_invalid_simulation_config_non_integer_multiple() -> None:
         Simulation(
             t_end=1.0,
             plant=plant,
+            reference=reference,
             sensor=sensor,
             estimator=estimator,
             controller=controller,
@@ -147,6 +150,7 @@ def test_invalid_simulation_config_non_integer_multiple() -> None:
 def test_floating_point_precision_handling() -> None:
     """Test that precision issues (e.g. 0.3 / 0.1) are handled properly."""
     plant = LinearPlant(dt=0.1, a=[[1]], b=[[1]], c=[[1]], d=[[0]])
+    reference = StepReference(dt=0.1)
     sensor = GaussianSensor(dt=0.1)
     estimator = IdentityEstimator(dt=0.1)
     controller = PIDController(dt=0.3, kp=[[1]], ki=[[0]], kd=[[0]])
@@ -155,6 +159,7 @@ def test_floating_point_precision_handling() -> None:
     sim = Simulation(
         t_end=1.0,
         plant=plant,
+        reference=reference,
         sensor=sensor,
         estimator=estimator,
         controller=controller,
@@ -165,6 +170,7 @@ def test_floating_point_precision_handling() -> None:
 def test_simulation_execution_and_logging() -> None:
     """Test full simulation execution, ensuring correct loop length and log aggregation."""
     plant = LinearPlant(dt=0.1, a=[[0.9]], b=[[1.0]], c=[[1.0]], d=[[0.0]])
+    reference = StepReference(dt=0.1, start_time=0.5)
     sensor = GaussianSensor(dt=0.1, std_dev=0.0)
     estimator = IdentityEstimator(dt=0.1)
     controller = PIDController(dt=0.2, kp=[[0.5]], ki=[[0.1]], kd=[[0.0]])
@@ -172,6 +178,7 @@ def test_simulation_execution_and_logging() -> None:
     sim = Simulation(
         t_end=1.0,
         plant=plant,
+        reference=reference,
         sensor=sensor,
         estimator=estimator,
         controller=controller,
@@ -183,6 +190,7 @@ def test_simulation_execution_and_logging() -> None:
 
     # Check that component logs have 11 entries
     assert len(sim.logger.component_logs["plant"]) == 11
+    assert len(sim.logger.component_logs["reference"]) == 11
     assert len(sim.logger.component_logs["sensor"]) == 11
     assert len(sim.logger.component_logs["estimator"]) == 11
     assert len(sim.logger.component_logs["controller"]) == 11
