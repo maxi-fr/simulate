@@ -12,6 +12,11 @@ repos:
       - id: check-merge-conflict
       - id: detect-private-key
 
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.9.1
+    hooks:
+      - id: nbstripout
+
   - repo: https://github.com/abravalheri/validate-pyproject
     rev: v0.23
     hooks:
@@ -24,25 +29,43 @@ repos:
         args: [ --fix, --unsafe-fixes ]
       - id: ruff-format
 
+  - repo: https://github.com/nbQA-dev/nbQA
+    rev: 1.9.1
+    hooks:
+      - id: nbqa-ruff
+        name: Run Ruff on Notebooks
+        args: [--fix, --unsafe-fixes]
+        additional_dependencies: [ruff]
+      - id: nbqa-ruff-format
+        name: Format Notebooks with Ruff
+        additional_dependencies: [ruff]
+
   - repo: https://github.com/astral-sh/uv-pre-commit
-    # uv version.
     rev: 0.5.21
     hooks:
-      # Update the requirements.txt if pyproject.toml changes
       - id: uv-export
         args: ["--frozen", "--output-file=requirements.txt", "--quiet"]
       - id: uv-lock
+
   - repo: local
     hooks:
       - id: mypy
         name: mypy
-        entry: uv run mypy .
+        entry: uv run mypy
         language: system
-        types: [python]
-        pass_filenames: false
+        types: [python, jupyter]
+        pass_filenames: true
+
       - id: pytest
         name: pytest
-        entry: uv run pytest
+        entry: uv run pytest tests/
         language: system
         pass_filenames: false
+        always_run: true
+
+      - id: test-notebooks
+        name: Test Jupyter Notebook Execution
+        entry: uv run pytest --nbmake --no-cov examples/
+        language: system
+        types: [jupyter]
         always_run: true
