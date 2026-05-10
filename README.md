@@ -29,6 +29,19 @@ Each component in the framework represents a specific mathematical operation in 
 - **Estimator ($\hat{x}_k = e(t_k, \tilde{y}_k, u_{k-1})$):** Reconstructs unmeasured states based on noisy measurements and previous control inputs.
 - **Controller ($u_k = c(t_k, r_k, \hat{x}_k)$):** Implements control laws (e.g., PID, MPC) to compute control actions based on the error or state estimate.
 
+
+```mermaid
+graph LR
+    Ref[Reference] -->|r_k| C[Controller]
+    C -->|u_k| P[Plant]
+    P -->|y_k| S[Sensor]
+    S -->|y_mea_k| E[Estimator]
+    E -->|x_hat_k| C
+    C -.->|u_k| E
+```
+
+</details>
+
 ## Getting Started
 
 ### Installation
