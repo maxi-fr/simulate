@@ -16,11 +16,11 @@ class Controller[L: BaseModel](Component[L], abc.ABC):
         super().__init__(dt)
 
     @abc.abstractmethod
-    def step(self, t: float, ref: float | np.ndarray, y_mea: float | np.ndarray) -> tuple[float | np.ndarray, L]:
-        """Compute control action based on reference and measurement. Must be implemented by subclasses."""
+    def step(self, t: float, ref: float | np.ndarray, x_hat: float | np.ndarray) -> tuple[float | np.ndarray, L]:
+        """Compute control action based on reference and estimated state. Must be implemented by subclasses."""
 
     @abc.abstractmethod
-    def update(self, t: float, ref: float | np.ndarray, y_mea: float | np.ndarray) -> tuple[float | np.ndarray, L]:
+    def update(self, t: float, ref: float | np.ndarray, x_hat: float | np.ndarray) -> tuple[float | np.ndarray, L]:
         """Execute internal update dynamics. Must be implemented by subclasses."""
 
 
@@ -65,29 +65,29 @@ class PIDController(Controller[PIDControllerLog]):
         )
 
     def step(
-        self, t: float, ref: float | np.ndarray, y_mea: float | np.ndarray
+        self, t: float, ref: float | np.ndarray, x_hat: float | np.ndarray
     ) -> tuple[float | np.ndarray, PIDControllerLog]:
         """Execute the public step method to be called by the orchestrator."""
-        return self._execute_zoh(t, self.update, ref, y_mea)
+        return self._execute_zoh(t, self.update, ref, x_hat)
 
     def update(
         self,
         t: float,  # noqa: ARG002
         ref: float | np.ndarray,
-        y_mea: float | np.ndarray,
+        x_hat: float | np.ndarray,
     ) -> tuple[float | np.ndarray, PIDControllerLog]:
         """
-        Compute control action based on reference and measurement.
+        Compute control action based on reference and estimated state.
 
         Args:
             t: Simulation time.
             ref: Reference trajectory vector.
-            y_mea: Measured output vector.
+            x_hat: Estimated state vector.
         """
         ref_vec = self.to_col_vec(ref)
-        y_mea_vec = self.to_col_vec(y_mea)
+        x_hat_vec = self.to_col_vec(x_hat)
 
-        error = ref_vec - y_mea_vec
+        error = ref_vec - x_hat_vec
 
         if self.integral is None:
             self.integral = np.zeros_like(error)

@@ -94,12 +94,12 @@ def test_controller_step_logic() -> None:
     """Test PI controller behavior and integration accumulation."""
     controller = PIDController(dt=0.1, kp=[[0.5]], ki=[[0.1]], kd=[[0.0]])
 
-    # Step 1: ref=1.0, y=0.0 -> error=1.0
+    # Step 1: ref=1.0, x_hat=0.0 -> error=1.0
     # integral = 0 + 1.0*0.1 = 0.1
     # u = kp*1.0 + ki*0.1 + kd*10 = 0.5*1.0 + 0.1*0.1 = 0.51
     ref = 1.0
-    y = 0.0
-    u, log = controller.step(0.0, ref, y)
+    x_hat = 0.0
+    u, log = controller.step(0.0, ref, x_hat)
     assert math.isclose(u, 0.51)
     assert log.error == 1.0
     assert log.integral == 0.1
@@ -111,19 +111,19 @@ def test_component_zoh_behavior() -> None:
 
     # Time 0.0: Update should happen
     ref1 = 1.0
-    y1 = 0.0
-    u1, log1 = controller.step(0.0, ref1, y1)
+    x_hat1 = 0.0
+    u1, log1 = controller.step(0.0, ref1, x_hat1)
     assert math.isclose(u1, 0.52)  # dt=0.2 -> int=0.2 -> u = 0.5 + 0.02 = 0.52
 
     # Time 0.1: No update should happen (ZOH)
     # Even if inputs change, output should remain identical
     ref2 = 5.0
-    u2, log2 = controller.step(0.1, ref2, y1)
+    u2, log2 = controller.step(0.1, ref2, x_hat1)
     assert u2 == u1
     assert log2.error == log1.error
 
     # Time 0.2: Update should happen again
-    u3, log3 = controller.step(0.2, ref1, y1)
+    u3, log3 = controller.step(0.2, ref1, x_hat1)
     assert u3 != u1
     assert log3.integral > log1.integral
 
