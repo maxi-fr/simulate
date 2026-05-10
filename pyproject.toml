@@ -26,6 +26,7 @@ dev = [
     "pre-commit>=3.0.0",
     "mypy>=1.0.0",
     "validate-pyproject>=0.23",
+    "nbmake>=1.5.5",
 ]
 
 [build-system]
@@ -69,6 +70,7 @@ convention = "numpy"
     "D",       # Ignore docstrings in tests
     "INP001",  # No __init__.py in tests folder
 ]
+"examples/*" = ["INP001"]
 
 [tool.ruff.format]
 quote-style = "double"
