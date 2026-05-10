@@ -20,27 +20,34 @@ A modular Python framework for control system simulation, designed for flexibili
 
 Each component in the framework represents a specific mathematical operation in the feedback control loop:
 
-- **Reference ($r_k = \sigma(t_k)$):** Generates desired trajectories or setpoints (e.g., Step, Sine).
+- **Reference:** Generates desired trajectories or setpoints (e.g., Step, Sine): $r_k = \sigma(t_k)$
 - **Plant:** The mathematical model of the physical system.
   - **Discrete-time:** $x_{k+1} = f(t_k, x_k, u_k)$
   - **Continuous-time:** $\dot{x} = f(t, x, u)$ (solved via numerical integrators)
   - **Output:** $y_k = g(t_k, x_k, u_k)$
-- **Sensor ($\tilde{y}_k = h(t_k, y_k)$):** Models measurement hardware, including e.g. noise ($\tilde{y}_k = y_k + v_k$) and other transformations.
-- **Estimator ($\hat{x}_k = e(t_k, \tilde{y}_k, u_{k-1})$):** Reconstructs unmeasured states based on noisy measurements and previous control inputs.
-- **Controller ($u_k = c(t_k, r_k, \hat{x}_k)$):** Implements control laws (e.g., PID, MPC) to compute control actions based on the error or state estimate.
+- **Sensor:** Models measurement hardware: $\tilde{y}_k = h(t_k, y_k)$
+- **Estimator:** Reconstructs unmeasured states based on noisy measurements and previous control inputs: $\hat{x}_k = e(t_k, \tilde{y}_k, u_{k-1})$
+- **Controller:** Implements control laws (e.g., PID, MPC) to compute control actions based on the error or state estimate: $u_k = c(t_k, r_k, \hat{x}_k)$
 
 
 ```mermaid
 graph LR
+    %% Forward path (Left to Right)
     Ref[Reference] -->|r_k| C[Controller]
     C -->|u_k| P[Plant]
+
+    %% Feedback path (Right to Left, underneath)
     P -->|y_k| S[Sensor]
     S -->|y_mea_k| E[Estimator]
     E -->|x_hat_k| C
+
     C -.->|u_k| E
+
+    %% Invisible links to force vertical alignment into columns
+    C ~~~ E
+    P ~~~ S
 ```
 
-</details>
 
 ## Getting Started
 
