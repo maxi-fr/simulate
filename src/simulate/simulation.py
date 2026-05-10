@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
     import numpy as np
 
+    from simulate.component import Component
     from simulate.controller import Controller
     from simulate.estimator import Estimator
     from simulate.plant import Plant
@@ -42,17 +43,17 @@ class Simulation:
         self.controller = controller
         self.logger = Logger()
 
-        # The base tick is dictated by the plant's update period
         self.dt = self.plant.dt
 
-        # Multi-rate timing validation
         base_dt = self.plant.dt
-        for name, comp in [
-            ("reference", self.reference),
-            ("sensor", self.sensor),
-            ("estimator", self.estimator),
-            ("controller", self.controller),
-        ]:
+
+        components: dict[str, Component] = {
+            "reference": self.reference,
+            "sensor": self.sensor,
+            "estimator": self.estimator,
+            "controller": self.controller,
+        }
+        for name, comp in components.items():
             dt = comp.dt
             ratio = dt / base_dt
             if not math.isclose(ratio, round(ratio), rel_tol=1e-9, abs_tol=1e-9):

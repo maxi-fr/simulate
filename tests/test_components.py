@@ -16,7 +16,7 @@ def test_component_conversion_utilities() -> None:
     # We can use LinearPlant as a concrete component to test these static methods
     plant = LinearPlant(dt=0.1, a=[[1]], b=[[1]], c=[[1]], d=[[0]])
 
-    # to_col_vec: float  # noqa: ERA001
+    # to_col_vec conversion for float
     res = plant.to_col_vec(1.0)
     assert res.shape == (1, 1)
     assert res[0, 0] == 1.0
@@ -36,7 +36,7 @@ def test_component_conversion_utilities() -> None:
     assert isinstance(res_back, float)
     assert res_back == 1.0
 
-    # from_col_vec: size > 1  # noqa: ERA001
+    # from_col_vec conversion for size > 1
     res_back = plant.from_col_vec(np.array([[1.0], [2.0]]))
     assert isinstance(res_back, np.ndarray)
     assert res_back.shape == (2,)
@@ -165,6 +165,31 @@ def test_floating_point_precision_handling() -> None:
         controller=controller,
     )
     assert sim.controller.dt == 0.3
+
+
+def test_step_reference_trajectory() -> None:
+    """Test StepReference trajectory generation for horizon > 1."""
+    dt = 0.1
+    horizon = 5
+    start_time = 0.5
+    step_value = 2.0
+    ref_gen = StepReference(dt=dt, step_value=step_value, start_time=start_time, horizon=horizon)
+
+    # At t=0.0: [0, 0.1, 0.2, 0.3, 0.4] < 0.5 -> all 0.0
+    res, log = ref_gen.step(0.0)
+    assert isinstance(res, np.ndarray)
+    assert res.shape == (5,)
+    assert np.all(res == 0.0)
+    assert log.horizon == 5
+
+    # At t=0.3: [0.3, 0.4, 0.5, 0.6, 0.7] -> [0, 0, 2, 2, 2]
+    res, log = ref_gen.step(0.3)
+    expected = np.array([0.0, 0.0, 2.0, 2.0, 2.0])
+    assert np.allclose(res, expected)
+
+    # At t=0.6: [0.6, 0.7, 0.8, 0.9, 1.0] -> all 2.0
+    res, log = ref_gen.step(0.6)
+    assert np.all(res == 2.0)
 
 
 def test_simulation_execution_and_logging() -> None:
