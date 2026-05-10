@@ -17,11 +17,11 @@ class Controller[L: BaseModel](Component[L], abc.ABC):
 
     @abc.abstractmethod
     def step(self, t: float, ref: float | np.ndarray, x_hat: float | np.ndarray) -> tuple[float | np.ndarray, L]:
-        """Compute control action based on reference and estimated state. Must be implemented by subclasses."""
+        """Compute control action based on reference (or trajectory) and estimated state. Must be implemented by subclasses."""
 
     @abc.abstractmethod
     def update(self, t: float, ref: float | np.ndarray, x_hat: float | np.ndarray) -> tuple[float | np.ndarray, L]:
-        """Execute internal update dynamics. Must be implemented by subclasses."""
+        """Execute internal update dynamics based on reference (or trajectory). Must be implemented by subclasses."""
 
 
 class PIDControllerLog(BaseModel):
