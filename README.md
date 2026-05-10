@@ -26,7 +26,7 @@ Each component in the framework represents a specific mathematical operation in 
   - **Continuous-time:** $\dot{x} = f(t, x, u)$ (solved via numerical integrators)
   - **Output:** $y_k = g(t_k, x_k, u_k)$
 - **Sensor:** Models measurement hardware: $\tilde{y}_k = h(t_k, y_k)$
-- **Estimator:** Reconstructs unmeasured states based on noisy measurements and previous control inputs: $\hat{x}_k = e(t_k, \tilde{y}_k, u_{k-1})$
+- **Estimator:** Reconstructs state based on noisy measurements and control inputs: $\hat{x}_k = e(t_k, \tilde{y}_k, u_{k-1})$
 - **Controller:** Implements control laws (e.g., PID, MPC) to compute control actions based on the error or state estimate: $u_k = c(t_k, r_k, \hat{x}_k)$
 
 

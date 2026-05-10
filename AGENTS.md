@@ -8,7 +8,7 @@
     * pytest for testing: `uv run pytest`
 
 * Use the whitepaper.md as a guide. If you find that an implementation goes against what is proposed in the whitepaper flag it and make suggestions to change the whitepaper.
-* You are working on a windows machine use PowerShell commands.
+* You are working on a windows machine use only PowerShell commands.
 
 # General instructions
 
