@@ -30,6 +30,16 @@ Each component in the framework represents a specific mathematical operation in 
 - **Controller:** Implements control laws (e.g., PID, MPC) to compute control actions based on the error or state estimate: $u_k = c(t_k, r_k, \hat{x}_k)$
 
 
+### Prebuilt Components
+
+The framework includes several prebuilt components for standard control engineering tasks:
+
+- **`LinearPlant`:** Implements state-space representations. Supports both discrete-time ($x_{k+1} = A x_k + B u_k$) and continuous-time ($\dot{x} = A x + B u$) dynamics, outputting $y = C x + D u$.
+- **`IdentityEstimator`:** A simple pass-through estimator that assumes full and perfect state measurement: $\hat{x}_k = \tilde{y}_k$.
+- **`PIDController`:** A standard Proportional-Integral-Derivative controller using matrix gains: $u_k = K_p e_k + K_i \int e_k dt + K_d \frac{de_k}{dt}$, where $e_k = r_k - \hat{x}_k$.
+- **`StepReference`:** Generates a step signal or trajectory jumping to a specified value at a given start time: $r_k = \begin{cases} 0 & t < t_{start} \\ r_{step} & t \ge t_{start} \end{cases}$.
+- **`GaussianSensor`:** Simulates sensor noise by adding zero-mean Gaussian noise to the true plant output: $\tilde{y}_k = y_k + \mathcal{N}(0, \sigma^2)$.
+
 ```mermaid
 graph LR
     %% Forward path (Left to Right)
