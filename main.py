@@ -2,7 +2,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from simulate.config import load_config
+from simulate.config import deep_merge, load_config
 from simulate.experiment import ExperimentManager
 from simulate.simulation import Simulation
 
@@ -43,9 +43,14 @@ def main() -> None:
         # Batch experiment
         manager = ExperimentManager(output_dir=args.output_dir)
 
-        # In a real scenario, we might want to generate configs from a sweep definition.
-        # For now, we assume 'experiments' is a list of full simulation configs.
-        configs = config["experiments"]
+        raw_configs = config["experiments"]
+        if not raw_configs:
+            sys.exit(0)
+
+        configs = [raw_configs[0]]
+        for override in raw_configs[1:]:
+            configs.append(deep_merge(configs[-1], override))
+
         manager.run_batch(configs)
     else:
         # Single simulation
