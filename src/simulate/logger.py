@@ -14,11 +14,11 @@ class UniversalLog(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     t: float
-    y: float | npt.NDArray[np.float64]  # True plant output
-    y_mea: float | npt.NDArray[np.float64]  # Measured output (from sensor)
-    x_hat: float | npt.NDArray[np.float64]  # Estimated state (from estimator)
-    u: float | npt.NDArray[np.float64]  # Control effort
-    ref: float | npt.NDArray[np.float64]  # Reference trajectory
+    y: float | npt.NDArray[np.float64]
+    y_mea: float | npt.NDArray[np.float64]
+    x_hat: float | npt.NDArray[np.float64]
+    u: float | npt.NDArray[np.float64]
+    ref: float | npt.NDArray[np.float64]
 
     @field_validator("y", "y_mea", "x_hat", "u", "ref", mode="after")
     @classmethod
@@ -48,10 +48,8 @@ class Logger:
             universal: The universal log signals for this step.
             components: A dictionary mapping component names to their Pydantic log models.
         """
-        # Store universal log as dictionary
         self.universal_logs.append(universal.model_dump())
 
-        # Store component logs
         for name, log_model in components.items():
             if name not in self.component_logs:
                 self.component_logs[name] = []
@@ -66,12 +64,10 @@ class Logger:
         dir_path = Path(directory)
         dir_path.mkdir(parents=True, exist_ok=True)
 
-        # Export universal logs
         if self.universal_logs:
             df_universal = pd.DataFrame(self.universal_logs)
             df_universal.to_csv(dir_path / f"{prefix}_universal.csv", index=False)
 
-        # Export component logs
         for name, logs in self.component_logs.items():
             if logs:
                 df_comp = pd.DataFrame(logs)
@@ -84,14 +80,11 @@ class Logger:
 
         arrays_to_save: dict[str, np.ndarray] = {}
 
-        # Universal
         if self.universal_logs:
-            # Simple conversion: keys to lists, then to arrays
             df_universal = pd.DataFrame(self.universal_logs)
             for col in df_universal.columns:
                 arrays_to_save[f"universal_{col}"] = df_universal[col].to_numpy()
 
-        # Components
         for name, logs in self.component_logs.items():
             if logs:
                 df_comp = pd.DataFrame(logs)

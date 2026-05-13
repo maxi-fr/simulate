@@ -76,7 +76,6 @@ class StepReference(Reference[StepReferenceLog]):
             else:
                 res = 0.0 if isinstance(self.step_value, float) else np.zeros_like(self.step_value)
         else:
-            # Generate reference trajectory array
             future_times = t + np.arange(self.horizon) * self.dt
             res = np.where(future_times >= self.start_time, self.step_value, 0.0)
 

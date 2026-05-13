@@ -57,7 +57,6 @@ def test_experiment_manager_run_batch(tmp_path: Path) -> None:
     output_dir = tmp_path / "results"
     manager = ExperimentManager(output_dir=output_dir)
 
-    # Create 3 slightly different configs
     configs = []
     for i in range(3):
         config = get_base_config()
@@ -67,11 +66,9 @@ def test_experiment_manager_run_batch(tmp_path: Path) -> None:
     prefixes = ["sim_1", "sim_2", "sim_3"]
     results = manager.run_batch(configs, prefixes=prefixes)
 
-    # Verify results
     assert len(results) == 3
     assert all(results)
 
-    # Verify files were created
     for prefix in prefixes:
         assert (output_dir / f"{prefix}_data.npz").exists()
         assert (output_dir / f"{prefix}_universal.csv").exists()
@@ -83,9 +80,7 @@ def test_experiment_manager_failure_handling(tmp_path: Path) -> None:
     manager = ExperimentManager(output_dir=output_dir)
 
     configs = []
-    # One valid config
     configs.append(get_base_config())
-    # One invalid config (missing class_path)
     invalid_config = get_base_config()
     del invalid_config["plant"]["class_path"]
     configs.append(invalid_config)

@@ -53,7 +53,7 @@ repos:
         name: mypy
         entry: uv run mypy
         language: system
-        types: [python, jupyter]
+        types: [python]
         pass_filenames: true
 
       - id: pytest

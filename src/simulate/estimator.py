@@ -63,6 +63,5 @@ class IdentityEstimator(Estimator[IdentityEstimatorLog]):
             y_mea: Measured output vector.
             u: Control input vector.
         """
-        # Identity estimator simply passes through the measurement
         res = y_mea.copy() if isinstance(y_mea, np.ndarray) else y_mea
         return res, IdentityEstimatorLog(y_mea=res)

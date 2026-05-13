@@ -6,7 +6,7 @@ from typing import Any, Self, TypeVar
 import numpy as np
 from pydantic import BaseModel
 
-L = TypeVar("L", bound=BaseModel)  # Type for log model
+L = TypeVar("L", bound=BaseModel)
 
 
 class Component[L: BaseModel](abc.ABC):
@@ -58,11 +58,9 @@ class Component[L: BaseModel](abc.ABC):
         without duplicating ZOH logic.
         """
         if self.should_update(t) or self.last_output is None or self.last_log is None:
-            # Time to update
             primary_output, log_output = update_fn(t, *args, **kwargs)
             self.last_output = primary_output
             self.last_log = log_output
-            # Advance next update time
             self.next_update_time += self.dt
 
         return self.last_output, self.last_log
