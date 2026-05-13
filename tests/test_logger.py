@@ -14,7 +14,6 @@ class MockComponentLog(BaseModel):
 
 def test_universal_log_validation() -> None:
     """Test that UniversalLog validates signals."""
-    # Should not raise (floats)
     UniversalLog(
         t=0.0,
         y=1.0,
@@ -23,7 +22,6 @@ def test_universal_log_validation() -> None:
         u=0.5,
         ref=1.0,
     )
-    # Should not raise (1D arrays)
     UniversalLog(
         t=0.0,
         y=np.array([1.0]),
@@ -33,7 +31,6 @@ def test_universal_log_validation() -> None:
         ref=np.array([1.0]),
     )
 
-    # Test invalid shape (2D)
     with pytest.raises(ValueError, match="Array must be 1D"):
         UniversalLog(
             t=0.0,
@@ -135,7 +132,6 @@ def test_logger_empty_export(tmp_path: Path) -> None:
     logger = Logger()
     export_dir = tmp_path / "empty_export"
 
-    # Should not raise
     logger.export_csv(export_dir)
     logger.export_npz(export_dir)
 

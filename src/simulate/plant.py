@@ -64,7 +64,6 @@ class LinearPlant(Plant[LinearPlantLog]):
         self.c = np.atleast_2d(c)
         self.d = np.atleast_2d(d)
 
-        # Initialize state vector to zeros based on A matrix dimension
         self.x = np.zeros((self.a.shape[0], 1), dtype=float)
 
     @classmethod

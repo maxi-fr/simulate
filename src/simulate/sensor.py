@@ -38,7 +38,6 @@ class GaussianSensor(Sensor[GaussianSensorLog]):
         """Initialize the Gaussian sensor."""
         super().__init__(dt)
         self.std_dev = std_dev
-        # Fixed seed for reproducibility in this example
         self.rng = np.random.default_rng(seed=42)
 
     @classmethod

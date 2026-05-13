@@ -38,17 +38,12 @@ def main() -> None:
 
     config = load_config(config_path)
 
-    # Check if it's a batch experiment or a single simulation
     if "experiments" in config:
-        # Batch experiment
         manager = ExperimentManager(output_dir=args.output_dir)
 
-        # In a real scenario, we might want to generate configs from a sweep definition.
-        # For now, we assume 'experiments' is a list of full simulation configs.
         configs = config["experiments"]
         manager.run_batch(configs)
     else:
-        # Single simulation
         sim = Simulation.from_config(config)
         sim.run()
 

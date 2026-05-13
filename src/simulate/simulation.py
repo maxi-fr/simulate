@@ -28,11 +28,11 @@ class Simulation:
     def __init__(  # noqa: PLR0913
         self,
         t_end: float,
-        plant: Plant[Any],
-        reference: Reference[Any],
-        sensor: Sensor[Any],
-        estimator: Estimator[Any],
-        controller: Controller[Any],
+        plant: Plant,
+        reference: Reference,
+        sensor: Sensor,
+        estimator: Estimator,
+        controller: Controller,
     ) -> None:
         """Initialize the simulation with instantiated components."""
         self.t_end = t_end
@@ -63,14 +63,13 @@ class Simulation:
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> Simulation:
         """Instantiate a simulation from a configuration dictionary using dynamic loading."""
-        # 1. Instantiate Components dynamically
         components: dict[str, Any] = {}
-        for key in ["plant", "reference", "sensor", "estimator", "controller"]:
-            comp_config = config[key].copy()  # Copy to avoid mutating original config
-            class_path = comp_config.pop("class_path")
+        for key in ("plant", "reference", "sensor", "estimator", "controller"):
+            comp_config: dict[str, Any] = config[key].copy()
+            class_path: str = comp_config.pop("class_path")
             module_name, class_name = class_path.rsplit(".", 1)
             module = importlib.import_module(module_name)
-            comp_class = getattr(module, class_name)
+            comp_class: Component = getattr(module, class_name)
             components[key] = comp_class.from_config(comp_config)
 
         return cls(
@@ -92,31 +91,20 @@ class Simulation:
         """Run the simulation loop until t_end."""
         t = 0.0
 
-        # Initial states - using floats for SISO cases
         u_k: float | np.ndarray = 0.0
         y_k: float | np.ndarray = 0.0
 
         while t <= self.t_end:
-            # 1. Reference Generation
             ref_k, ref_log = self.reference.step(t)
 
-            # 2. Measurement
-            # Read the Plant's output via the Sensor at time t
             y_mea, sensor_log = self.sensor.step(t, y_k)
 
-            # 3. Estimation
-            # Calculate the state estimate using the measurement and previous input
             x_hat, estim_log = self.estimator.step(t, y_mea, u_k)
 
-            # 4. Control
-            # Controller steps, using ref and x_hat.
             u_k, ctrl_log = self.controller.step(t, ref_k, x_hat)
 
-            # 5. Actuation
-            # Plant steps, using u_k.
             y_k, plant_log = self.plant.step(t, u_k)
 
-            # 6. Logging
             uni_log = UniversalLog(
                 t=t,
                 y=y_k,
@@ -134,7 +122,6 @@ class Simulation:
             }
             self.logger.log(uni_log, comp_logs)
 
-            # Advance time
             t += self.dt
 
     def export_results(self, directory: str | Path, prefix: str = "sim") -> None:

@@ -50,7 +50,6 @@ class PIDController(Controller[PIDControllerLog]):
         self.ki = np.asarray(ki, dtype=float)
         self.kd = np.asarray(kd, dtype=float)
 
-        # Initialize integral and previous error dynamically during first step based on input shape
         self.integral: np.ndarray | None = None
         self.prev_error: np.ndarray | None = None
 
@@ -94,14 +93,11 @@ class PIDController(Controller[PIDControllerLog]):
         if self.prev_error is None:
             self.prev_error = np.zeros_like(error)
 
-        # Accumulate integral
         self.integral += error * self.dt
 
-        # Compute derivative (discrete difference)
         derivative = (error - self.prev_error) / self.dt
         self.prev_error = error.copy()
 
-        # Compute control effort: u = Kp*e + Ki*∫e + Kd*de/dt
         u_vec = self.kp @ error + self.ki @ self.integral + self.kd @ derivative
 
         return self.from_col_vec(u_vec), PIDControllerLog(error=error.copy(), integral=self.integral.copy())
