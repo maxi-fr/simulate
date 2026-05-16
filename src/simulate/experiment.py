@@ -5,21 +5,21 @@ from typing import Any
 from simulate.simulation import Simulation
 
 
-def _run_worker(task: tuple[dict[str, Any], Path, str]) -> bool:
+def _run_worker(task: tuple[dict[str, Any], Path, str, int | None]) -> bool:
     """
     Worker function to run a single simulation.
 
     Args:
-        task: A tuple containing (config_dict, output_dir, prefix)
+        task: A tuple containing (config_dict, output_dir, prefix, chunk_size)
 
     Returns
     -------
         True if successful, False otherwise.
     """
-    config, output_dir, prefix = task
+    config, output_dir, prefix, chunk_size = task
     try:
         sim = Simulation.from_config(config)
-        sim.run()
+        sim.run(output_dir=output_dir, prefix=prefix, chunk_size=chunk_size)
         sim.export_results(output_dir, prefix)
     except Exception as e:  # noqa: BLE001
         print(f"Error running simulation: {e}")  # noqa: T201
@@ -37,7 +37,11 @@ class ExperimentManager:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def run_batch(
-        self, configs: list[dict[str, Any]], prefixes: list[str] | None = None, max_num_processes: int = 1
+        self,
+        configs: list[dict[str, Any]],
+        prefixes: list[str] | None = None,
+        max_num_processes: int = 1,
+        chunk_size: int | None = 10_000,
     ) -> list[bool]:
         """
         Execute a batch of simulations in parallel.
@@ -45,6 +49,7 @@ class ExperimentManager:
         Args:
             configs: A list of simulation configuration dictionaries.
             prefixes: Optional list of prefixes for result filenames.
+            chunk_size: Steps per chunk file. None disables mid-run flushing.
 
         Returns
         -------
@@ -57,13 +62,11 @@ class ExperimentManager:
             msg = "Number of configs and prefixes must match."
             raise ValueError(msg)
 
-        tasks = [(config, self.output_dir, prefix) for config, prefix in zip(configs, prefixes, strict=True)]
+        tasks = [
+            (config, self.output_dir, prefix, chunk_size) for config, prefix in zip(configs, prefixes, strict=True)
+        ]
 
         num_processes = min(multiprocessing.cpu_count(), len(configs), max_num_processes)
 
         with multiprocessing.Pool(processes=num_processes) as pool:
-            results = pool.map(_run_worker, tasks)
-
-        sum(results)
-
-        return results
+            return pool.map(_run_worker, tasks)
