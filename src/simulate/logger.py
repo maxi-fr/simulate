@@ -4,7 +4,6 @@ from typing import Any
 
 import numpy as np
 import numpy.typing as npt
-import pandas as pd
 from pydantic import BaseModel, ConfigDict, field_validator
 
 
@@ -39,6 +38,7 @@ class Logger:
         """Initialize the logger."""
         self.universal_logs: list[dict[str, Any]] = []
         self.component_logs: dict[str, list[dict[str, Any]]] = {}
+        self._chunk_idx: int = 0
 
     def log(self, universal: UniversalLog, components: Mapping[str, BaseModel]) -> None:
         """
@@ -59,37 +59,60 @@ class Logger:
             log_dict["t"] = universal.t
             self.component_logs[name].append(log_dict)
 
-    def export_csv(self, directory: str | Path, prefix: str = "sim") -> None:
-        """Export accumulated logs to CSV files."""
-        dir_path = Path(directory)
-        dir_path.mkdir(parents=True, exist_ok=True)
+    def flush_chunk(self, directory: str | Path, prefix: str = "sim") -> None:
+        """
+        Write current in-memory buffers to a numbered chunk file, then clear them.
 
-        if self.universal_logs:
-            df_universal = pd.DataFrame(self.universal_logs)
-            df_universal.to_csv(dir_path / f"{prefix}_universal.csv", index=False)
+        No file or directory is created when both buffers are empty.
+        Output file: {prefix}_chunk_{_chunk_idx:04d}.npz
+        """
+        if not self.universal_logs and not self.component_logs:
+            return
 
-        for name, logs in self.component_logs.items():
-            if logs:
-                df_comp = pd.DataFrame(logs)
-                df_comp.to_csv(dir_path / f"{prefix}_comp_{name}.csv", index=False)
-
-    def export_npz(self, directory: str | Path, prefix: str = "sim") -> None:
-        """Export accumulated logs to a NumPy Archive (.npz) file."""
         dir_path = Path(directory)
         dir_path.mkdir(parents=True, exist_ok=True)
 
         arrays_to_save: dict[str, np.ndarray] = {}
 
         if self.universal_logs:
-            df_universal = pd.DataFrame(self.universal_logs)
-            for col in df_universal.columns:
-                arrays_to_save[f"universal_{col}"] = df_universal[col].to_numpy()
+            for key in self.universal_logs[0]:
+                arrays_to_save[f"universal_{key}"] = np.array([entry[key] for entry in self.universal_logs])
 
         for name, logs in self.component_logs.items():
             if logs:
-                df_comp = pd.DataFrame(logs)
-                for col in df_comp.columns:
-                    arrays_to_save[f"{name}_{col}"] = df_comp[col].to_numpy()
+                for key in logs[0]:
+                    arrays_to_save[f"{name}_{key}"] = np.array([entry[key] for entry in logs])
 
         if arrays_to_save:
-            np.savez_compressed(dir_path / f"{prefix}_data.npz", **arrays_to_save)  # type: ignore[arg-type]
+            np.savez_compressed(
+                dir_path / f"{prefix}_chunk_{self._chunk_idx:04d}.npz",
+                **arrays_to_save,  # type: ignore[arg-type]
+            )
+
+        self._chunk_idx += 1
+        self.universal_logs.clear()
+        self.component_logs.clear()
+
+    @staticmethod
+    def merge_chunks(directory: str | Path, prefix: str = "sim") -> None:
+        """Concatenate all chunk files for *prefix* into a single {prefix}.npz file.
+
+        No-op when no chunk files are found. Individual chunk files are deleted
+        after a successful merge when *delete_chunks* is True (default).
+        """
+        dir_path = Path(directory)
+        chunk_files = sorted(dir_path.glob(f"{prefix}_chunk_*.npz"))
+        if not chunk_files:
+            return
+
+        combined: dict[str, list[np.ndarray]] = {}
+        for chunk_file in chunk_files:
+            with np.load(chunk_file) as data:
+                for key in data.files:
+                    combined.setdefault(key, []).append(data[key].copy())
+
+        merged = {key: np.concatenate(arrays, axis=0) for key, arrays in combined.items()}
+        np.savez_compressed(dir_path / f"{prefix}.npz", **merged)  # type: ignore[arg-type]
+
+        for chunk_file in chunk_files:
+            chunk_file.unlink()

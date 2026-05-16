@@ -17,11 +17,10 @@ def main() -> None:
         help="Path to the YAML configuration file.",
     )
     parser.add_argument(
-        "--export",
-        type=str,
-        choices=["csv", "npz", "both"],
-        default="npz",
-        help="Export format for simulation results (default: npz).",
+        "--chunk-size",
+        type=int,
+        default=10_000,
+        help="Steps per output chunk file (default: 10000). Use 0 to disable chunking.",
     )
     parser.add_argument(
         "--output-dir",
@@ -38,6 +37,8 @@ def main() -> None:
 
     config = load_config(config_path)
 
+    chunk_size = args.chunk_size if args.chunk_size > 0 else None
+
     if "experiments" in config:
         manager = ExperimentManager(output_dir=args.output_dir)
 
@@ -49,16 +50,12 @@ def main() -> None:
         for override in raw_configs[1:]:
             configs.append(deep_merge(configs[-1], override))
 
-        manager.run_batch(configs)
+        manager.run_batch(configs, chunk_size=chunk_size)
     else:
-        sim = Simulation.from_config(config)
-        sim.run()
-
         output_dir = Path(args.output_dir)
-        if args.export in ["csv", "both"]:
-            sim.logger.export_csv(output_dir)
-        if args.export in ["npz", "both"]:
-            sim.logger.export_npz(output_dir)
+        sim = Simulation.from_config(config)
+        sim.run(output_dir=output_dir, prefix="sim", chunk_size=chunk_size)
+        sim.export_results(output_dir, prefix="sim")
 
 
 if __name__ == "__main__":

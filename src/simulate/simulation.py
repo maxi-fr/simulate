@@ -87,9 +87,15 @@ class Simulation:
         config = load_config(filepath)
         return cls.from_config(config)
 
-    def run(self) -> None:
+    def run(
+        self,
+        output_dir: str | Path | None = None,
+        prefix: str = "sim",
+        chunk_size: int | None = 10_000,
+    ) -> None:
         """Run the simulation loop until t_end."""
         t = 0.0
+        step_count: int = 0
 
         u_k: float | np.ndarray = 0.0
         y_k: float | np.ndarray = 0.0
@@ -121,10 +127,14 @@ class Simulation:
                 "controller": ctrl_log,
             }
             self.logger.log(uni_log, comp_logs)
+            step_count += 1
+
+            if output_dir is not None and chunk_size is not None and step_count % chunk_size == 0:
+                self.logger.flush_chunk(output_dir, prefix)
 
             t += self.dt
 
     def export_results(self, directory: str | Path, prefix: str = "sim") -> None:
-        """Export simulation results via the Logger."""
-        self.logger.export_csv(directory, prefix)
-        self.logger.export_npz(directory, prefix)
+        """Flush remaining in-memory data then merge all chunks into {prefix}.npz."""
+        self.logger.flush_chunk(directory, prefix)
+        Logger.merge_chunks(directory, prefix)

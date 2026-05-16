@@ -70,8 +70,7 @@ def test_experiment_manager_run_batch(tmp_path: Path) -> None:
     assert all(results)
 
     for prefix in prefixes:
-        assert (output_dir / f"{prefix}_data.npz").exists()
-        assert (output_dir / f"{prefix}_universal.csv").exists()
+        assert (output_dir / f"{prefix}.npz").exists()
 
 
 def test_experiment_manager_failure_handling(tmp_path: Path) -> None:
