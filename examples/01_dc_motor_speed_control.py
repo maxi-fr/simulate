@@ -23,7 +23,6 @@ def _(mo):
     2. Configure a simulation with a PID controller, Gaussian sensor noise, and a step reference.
     3. Run the simulation and visualize the results.
     """)
-    return
 
 
 @app.cell
@@ -40,7 +39,6 @@ def _(mo):
     - $u = V$ is the control input (voltage).
     - $y = \omega$ is the measured output.
     """)
-    return
 
 
 @app.cell
@@ -48,7 +46,6 @@ def _(mo):
     mo.md(r"""
     ## 2. Tuning Controls
     """)
-    return
 
 
 @app.cell
@@ -112,7 +109,6 @@ def _(mo):
     mo.md(r"""
     ## 3. Running the Simulation
     """)
-    return
 
 
 @app.cell
@@ -129,7 +125,6 @@ def _(mo):
     mo.md(r"""
     ## 4. Visualizing Results
     """)
-    return
 
 
 @app.cell
@@ -163,7 +158,6 @@ def _(sim):
 
     fig.tight_layout()
     fig
-    return
 
 
 if __name__ == "__main__":
