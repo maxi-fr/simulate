@@ -73,10 +73,11 @@ convention = "numpy"
 # Marimo notebooks: cells are functions, imports live in cells, and the final
 # expression of a cell is the displayed output.
 "examples/[0-9]*.py" = [
-    "ANN001",  # missing type annotation for cell args (marimo passes refs untyped)
-    "ANN202",  # missing return type for cell `_` functions
-    "PLC0415", # imports inside cells (marimo idiom)
-    "B018",    # last expression renders the cell output (e.g. `fig`)
+    "ANN001",   # missing type annotation for cell args (marimo passes refs untyped)
+    "ANN202",   # missing return type for cell `_` functions
+    "PLC0415",  # imports inside cells (marimo idiom)
+    "B018",     # last expression renders the cell output (e.g. `fig`)
+    "PLR1711",  # useless return statements (marimo adds them; not all cells need return)
 ]
 
 [tool.ruff.format]
