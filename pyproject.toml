@@ -48,7 +48,6 @@ ignore = [
     "TD",     # for structure of TODO comments
     "D100",   # Missing docstring in public module
     "D104",   # Missing docstring in public package
-    "ANN101", # Missing type annotation for self (deprecated in modern Ruff)
     "COM812", # Trailing comma missing (conflicts with formatter)
     "ISC001", # Single line implicit string concatenation (conflicts with formatter)
 ]
