@@ -2,24 +2,29 @@
 
 from simulate.component import Component
 from simulate.controller import Controller, PIDController
+from simulate.dynamics import Dynamics
 from simulate.estimator import Estimator, IdentityEstimator
 from simulate.experiment import ExperimentManager
+from simulate.linear_dynamics import LinearDynamics
+from simulate.linear_output import LinearOutput
 from simulate.logger import Logger, UniversalLog
-from simulate.plant import LinearPlant, Plant
+from simulate.output import Output
 from simulate.sensor import GaussianSensor, Sensor
 from simulate.simulation import Simulation
 
 __all__ = [
     "Component",
     "Controller",
+    "Dynamics",
     "Estimator",
     "ExperimentManager",
     "GaussianSensor",
     "IdentityEstimator",
-    "LinearPlant",
+    "LinearDynamics",
+    "LinearOutput",
     "Logger",
+    "Output",
     "PIDController",
-    "Plant",
     "Sensor",
     "Simulation",
     "UniversalLog",

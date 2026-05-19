@@ -11,8 +11,8 @@ def get_base_config() -> dict[str, Any]:
     """Return a valid base configuration for a simple simulation."""
     return {
         "t_end": 0.1,
-        "plant": {
-            "class_path": "simulate.plant.LinearPlant",
+        "dynamics": {
+            "class_path": "simulate.linear_dynamics.LinearDynamics",
             "dt": 0.01,
             "a": [[0.0]],
             "b": [[1.0]],
@@ -34,6 +34,12 @@ def get_base_config() -> dict[str, Any]:
             "class_path": "simulate.estimator.IdentityEstimator",
             "dt": 0.01,
         },
+        "output": {
+            "class_path": "simulate.linear_output.LinearOutput",
+            "dt": 0.01,
+            "c": [[1.0]],
+            "d": [[0.0]],
+        },
         "controller": {
             "class_path": "simulate.controller.PIDController",
             "dt": 0.01,
@@ -49,7 +55,7 @@ def test_single_simulation_from_config() -> None:
     config = get_base_config()
     sim = Simulation.from_config(config)
     sim.run()
-    assert sim.plant.dt == 0.01
+    assert sim.dynamics.dt == 0.01
 
 
 def test_experiment_manager_run_batch(tmp_path: Path) -> None:
@@ -81,7 +87,7 @@ def test_experiment_manager_failure_handling(tmp_path: Path) -> None:
     configs = []
     configs.append(get_base_config())
     invalid_config = get_base_config()
-    del invalid_config["plant"]["class_path"]
+    del invalid_config["dynamics"]["class_path"]
     configs.append(invalid_config)
 
     results = manager.run_batch(configs)
