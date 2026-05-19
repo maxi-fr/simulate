@@ -43,6 +43,8 @@ repos:
         name: marimo linting
         entry: uv run marimo check --fix --unsafe-fixes --ignore-scripts examples/
         language: system
+        pass_filenames: false
+        always_run: true
 
       - id: mypy
         name: mypy
