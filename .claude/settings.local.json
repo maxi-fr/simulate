@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python *)"
+      "Bash(python *)",
+      "PowerShell(uv run *)",
+      "Bash(uv run *)"
     ]
   }
 }

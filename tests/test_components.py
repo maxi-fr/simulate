@@ -48,14 +48,14 @@ def test_plant_step_logic() -> None:
     assert dynamics.x[0, 0] == 0.0
 
     u1 = 1.0
-    x, dynamics_log = dynamics.step(0.0, 1.0)
-    y, _ = output.step(0.0, x, u1)
+    x, dynamics_log = dynamics.evaluate(0.0, 1.0)
+    y, _ = output.evaluate(0.0, x, u1)
     assert y == 1.0
     assert dynamics_log.x[0, 0] == 1.0
 
     u2 = 0.5
-    x, dynamics_log = dynamics.step(0.1, u2)
-    y, _output_log = output.step(0.1, x, u2)
+    x, dynamics_log = dynamics.evaluate(0.1, u2)
+    y, _output_log = output.evaluate(0.1, x, u2)
     assert y == 1.4
     assert dynamics_log.x[0, 0] == 1.4
 
@@ -64,12 +64,12 @@ def test_sensor_step_logic() -> None:
     """Test sensor behavior with Gaussian noise."""
     sensor = GaussianSensor(dt=0.1, std_dev=0.0)
     y = 1.0
-    y_mea, log = sensor.step(0.0, y)
+    y_mea, log = sensor.evaluate(0.0, y)
     assert y_mea == 1.0
     assert log.noise == 0.0
 
     sensor_noise = GaussianSensor(dt=0.1, std_dev=0.1)
-    y_mea2, log2 = sensor_noise.step(0.0, y)
+    y_mea2, log2 = sensor_noise.evaluate(0.0, y)
     assert y_mea2 != 1.0
     assert log2.noise != 0.0
 
@@ -79,7 +79,7 @@ def test_estimator_step_logic() -> None:
     estimator = IdentityEstimator(dt=0.1)
     y_mea = 1.2
     u = 0.5
-    x_hat, log = estimator.step(0.0, y_mea, u)
+    x_hat, log = estimator.evaluate(0.0, y_mea, u)
     assert x_hat == 1.2
     assert log.y_mea == 1.2
 
@@ -90,7 +90,7 @@ def test_controller_step_logic() -> None:
 
     ref = 1.0
     x_hat = 0.0
-    u, log = controller.step(0.0, ref, x_hat)
+    u, log = controller.evaluate(0.0, ref, x_hat)
     assert math.isclose(u, 0.51)
     assert log.error == 1.0
     assert log.integral == 0.1
@@ -102,15 +102,15 @@ def test_component_zoh_behavior() -> None:
 
     ref1 = 1.0
     x_hat1 = 0.0
-    u1, log1 = controller.step(0.0, ref1, x_hat1)
+    u1, log1 = controller.evaluate(0.0, ref1, x_hat1)
     assert math.isclose(u1, 0.52)
 
     ref2 = 5.0
-    u2, log2 = controller.step(0.1, ref2, x_hat1)
+    u2, log2 = controller.evaluate(0.1, ref2, x_hat1)
     assert u2 == u1
     assert log2.error == log1.error
 
-    u3, log3 = controller.step(0.2, ref1, x_hat1)
+    u3, log3 = controller.evaluate(0.2, ref1, x_hat1)
     assert u3 != u1
     assert log3.integral > log1.integral
 
@@ -165,17 +165,17 @@ def test_step_reference_trajectory() -> None:
     step_value = 2.0
     ref_gen = StepReference(dt=dt, step_value=step_value, start_time=start_time, horizon=horizon)
 
-    res, log = ref_gen.step(0.0)
+    res, log = ref_gen.evaluate(0.0)
     assert isinstance(res, np.ndarray)
     assert res.shape == (5,)
     assert np.all(res == 0.0)
     assert log.horizon == 5
 
-    res, log = ref_gen.step(0.3)
+    res, log = ref_gen.evaluate(0.3)
     expected = np.array([0.0, 0.0, 2.0, 2.0, 2.0])
     assert np.allclose(res, expected)
 
-    res, log = ref_gen.step(0.6)
+    res, log = ref_gen.evaluate(0.6)
     assert np.all(res == 2.0)
 
 

@@ -14,9 +14,9 @@ class Estimator[L: BaseModel](Component[L], abc.ABC):
         """Initialize the estimator."""
         super().__init__(dt)
 
-    @abc.abstractmethod
-    def step(self, t: float, y_mea: float | np.ndarray, u: float | np.ndarray) -> tuple[float | np.ndarray, L]:
-        """Estimate the state based on measurement and control input. Must be implemented by subclasses."""
+    def evaluate(self, t: float, y_mea: float | np.ndarray, u: float | np.ndarray) -> tuple[float | np.ndarray, L]:
+        """Estimate the state based on measurement and control input (with ZOH)."""
+        return self._execute_zoh(t, self.update, y_mea, u)
 
     @abc.abstractmethod
     def update(self, t: float, y_mea: float | np.ndarray, u: float | np.ndarray) -> tuple[float | np.ndarray, L]:
@@ -42,12 +42,6 @@ class IdentityEstimator(Estimator[IdentityEstimatorLog]):
     def from_config(cls, config: dict[str, Any]) -> Self:
         """Instantiate the component from a raw configuration dictionary."""
         return cls(dt=float(config["dt"]))
-
-    def step(
-        self, t: float, y_mea: float | np.ndarray, u: float | np.ndarray
-    ) -> tuple[float | np.ndarray, IdentityEstimatorLog]:
-        """Execute the public step method to be called by the orchestrator."""
-        return self._execute_zoh(t, self.update, y_mea, u)
 
     def update(
         self,
