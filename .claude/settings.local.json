@@ -3,7 +3,16 @@
     "allow": [
       "Bash(python *)",
       "PowerShell(uv run *)",
-      "Bash(uv run *)"
+      "Bash(uv run *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\frank\\\\simulate\" -Force)",
+      "Bash(Select-Object -Property Mode, Name)",
+      "Bash(python3 *)",
+      "Bash(uv add *)",
+      "Bash(uv remove *)",
+      "Bash(git rm *)",
+      "Bash(Remove-Item random_stuff.ipynb -Force)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   }
 }

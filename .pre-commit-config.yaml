@@ -12,15 +12,16 @@ repos:
       - id: check-merge-conflict
       - id: detect-private-key
 
-  - repo: https://github.com/kynan/nbstripout
-    rev: 0.9.1
-    hooks:
-      - id: nbstripout
-
   - repo: https://github.com/abravalheri/validate-pyproject
     rev: v0.23
     hooks:
       - id: validate-pyproject
+
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.44.0
+    hooks:
+      - id: markdownlint-fix
+        args: [-c, configs/.markdownlint.yaml, --fix, --disable, MD028]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.9.9
@@ -28,17 +29,6 @@ repos:
       - id: ruff
         args: [ --fix, --unsafe-fixes ]
       - id: ruff-format
-
-  - repo: https://github.com/nbQA-dev/nbQA
-    rev: 1.9.1
-    hooks:
-      - id: nbqa-ruff
-        name: Run Ruff on Notebooks
-        args: [--fix, --unsafe-fixes]
-        additional_dependencies: [ruff]
-      - id: nbqa-ruff-format
-        name: Format Notebooks with Ruff
-        additional_dependencies: [ruff]
 
   - repo: https://github.com/astral-sh/uv-pre-commit
     rev: 0.5.21
@@ -49,6 +39,11 @@ repos:
 
   - repo: local
     hooks:
+      - id: marimo linting
+        name: marimo linting
+        entry: uv run marimo check --fix --unsafe-fixes --ignore-scripts examples/
+        language: system
+
       - id: mypy
         name: mypy
         entry: uv run mypy
@@ -61,11 +56,4 @@ repos:
         entry: uv run pytest tests/
         language: system
         pass_filenames: false
-        always_run: true
-
-      - id: test-notebooks
-        name: Test Jupyter Notebook Execution
-        entry: uv run pytest --nbmake --no-cov examples/
-        language: system
-        types: [jupyter]
         always_run: true

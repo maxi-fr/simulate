@@ -26,7 +26,7 @@ dev = [
     "pre-commit>=3.0.0",
     "mypy>=1.0.0",
     "validate-pyproject>=0.23",
-    "nbmake>=1.5.5",
+    "marimo>=0.23.6",
 ]
 
 [build-system]
@@ -70,6 +70,14 @@ convention = "numpy"
     "INP001",  # No __init__.py in tests folder
 ]
 "examples/*" = ["INP001"]
+# Marimo notebooks: cells are functions, imports live in cells, and the final
+# expression of a cell is the displayed output.
+"examples/[0-9]*.py" = [
+    "ANN001",  # missing type annotation for cell args (marimo passes refs untyped)
+    "ANN202",  # missing return type for cell `_` functions
+    "PLC0415", # imports inside cells (marimo idiom)
+    "B018",    # last expression renders the cell output (e.g. `fig`)
+]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -86,6 +94,9 @@ testpaths = ["tests"]
 
 [tool.mypy]
 python_version = "3.13"
+# Marimo notebook files: cells are decorator-wrapped functions whose args are
+# inter-cell refs; strict typing of those signatures has no useful meaning.
+exclude = ["^examples/[0-9]"]
 # --- The Meta Flag (for any new added flags which fall under strict) ---
 strict = true
 
