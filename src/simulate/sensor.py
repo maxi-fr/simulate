@@ -14,9 +14,9 @@ class Sensor[L: BaseModel](Component[L], abc.ABC):
         """Initialize the sensor."""
         super().__init__(dt)
 
-    @abc.abstractmethod
-    def step(self, t: float, y: float | np.ndarray) -> tuple[float | np.ndarray, L]:
-        """Measure the plant output. Must be implemented by subclasses."""
+    def evaluate(self, t: float, y: float | np.ndarray) -> tuple[float | np.ndarray, L]:
+        """Measure the plant output (with ZOH)."""
+        return self._execute_zoh(t, self.update, y)
 
     @abc.abstractmethod
     def update(self, t: float, y: float | np.ndarray) -> tuple[float | np.ndarray, L]:
@@ -47,10 +47,6 @@ class GaussianSensor(Sensor[GaussianSensorLog]):
             dt=float(config["dt"]),
             std_dev=float(config.get("std_dev", 0.0)),
         )
-
-    def step(self, t: float, y: float | np.ndarray) -> tuple[float | np.ndarray, GaussianSensorLog]:
-        """Execute the public step method to be called by the orchestrator."""
-        return self._execute_zoh(t, self.update, y)
 
     def update(self, t: float, y: float | np.ndarray) -> tuple[float | np.ndarray, GaussianSensorLog]:  # noqa: ARG002
         """

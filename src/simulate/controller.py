@@ -15,9 +15,9 @@ class Controller[L: BaseModel](Component[L], abc.ABC):
         """Initialize the controller."""
         super().__init__(dt)
 
-    @abc.abstractmethod
-    def step(self, t: float, ref: float | np.ndarray, x_hat: float | np.ndarray) -> tuple[float | np.ndarray, L]:
-        """Compute control action based on reference (or trajectory) and estimated state. Must be implemented by subclasses."""
+    def evaluate(self, t: float, ref: float | np.ndarray, x_hat: float | np.ndarray) -> tuple[float | np.ndarray, L]:
+        """Compute control action based on reference and estimated state (with ZOH)."""
+        return self._execute_zoh(t, self.update, ref, x_hat)
 
     @abc.abstractmethod
     def update(self, t: float, ref: float | np.ndarray, x_hat: float | np.ndarray) -> tuple[float | np.ndarray, L]:
@@ -62,12 +62,6 @@ class PIDController(Controller[PIDControllerLog]):
             ki=config["ki"],
             kd=config["kd"],
         )
-
-    def step(
-        self, t: float, ref: float | np.ndarray, x_hat: float | np.ndarray
-    ) -> tuple[float | np.ndarray, PIDControllerLog]:
-        """Execute the public step method to be called by the orchestrator."""
-        return self._execute_zoh(t, self.update, ref, x_hat)
 
     def update(
         self,

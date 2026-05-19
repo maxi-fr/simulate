@@ -108,16 +108,16 @@ class Simulation:
         y_k: float | np.ndarray = 0.0
 
         while t <= self.t_end:
-            ref_k, ref_log = self.reference.step(t)
+            ref_k, ref_log = self.reference.evaluate(t)
 
-            y_mea, sensor_log = self.sensor.step(t, y_k)
+            y_mea, sensor_log = self.sensor.evaluate(t, y_k)
 
-            x_hat, estim_log = self.estimator.step(t, y_mea, u_k)
+            x_hat, estim_log = self.estimator.evaluate(t, y_mea, u_k)
 
-            u_k, ctrl_log = self.controller.step(t, ref_k, x_hat)
+            u_k, ctrl_log = self.controller.evaluate(t, ref_k, x_hat)
 
-            x_k, dynamics_log = self.dynamics.step(t, u_k)
-            y_k, output_log = self.output.step(t, x_k, u_k)
+            x_k, dynamics_log = self.dynamics.evaluate(t, u_k)
+            y_k, output_log = self.output.evaluate(t, x_k, u_k)
 
             uni_log = UniversalLog(
                 t=t,

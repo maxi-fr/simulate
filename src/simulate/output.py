@@ -15,9 +15,9 @@ class Output[L: BaseModel](Component[L], abc.ABC):
         """Initialize the output component."""
         super().__init__(dt)
 
-    @abc.abstractmethod
-    def step(self, t: float, x: float | np.ndarray, u: float | np.ndarray) -> tuple[float | np.ndarray, L]:
-        """Compute the output from the current state and input."""
+    def evaluate(self, t: float, x: float | np.ndarray, u: float | np.ndarray) -> tuple[float | np.ndarray, L]:
+        """Evaluate the output from the current state and input (with ZOH)."""
+        return self._execute_zoh(t, self.update, x, u)
 
     @abc.abstractmethod
     def update(self, t: float, x: float | np.ndarray, u: float | np.ndarray) -> tuple[float | np.ndarray, L]:
@@ -55,12 +55,6 @@ class LinearOutput(Output[LinearOutputLog]):
             c=config["c"],
             d=config["d"],
         )
-
-    def step(
-        self, t: float, x: float | np.ndarray, u: float | np.ndarray
-    ) -> tuple[float | np.ndarray, LinearOutputLog]:
-        """Execute the public step method to be called by the orchestrator."""
-        return self._execute_zoh(t, self.update, x, u)
 
     def update(
         self,

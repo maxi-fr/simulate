@@ -64,7 +64,3 @@ class Component[L: BaseModel](abc.ABC):
             self.next_update_time += self.dt
 
         return self.last_output, self.last_log
-
-    @abc.abstractmethod
-    def step(self, t: float, *args: Any, **kwargs: Any) -> tuple[float | np.ndarray, L]:  # noqa: ANN401
-        """Execute the public step method to be called by the orchestrator. Must be implemented by subclasses."""

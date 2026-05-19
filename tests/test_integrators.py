@@ -54,8 +54,8 @@ def test_linear_dynamics_continuous() -> None:
     dynamics = LinearDynamics(dt=dt, a=a, b=b, integrator=rk4)
     output = LinearOutput(dt=dt, c=c, d=d)
 
-    x, log = dynamics.step(0.0, 1.0)
-    y, _ = output.step(0.0, x, 1.0)
+    x, log = dynamics.evaluate(0.0, 1.0)
+    y, _ = output.evaluate(0.0, x, 1.0)
     assert math.isclose(y, 1 - math.exp(-0.1), rel_tol=1e-5)
     assert math.isclose(log.x[0, 0], 1 - math.exp(-0.1), rel_tol=1e-5)
 
@@ -71,8 +71,8 @@ def test_linear_dynamics_discrete_fallback() -> None:
     dynamics = LinearDynamics(dt=dt, a=a, b=b)
     output = LinearOutput(dt=dt, c=c, d=d)
 
-    x, log = dynamics.step(0.0, 1.0)
-    y, _ = output.step(0.0, x, 1.0)
+    x, log = dynamics.evaluate(0.0, 1.0)
+    y, _ = output.evaluate(0.0, x, 1.0)
     assert y == 1.0
     assert log.x[0, 0] == 1.0
 
@@ -94,6 +94,6 @@ def test_linear_dynamics_from_config_dynamic_integrator() -> None:
     dynamics = LinearDynamics.from_config(config)
     assert dynamics.integrator == rk4
 
-    x, _ = dynamics.step(0.0, 1.0)
-    y, _ = output.step(0.0, x, 1.0)
+    x, _ = dynamics.evaluate(0.0, 1.0)
+    y, _ = output.evaluate(0.0, x, 1.0)
     assert math.isclose(y, 1 - math.exp(-0.1), rel_tol=1e-5)

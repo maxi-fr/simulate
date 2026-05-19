@@ -14,9 +14,9 @@ class Reference[L: BaseModel](Component[L], abc.ABC):
         """Initialize the reference generator."""
         super().__init__(dt)
 
-    @abc.abstractmethod
-    def step(self, t: float) -> tuple[float | np.ndarray, L]:
-        """Generate the reference signal (or trajectory) for the current time. Must be implemented by subclasses."""
+    def evaluate(self, t: float) -> tuple[float | np.ndarray, L]:
+        """Generate the reference signal (or trajectory) for the current time (with ZOH)."""
+        return self._execute_zoh(t, self.update)
 
     @abc.abstractmethod
     def update(self, t: float) -> tuple[float | np.ndarray, L]:
@@ -58,10 +58,6 @@ class StepReference(Reference[StepReferenceLog]):
             start_time=float(config.get("start_time", 0.0)),
             horizon=int(config.get("horizon", 1)),
         )
-
-    def step(self, t: float) -> tuple[float | np.ndarray, StepReferenceLog]:
-        """Execute the public step method to be called by the orchestrator."""
-        return self._execute_zoh(t, self.update)
 
     def update(self, t: float) -> tuple[float | np.ndarray, StepReferenceLog]:
         """
