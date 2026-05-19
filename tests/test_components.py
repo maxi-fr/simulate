@@ -5,7 +5,8 @@ import pytest
 
 from simulate.controller import PIDController
 from simulate.estimator import IdentityEstimator
-from simulate.plant import LinearPlant
+from simulate.linear_dynamics import LinearDynamics
+from simulate.linear_output import LinearOutput
 from simulate.reference import StepReference
 from simulate.sensor import GaussianSensor
 from simulate.simulation import Simulation
@@ -13,25 +14,26 @@ from simulate.simulation import Simulation
 
 def test_component_conversion_utilities() -> None:
     """Test to_col_vec and from_col_vec utilities in Component."""
-    plant = LinearPlant(dt=0.1, a=[[1]], b=[[1]], c=[[1]], d=[[0]])
+    dynamics = LinearDynamics(dt=0.1, a=[[1]], b=[[1]])
+    LinearOutput(dt=0.1, c=[[1]], d=[[0]])
 
-    res = plant.to_col_vec(1.0)
+    res = dynamics.to_col_vec(1.0)
     assert res.shape == (1, 1)
     assert res[0, 0] == 1.0
 
-    res = plant.to_col_vec(np.array([1.0, 2.0]))
+    res = dynamics.to_col_vec(np.array([1.0, 2.0]))
     assert res.shape == (2, 1)
     assert res[0, 0] == 1.0
     assert res[1, 0] == 2.0
 
-    res = plant.to_col_vec(np.array([[1.0], [2.0]]))
+    res = dynamics.to_col_vec(np.array([[1.0], [2.0]]))
     assert res.shape == (2, 1)
 
-    res_back = plant.from_col_vec(np.array([[1.0]]))
+    res_back = dynamics.from_col_vec(np.array([[1.0]]))
     assert isinstance(res_back, float)
     assert res_back == 1.0
 
-    res_back = plant.from_col_vec(np.array([[1.0], [2.0]]))
+    res_back = dynamics.from_col_vec(np.array([[1.0], [2.0]]))
     assert isinstance(res_back, np.ndarray)
     assert res_back.shape == (2,)
     assert res_back[0] == 1.0
@@ -40,19 +42,22 @@ def test_component_conversion_utilities() -> None:
 
 def test_plant_step_logic() -> None:
     """Test standard plant update dynamics."""
-    plant = LinearPlant(dt=0.1, a=[[0.9]], b=[[1.0]], c=[[1.0]], d=[[0.0]])
+    dynamics = LinearDynamics(dt=0.1, a=[[0.9]], b=[[1.0]])
+    output = LinearOutput(dt=0.1, c=[[1.0]], d=[[0.0]])
 
-    assert plant.x[0, 0] == 0.0
+    assert dynamics.x[0, 0] == 0.0
 
     u1 = 1.0
-    y, log = plant.step(0.0, u1)
+    x, dynamics_log = dynamics.step(0.0, 1.0)
+    y, _ = output.step(0.0, x, u1)
     assert y == 1.0
-    assert log.x[0, 0] == 1.0
+    assert dynamics_log.x[0, 0] == 1.0
 
     u2 = 0.5
-    y, log = plant.step(0.1, u2)
+    x, dynamics_log = dynamics.step(0.1, u2)
+    y, _output_log = output.step(0.1, x, u2)
     assert y == 1.4
-    assert log.x[0, 0] == 1.4
+    assert dynamics_log.x[0, 0] == 1.4
 
 
 def test_sensor_step_logic() -> None:
@@ -112,7 +117,8 @@ def test_component_zoh_behavior() -> None:
 
 def test_invalid_simulation_config_non_integer_multiple() -> None:
     """Test that a ValueError is raised when sample times are not integer multiples."""
-    plant = LinearPlant(dt=0.1, a=[[1]], b=[[1]], c=[[1]], d=[[0]])
+    dynamics = LinearDynamics(dt=0.1, a=[[1]], b=[[1]])
+    output = LinearOutput(dt=0.1, c=[[1]], d=[[0]])
     reference = StepReference(dt=0.1)
     sensor = GaussianSensor(dt=0.1)
     estimator = IdentityEstimator(dt=0.1)
@@ -121,7 +127,8 @@ def test_invalid_simulation_config_non_integer_multiple() -> None:
     with pytest.raises(ValueError, match="must be an integer multiple"):
         Simulation(
             t_end=1.0,
-            plant=plant,
+            dynamics=dynamics,
+            output=output,
             reference=reference,
             sensor=sensor,
             estimator=estimator,
@@ -131,7 +138,8 @@ def test_invalid_simulation_config_non_integer_multiple() -> None:
 
 def test_floating_point_precision_handling() -> None:
     """Test that precision issues (e.g. 0.3 / 0.1) are handled properly."""
-    plant = LinearPlant(dt=0.1, a=[[1]], b=[[1]], c=[[1]], d=[[0]])
+    dynamics = LinearDynamics(dt=0.1, a=[[1]], b=[[1]])
+    output = LinearOutput(dt=0.1, c=[[1]], d=[[0]])
     reference = StepReference(dt=0.1)
     sensor = GaussianSensor(dt=0.1)
     estimator = IdentityEstimator(dt=0.1)
@@ -139,7 +147,8 @@ def test_floating_point_precision_handling() -> None:
 
     sim = Simulation(
         t_end=1.0,
-        plant=plant,
+        dynamics=dynamics,
+        output=output,
         reference=reference,
         sensor=sensor,
         estimator=estimator,
@@ -172,7 +181,8 @@ def test_step_reference_trajectory() -> None:
 
 def test_simulation_execution_and_logging() -> None:
     """Test full simulation execution, ensuring correct loop length and log aggregation."""
-    plant = LinearPlant(dt=0.1, a=[[0.9]], b=[[1.0]], c=[[1.0]], d=[[0.0]])
+    dynamics = LinearDynamics(dt=0.1, a=[[0.9]], b=[[1.0]])
+    output = LinearOutput(dt=0.1, c=[[1.0]], d=[[0.0]])
     reference = StepReference(dt=0.1, start_time=0.5)
     sensor = GaussianSensor(dt=0.1, std_dev=0.0)
     estimator = IdentityEstimator(dt=0.1)
@@ -180,7 +190,8 @@ def test_simulation_execution_and_logging() -> None:
 
     sim = Simulation(
         t_end=1.0,
-        plant=plant,
+        dynamics=dynamics,
+        output=output,
         reference=reference,
         sensor=sensor,
         estimator=estimator,
@@ -190,7 +201,7 @@ def test_simulation_execution_and_logging() -> None:
 
     assert len(sim.logger.universal_logs) == 11
 
-    assert len(sim.logger.component_logs["plant"]) == 11
+    assert len(sim.logger.component_logs["dynamics"]) == 11
     assert len(sim.logger.component_logs["reference"]) == 11
     assert len(sim.logger.component_logs["sensor"]) == 11
     assert len(sim.logger.component_logs["estimator"]) == 11
