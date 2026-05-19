@@ -16,8 +16,9 @@ if TYPE_CHECKING:
 
     from simulate.component import Component
     from simulate.controller import Controller
+    from simulate.dynamics import Dynamics
     from simulate.estimator import Estimator
-    from simulate.plant import Plant
+    from simulate.output import Output
     from simulate.reference import Reference
     from simulate.sensor import Sensor
 
@@ -28,7 +29,8 @@ class Simulation:
     def __init__(  # noqa: PLR0913
         self,
         t_end: float,
-        plant: Plant,
+        dynamics: Dynamics,
+        output: Output,
         reference: Reference,
         sensor: Sensor,
         estimator: Estimator,
@@ -36,18 +38,21 @@ class Simulation:
     ) -> None:
         """Initialize the simulation with instantiated components."""
         self.t_end = t_end
-        self.plant = plant
+        self.dynamics = dynamics
+        self.output = output
         self.reference = reference
         self.sensor = sensor
         self.estimator = estimator
         self.controller = controller
         self.logger = Logger()
 
-        self.dt = self.plant.dt
+        self.dt = self.dynamics.dt
 
-        base_dt = self.plant.dt
+        base_dt = self.dynamics.dt
 
         components: dict[str, Component] = {
+            "dynamics": self.dynamics,
+            "output": self.output,
             "reference": self.reference,
             "sensor": self.sensor,
             "estimator": self.estimator,
@@ -64,7 +69,7 @@ class Simulation:
     def from_config(cls, config: dict[str, Any]) -> Simulation:
         """Instantiate a simulation from a configuration dictionary using dynamic loading."""
         components: dict[str, Any] = {}
-        for key in ("plant", "reference", "sensor", "estimator", "controller"):
+        for key in ("dynamics", "output", "reference", "sensor", "estimator", "controller"):
             comp_config: dict[str, Any] = config[key].copy()
             class_path: str = comp_config.pop("class_path")
             module_name, class_name = class_path.rsplit(".", 1)
@@ -74,7 +79,8 @@ class Simulation:
 
         return cls(
             t_end=float(config["t_end"]),
-            plant=components["plant"],
+            dynamics=components["dynamics"],
+            output=components["output"],
             reference=components["reference"],
             sensor=components["sensor"],
             estimator=components["estimator"],
@@ -97,6 +103,7 @@ class Simulation:
         t = 0.0
         step_count: int = 0
 
+        x_k: float | np.ndarray = 0.0
         u_k: float | np.ndarray = 0.0
         y_k: float | np.ndarray = 0.0
 
@@ -109,10 +116,12 @@ class Simulation:
 
             u_k, ctrl_log = self.controller.step(t, ref_k, x_hat)
 
-            y_k, plant_log = self.plant.step(t, u_k)
+            x_k, dynamics_log = self.dynamics.step(t, u_k)
+            y_k, output_log = self.output.step(t, x_k, u_k)
 
             uni_log = UniversalLog(
                 t=t,
+                x=x_k,
                 y=y_k,
                 y_mea=y_mea,
                 x_hat=x_hat,
@@ -121,7 +130,8 @@ class Simulation:
             )
             comp_logs = {
                 "reference": ref_log,
-                "plant": plant_log,
+                "dynamics": dynamics_log,
+                "output": output_log,
                 "sensor": sensor_log,
                 "estimator": estim_log,
                 "controller": ctrl_log,

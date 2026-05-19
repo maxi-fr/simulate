@@ -2,8 +2,9 @@ import math
 
 import numpy as np
 
+from simulate.dynamics import LinearDynamics
 from simulate.integrator import euler, midpoint, rk4
-from simulate.plant import LinearPlant
+from simulate.output import LinearOutput
 
 
 def test_euler_accuracy() -> None:
@@ -42,7 +43,7 @@ def test_rk4_accuracy() -> None:
     assert math.isclose(x1[0, 0], math.exp(0.1), rel_tol=1e-5)
 
 
-def test_linear_plant_continuous() -> None:
+def test_linear_dynamics_continuous() -> None:
     """Test LinearPlant with continuous-time dynamics using RK4."""
     a = [[-1.0]]
     b = [[1.0]]
@@ -50,14 +51,16 @@ def test_linear_plant_continuous() -> None:
     d = [[0.0]]
     dt = 0.1
 
-    plant = LinearPlant(dt=dt, a=a, b=b, c=c, d=d, integrator=rk4)
+    dynamics = LinearDynamics(dt=dt, a=a, b=b, integrator=rk4)
+    output = LinearOutput(dt=dt, c=c, d=d)
 
-    y, log = plant.step(0.0, 1.0)
+    x, log = dynamics.step(0.0, 1.0)
+    y, _ = output.step(0.0, x, 1.0)
     assert math.isclose(y, 1 - math.exp(-0.1), rel_tol=1e-5)
     assert math.isclose(log.x[0, 0], 1 - math.exp(-0.1), rel_tol=1e-5)
 
 
-def test_linear_plant_discrete_fallback() -> None:
+def test_linear_dynamics_discrete_fallback() -> None:
     """Test LinearPlant fallback to discrete-time dynamics when no integrator is provided."""
     a = [[0.5]]
     b = [[1.0]]
@@ -65,25 +68,32 @@ def test_linear_plant_discrete_fallback() -> None:
     d = [[0.0]]
     dt = 0.1
 
-    plant = LinearPlant(dt=dt, a=a, b=b, c=c, d=d)
+    dynamics = LinearDynamics(dt=dt, a=a, b=b)
+    output = LinearOutput(dt=dt, c=c, d=d)
 
-    y, log = plant.step(0.0, 1.0)
+    x, log = dynamics.step(0.0, 1.0)
+    y, _ = output.step(0.0, x, 1.0)
     assert y == 1.0
     assert log.x[0, 0] == 1.0
 
 
-def test_linear_plant_from_config_dynamic_integrator() -> None:
+def test_linear_dynamics_from_config_dynamic_integrator() -> None:
     """Test dynamic loading of integrator via from_config."""
     config = {
         "dt": 0.1,
         "a": [[-1.0]],
         "b": [[1.0]],
-        "c": [[1.0]],
-        "d": [[0.0]],
         "integrator": "simulate.integrator.rk4",
     }
-    plant = LinearPlant.from_config(config)
-    assert plant.integrator == rk4
+    output_config = {
+        "dt": 0.1,
+        "c": [[1.0]],
+        "d": [[0.0]],
+    }
+    output = LinearOutput.from_config(output_config)
+    dynamics = LinearDynamics.from_config(config)
+    assert dynamics.integrator == rk4
 
-    y, _ = plant.step(0.0, 1.0)
+    x, _ = dynamics.step(0.0, 1.0)
+    y, _ = output.step(0.0, x, 1.0)
     assert math.isclose(y, 1 - math.exp(-0.1), rel_tol=1e-5)

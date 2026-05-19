@@ -13,13 +13,14 @@ class UniversalLog(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     t: float
+    x: float | npt.NDArray[np.float64]
     y: float | npt.NDArray[np.float64]
     y_mea: float | npt.NDArray[np.float64]
     x_hat: float | npt.NDArray[np.float64]
     u: float | npt.NDArray[np.float64]
     ref: float | npt.NDArray[np.float64]
 
-    @field_validator("y", "y_mea", "x_hat", "u", "ref", mode="after")
+    @field_validator("x", "y", "y_mea", "x_hat", "u", "ref", mode="after")
     @classmethod
     def validate_1d(cls, v: float | npt.NDArray[np.float64]) -> float | npt.NDArray[np.float64]:
         """Validate that the signal is a float or a 1D array."""

@@ -15,6 +15,7 @@ def test_universal_log_validation() -> None:
     """Test that UniversalLog validates signals."""
     UniversalLog(
         t=0.0,
+        x=1.0,
         y=1.0,
         y_mea=1.1,
         x_hat=1.2,
@@ -23,6 +24,7 @@ def test_universal_log_validation() -> None:
     )
     UniversalLog(
         t=0.0,
+        x=np.array([1.0]),
         y=np.array([1.0]),
         y_mea=np.array([1.1]),
         x_hat=np.array([1.2]),
@@ -33,6 +35,7 @@ def test_universal_log_validation() -> None:
     with pytest.raises(ValueError, match="Array must be 1D"):
         UniversalLog(
             t=0.0,
+            x=1.0,
             y=np.array([[1.0]]),
             y_mea=1.1,
             x_hat=1.2,
@@ -46,6 +49,7 @@ def test_logger_log_storage() -> None:
     logger = Logger()
     universal = UniversalLog(
         t=0.1,
+        x=1.0,
         y=1.0,
         y_mea=1.1,
         x_hat=1.2,
@@ -71,6 +75,7 @@ def test_logger_flush_chunk(tmp_path: Path) -> None:
     logger = Logger()
     universal = UniversalLog(
         t=0.1,
+        x=np.array([1.0, 2.0]),
         y=np.array([1.0, 2.0]),
         y_mea=np.array([1.1, 2.1]),
         x_hat=np.array([1.2, 2.2]),
@@ -113,10 +118,10 @@ def test_logger_merge_chunks(tmp_path: Path) -> None:
     """Test that merge_chunks concatenates chunk files into one and deletes the originals."""
     logger = Logger()
 
-    logger.log(UniversalLog(t=0.0, y=1.0, y_mea=1.0, x_hat=1.0, u=0.0, ref=1.0), {})
+    logger.log(UniversalLog(t=0.0, x=1.0, y=1.0, y_mea=1.0, x_hat=1.0, u=0.0, ref=1.0), {})
     logger.flush_chunk(tmp_path, prefix="test")
 
-    logger.log(UniversalLog(t=1.0, y=2.0, y_mea=2.0, x_hat=2.0, u=1.0, ref=2.0), {})
+    logger.log(UniversalLog(t=1.0, x=2.0, y=2.0, y_mea=2.0, x_hat=2.0, u=1.0, ref=2.0), {})
     logger.flush_chunk(tmp_path, prefix="test")
 
     Logger.merge_chunks(tmp_path, prefix="test")
@@ -136,11 +141,11 @@ def test_logger_multiple_chunks(tmp_path: Path) -> None:
     """Test that consecutive flush_chunk calls write distinct chunk files."""
     logger = Logger()
 
-    universal = UniversalLog(t=0.0, y=1.0, y_mea=1.0, x_hat=1.0, u=0.0, ref=1.0)
+    universal = UniversalLog(t=0.0, x=1.0, y=1.0, y_mea=1.0, x_hat=1.0, u=0.0, ref=1.0)
     logger.log(universal, {})
     logger.flush_chunk(tmp_path, prefix="test")
 
-    universal = UniversalLog(t=1.0, y=2.0, y_mea=2.0, x_hat=2.0, u=1.0, ref=2.0)
+    universal = UniversalLog(t=1.0, x=2.0, y=2.0, y_mea=2.0, x_hat=2.0, u=1.0, ref=2.0)
     logger.log(universal, {})
     logger.flush_chunk(tmp_path, prefix="test")
 
