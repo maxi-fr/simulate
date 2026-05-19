@@ -11,3 +11,4 @@ build/
 *.egg-info/
 random_stuff.ipynb
 CLAUDE.md
+__marimo__/
