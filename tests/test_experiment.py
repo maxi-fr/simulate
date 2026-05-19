@@ -12,7 +12,7 @@ def get_base_config() -> dict[str, Any]:
     return {
         "t_end": 0.1,
         "dynamics": {
-            "class_path": "simulate.linear_dynamics.LinearDynamics",
+            "class_path": "simulate.dynamics.LinearDynamics",
             "dt": 0.01,
             "a": [[0.0]],
             "b": [[1.0]],
@@ -35,7 +35,7 @@ def get_base_config() -> dict[str, Any]:
             "dt": 0.01,
         },
         "output": {
-            "class_path": "simulate.linear_output.LinearOutput",
+            "class_path": "simulate.output.LinearOutput",
             "dt": 0.01,
             "c": [[1.0]],
             "d": [[0.0]],

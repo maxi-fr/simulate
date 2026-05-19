@@ -2,9 +2,9 @@ import math
 
 import numpy as np
 
+from simulate.dynamics import LinearDynamics
 from simulate.integrator import euler, midpoint, rk4
-from simulate.linear_dynamics import LinearDynamics
-from simulate.linear_output import LinearOutput
+from simulate.output import LinearOutput
 
 
 def test_euler_accuracy() -> None:

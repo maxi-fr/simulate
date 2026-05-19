@@ -4,9 +4,9 @@ import numpy as np
 import pytest
 
 from simulate.controller import PIDController
+from simulate.dynamics import LinearDynamics
 from simulate.estimator import IdentityEstimator
-from simulate.linear_dynamics import LinearDynamics
-from simulate.linear_output import LinearOutput
+from simulate.output import LinearOutput
 from simulate.reference import StepReference
 from simulate.sensor import GaussianSensor
 from simulate.simulation import Simulation
