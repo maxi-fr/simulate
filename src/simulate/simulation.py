@@ -5,6 +5,7 @@ import math
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from tqdm import tqdm
 
 from simulate.config import load_config
 from simulate.logger import Logger, UniversalLog
@@ -107,42 +108,45 @@ class Simulation:
         u_k: float | np.ndarray = 0.0
         y_k: float | np.ndarray = 0.0
 
-        while t <= self.t_end:
-            ref_k, ref_log = self.reference.evaluate(t)
+        total_steps = round(self.t_end / self.dt) + 1
+        with tqdm(total=total_steps, desc="Running simulation") as pbar:
+            while t <= self.t_end:
+                ref_k, ref_log = self.reference.evaluate(t)
 
-            y_mea, sensor_log = self.sensor.evaluate(t, y_k)
+                y_mea, sensor_log = self.sensor.evaluate(t, y_k)
 
-            x_hat, estim_log = self.estimator.evaluate(t, y_mea, u_k)
+                x_hat, estim_log = self.estimator.evaluate(t, y_mea, u_k)
 
-            u_k, ctrl_log = self.controller.evaluate(t, ref_k, x_hat)
+                u_k, ctrl_log = self.controller.evaluate(t, ref_k, x_hat)
 
-            x_k, dynamics_log = self.dynamics.evaluate(t, u_k)
-            y_k, output_log = self.output.evaluate(t, x_k, u_k)
+                x_k, dynamics_log = self.dynamics.evaluate(t, u_k)
+                y_k, output_log = self.output.evaluate(t, x_k, u_k)
 
-            uni_log = UniversalLog(
-                t=t,
-                x=x_k,
-                y=y_k,
-                y_mea=y_mea,
-                x_hat=x_hat,
-                u=u_k,
-                ref=ref_k,
-            )
-            comp_logs = {
-                "reference": ref_log,
-                "dynamics": dynamics_log,
-                "output": output_log,
-                "sensor": sensor_log,
-                "estimator": estim_log,
-                "controller": ctrl_log,
-            }
-            self.logger.log(uni_log, comp_logs)
-            step_count += 1
+                uni_log = UniversalLog(
+                    t=t,
+                    x=x_k,
+                    y=y_k,
+                    y_mea=y_mea,
+                    x_hat=x_hat,
+                    u=u_k,
+                    ref=ref_k,
+                )
+                comp_logs = {
+                    "reference": ref_log,
+                    "dynamics": dynamics_log,
+                    "output": output_log,
+                    "sensor": sensor_log,
+                    "estimator": estim_log,
+                    "controller": ctrl_log,
+                }
+                self.logger.log(uni_log, comp_logs)
+                step_count += 1
 
-            if output_dir is not None and chunk_size is not None and step_count % chunk_size == 0:
-                self.logger.flush_chunk(output_dir, prefix)
+                if output_dir is not None and chunk_size is not None and step_count % chunk_size == 0:
+                    self.logger.flush_chunk(output_dir, prefix)
 
-            t += self.dt
+                t += self.dt
+                pbar.update(1)
 
     def export_results(self, directory: str | Path, prefix: str = "sim") -> None:
         """Flush remaining in-memory data then merge all chunks into {prefix}.npz."""
