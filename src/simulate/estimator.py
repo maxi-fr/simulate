@@ -1,13 +1,13 @@
 import abc
+import dataclasses
 from typing import Any, Self
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict
 
 from simulate.component import Component
 
 
-class Estimator[L: BaseModel](Component[L], abc.ABC):
+class Estimator[L](Component[L], abc.ABC):
     """Abstract base class for all estimators."""
 
     def __init__(self, dt: float) -> None:
@@ -23,10 +23,9 @@ class Estimator[L: BaseModel](Component[L], abc.ABC):
         """Execute internal update dynamics. Must be implemented by subclasses."""
 
 
-class IdentityEstimatorLog(BaseModel):
-    """Pydantic model for internal IdentityEstimator logging."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+@dataclasses.dataclass(frozen=True)
+class IdentityEstimatorLog:
+    """Dataclass for internal IdentityEstimator logging."""
 
     y_mea: float | np.ndarray
 

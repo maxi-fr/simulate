@@ -99,8 +99,11 @@ class Simulation:
         output_dir: str | Path | None = None,
         prefix: str = "sim",
         chunk_size: int | None = 10_000,
+        *,
+        compress: bool = False,
     ) -> None:
         """Run the simulation loop until t_end."""
+        self.logger.compress = compress
         t = 0.0
         step_count: int = 0
 
@@ -109,6 +112,9 @@ class Simulation:
         y_k: float | np.ndarray = 0.0
 
         total_steps = round(self.t_end / self.dt) + 1
+        buffer_size = chunk_size if (chunk_size is not None and output_dir is not None) else total_steps
+        self.logger.set_buffer_size(buffer_size)
+
         with tqdm(total=total_steps, desc="Running simulation") as pbar:
             while t <= self.t_end:
                 ref_k, ref_log = self.reference.evaluate(t)
@@ -148,7 +154,7 @@ class Simulation:
                 t += self.dt
                 pbar.update(1)
 
-    def export_results(self, directory: str | Path, prefix: str = "sim") -> None:
+    def export_results(self, directory: str | Path, prefix: str = "sim", *, compress: bool = False) -> None:
         """Flush remaining in-memory data then merge all chunks into {prefix}.npz."""
-        self.logger.flush_chunk(directory, prefix)
-        Logger.merge_chunks(directory, prefix)
+        self.logger.flush_chunk(directory, prefix, compress=compress)
+        Logger.merge_chunks(directory, prefix, compress=compress)

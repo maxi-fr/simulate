@@ -1,15 +1,12 @@
 import abc
 import math
 from collections.abc import Callable
-from typing import Any, Self, TypeVar
+from typing import Any, Self
 
 import numpy as np
-from pydantic import BaseModel
-
-L = TypeVar("L", bound=BaseModel)
 
 
-class Component[L: BaseModel](abc.ABC):
+class Component[L](abc.ABC):
     """Abstract base class for all simulation components implementing Zero-Order Hold (ZOH)."""
 
     def __init__(self, dt: float) -> None:

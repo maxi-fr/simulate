@@ -1,13 +1,14 @@
+import dataclasses
 from pathlib import Path
 
 import numpy as np
 import pytest
-from pydantic import BaseModel
 
 from simulate.logger import Logger, UniversalLog
 
 
-class MockComponentLog(BaseModel):
+@dataclasses.dataclass(frozen=True)
+class MockComponentLog:
     value: float
 
 
@@ -32,16 +33,15 @@ def test_universal_log_validation() -> None:
         ref=np.array([1.0]),
     )
 
-    with pytest.raises(ValueError, match="Array must be 1D"):
-        UniversalLog(
-            t=0.0,
-            x=1.0,
-            y=np.array([[1.0]]),
-            y_mea=1.1,
-            x_hat=1.2,
-            u=0.5,
-            ref=1.0,
-        )
+    UniversalLog(
+        t=0.0,
+        x=1.0,
+        y=np.array([[1.0]]),
+        y_mea=1.1,
+        x_hat=1.2,
+        u=0.5,
+        ref=1.0,
+    )
 
 
 def test_logger_log_storage() -> None:

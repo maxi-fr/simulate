@@ -1,19 +1,18 @@
 """DC Motor dynamics and output components for the example notebook."""
 
+import dataclasses
 import importlib
 from typing import Any, Self
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict
 
 from simulate.dynamics import Dynamics
 from simulate.output import Output
 
 
-class DCMotorLog(BaseModel):
-    """Pydantic model for logging DC Motor internal state."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+@dataclasses.dataclass(frozen=True)
+class DCMotorLog:
+    """Dataclass for logging DC Motor internal state."""
 
     omega: float
     current: float
@@ -82,10 +81,10 @@ class DCMotorDynamics(Dynamics[DCMotorLog]):
         return DCMotorLog(omega=omega, current=i)
 
 
-class DCMotorOutputLog(BaseModel):
-    """Pydantic model for logging DC Motor output."""
+@dataclasses.dataclass(frozen=True)
+class DCMotorOutputLog:
+    """Dataclass for logging DC Motor output."""
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
     y: float
 
 

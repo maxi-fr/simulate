@@ -1,13 +1,13 @@
 import abc
+import dataclasses
 from typing import Any, Self
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict
 
 from simulate.component import Component
 
 
-class Sensor[L: BaseModel](Component[L], abc.ABC):
+class Sensor[L](Component[L], abc.ABC):
     """Abstract base class for all sensors."""
 
     def __init__(self, dt: float) -> None:
@@ -23,10 +23,9 @@ class Sensor[L: BaseModel](Component[L], abc.ABC):
         """Execute internal update dynamics. Must be implemented by subclasses."""
 
 
-class GaussianSensorLog(BaseModel):
-    """Pydantic model for internal GaussianSensor logging."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+@dataclasses.dataclass(frozen=True)
+class GaussianSensorLog:
+    """Dataclass for internal GaussianSensor logging."""
 
     noise: float | np.ndarray
 
