@@ -1,16 +1,16 @@
 import abc
+import dataclasses
 import importlib
 from typing import Any, Self, cast
 
 import numpy as np
 from numpy.typing import ArrayLike
-from pydantic import BaseModel, ConfigDict
 
 from simulate.component import Component
 from simulate.integrator import Integrator
 
 
-class Dynamics[L: BaseModel](Component[L], abc.ABC):
+class Dynamics[L](Component[L], abc.ABC):
     """Abstract base class for system dynamics (state transition)."""
 
     x: np.ndarray
@@ -56,10 +56,9 @@ class Dynamics[L: BaseModel](Component[L], abc.ABC):
         """Build the component-specific log snapshot for the current state."""
 
 
-class LinearDynamicsLog(BaseModel):
-    """Pydantic model for internal LinearDynamics state logging."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+@dataclasses.dataclass(frozen=True)
+class LinearDynamicsLog:
+    """Dataclass for internal LinearDynamics state logging."""
 
     x: np.ndarray
 

@@ -5,22 +5,22 @@ from typing import Any
 from simulate.simulation import Simulation
 
 
-def _run_worker(task: tuple[dict[str, Any], Path, str, int | None]) -> bool:
+def _run_worker(task: tuple[dict[str, Any], Path, str, int | None, bool]) -> bool:
     """
     Worker function to run a single simulation.
 
     Args:
-        task: A tuple containing (config_dict, output_dir, prefix, chunk_size)
+        task: A tuple containing (config_dict, output_dir, prefix, chunk_size, compress)
 
     Returns
     -------
         True if successful, False otherwise.
     """
-    config, output_dir, prefix, chunk_size = task
+    config, output_dir, prefix, chunk_size, compress = task
     try:
         sim = Simulation.from_config(config)
-        sim.run(output_dir=output_dir, prefix=prefix, chunk_size=chunk_size)
-        sim.export_results(output_dir, prefix)
+        sim.run(output_dir=output_dir, prefix=prefix, chunk_size=chunk_size, compress=compress)
+        sim.export_results(output_dir, prefix, compress=compress)
     except Exception as e:  # noqa: BLE001
         print(f"Error running simulation: {e}")  # noqa: T201
         return False
@@ -42,6 +42,8 @@ class ExperimentManager:
         prefixes: list[str] | None = None,
         max_num_processes: int = 1,
         chunk_size: int | None = 10_000,
+        *,
+        compress: bool = False,
     ) -> list[bool]:
         """
         Execute a batch of simulations in parallel.
@@ -50,6 +52,7 @@ class ExperimentManager:
             configs: A list of simulation configuration dictionaries.
             prefixes: Optional list of prefixes for result filenames.
             chunk_size: Steps per chunk file. None disables mid-run flushing.
+            compress: Enable compression for simulation logs.
 
         Returns
         -------
@@ -63,7 +66,8 @@ class ExperimentManager:
             raise ValueError(msg)
 
         tasks = [
-            (config, self.output_dir, prefix, chunk_size) for config, prefix in zip(configs, prefixes, strict=True)
+            (config, self.output_dir, prefix, chunk_size, compress)
+            for config, prefix in zip(configs, prefixes, strict=True)
         ]
 
         num_processes = min(multiprocessing.cpu_count(), len(configs), max_num_processes)

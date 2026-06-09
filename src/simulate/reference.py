@@ -1,13 +1,13 @@
 import abc
+import dataclasses
 from typing import Any, Self
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict
 
 from simulate.component import Component
 
 
-class Reference[L: BaseModel](Component[L], abc.ABC):
+class Reference[L](Component[L], abc.ABC):
     """Abstract base class for all reference generators."""
 
     def __init__(self, dt: float) -> None:
@@ -23,10 +23,9 @@ class Reference[L: BaseModel](Component[L], abc.ABC):
         """Execute internal update dynamics to generate reference. Must be implemented by subclasses."""
 
 
-class StepReferenceLog(BaseModel):
-    """Pydantic model for internal StepReference logging."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+@dataclasses.dataclass(frozen=True)
+class StepReferenceLog:
+    """Dataclass for internal StepReference logging."""
 
     step_value: float | np.ndarray
     start_time: float

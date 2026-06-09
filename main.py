@@ -28,6 +28,11 @@ def main() -> None:
         default="results",
         help="Directory to save simulation results (default: results).",
     )
+    parser.add_argument(
+        "--compress",
+        action="store_true",
+        help="Enable zlib compression for output files (default: False/uncompressed).",
+    )
 
     args = parser.parse_args()
 
@@ -50,12 +55,12 @@ def main() -> None:
         for override in raw_configs[1:]:
             configs.append(deep_merge(configs[-1], override))
 
-        manager.run_batch(configs, chunk_size=chunk_size)
+        manager.run_batch(configs, chunk_size=chunk_size, compress=args.compress)
     else:
         output_dir = Path(args.output_dir)
         sim = Simulation.from_config(config)
-        sim.run(output_dir=output_dir, prefix="sim", chunk_size=chunk_size)
-        sim.export_results(output_dir, prefix="sim")
+        sim.run(output_dir=output_dir, prefix="sim", chunk_size=chunk_size, compress=args.compress)
+        sim.export_results(output_dir, prefix="sim", compress=args.compress)
 
 
 if __name__ == "__main__":

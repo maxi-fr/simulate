@@ -1,14 +1,14 @@
 import abc
+import dataclasses
 from typing import Any, Self, cast
 
 import numpy as np
 from numpy.typing import ArrayLike
-from pydantic import BaseModel, ConfigDict
 
 from simulate.component import Component
 
 
-class Output[L: BaseModel](Component[L], abc.ABC):
+class Output[L](Component[L], abc.ABC):
     """Abstract base class for system output (measurement generation)."""
 
     def __init__(self, dt: float) -> None:
@@ -24,10 +24,9 @@ class Output[L: BaseModel](Component[L], abc.ABC):
         """Execute internal update for output. Returns the output y."""
 
 
-class LinearOutputLog(BaseModel):
-    """Pydantic model for internal LinearOutput state logging."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+@dataclasses.dataclass(frozen=True)
+class LinearOutputLog:
+    """Dataclass for internal LinearOutput state logging."""
 
     y: np.ndarray
 

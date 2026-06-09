@@ -1,14 +1,14 @@
 import abc
+import dataclasses
 from typing import Any, Self
 
 import numpy as np
 from numpy.typing import ArrayLike
-from pydantic import BaseModel, ConfigDict
 
 from simulate.component import Component
 
 
-class Controller[L: BaseModel](Component[L], abc.ABC):
+class Controller[L](Component[L], abc.ABC):
     """Abstract base class for all controllers."""
 
     def __init__(self, dt: float) -> None:
@@ -24,10 +24,9 @@ class Controller[L: BaseModel](Component[L], abc.ABC):
         """Execute internal update dynamics based on reference (or trajectory). Must be implemented by subclasses."""
 
 
-class PIDControllerLog(BaseModel):
-    """Pydantic model for internal PIDController logging."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+@dataclasses.dataclass(frozen=True)
+class PIDControllerLog:
+    """Dataclass for internal PIDController logging."""
 
     error: float | np.ndarray
     integral: float | np.ndarray
