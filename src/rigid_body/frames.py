@@ -117,6 +117,7 @@ def quaternion_from_euler(angles: ArrayLike, *, degrees: bool = False) -> Quater
     return Quaternion.from_scipy(rot)
 
 
+# TODO: implement smart caching, beause gets recalculated a lot
 def eci_to_geodedic(pos_eci: np.ndarray) -> tuple[float, float, float]:
     """
     Convert ECI position to geodetic coordinates.

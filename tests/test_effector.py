@@ -1,7 +1,6 @@
 import datetime
 
 import numpy as np
-import pymap3d
 import pytest
 
 from rigid_body.disturbances import aerodynamic_drag, solar_radiation_pressure, third_body_forces
@@ -13,6 +12,7 @@ from rigid_body.effector import (
     ThirdBody,
 )
 from rigid_body.environment import atmosphere_density_msis, is_in_shadow, moon_position, sun_position
+from rigid_body.frames import eci_to_geodedic
 from rigid_body.quaternion import Quaternion
 from rigid_body.surface import Surface
 
@@ -146,8 +146,7 @@ def test_aerodynamic_drag_matches_disturbance() -> None:
 
     force, torque, momentum = eff.calc_contributions(0.0, state, np.zeros(0), np.zeros(0))
 
-    x_ecef, y_ecef, z_ecef = pymap3d.eci2ecef(*r_eci, time=EPOCH)
-    lat_deg, lon_deg, alt_m = pymap3d.ecef2geodetic(x_ecef, y_ecef, z_ecef)
+    lat_deg, lon_deg, alt_m = eci_to_geodedic(r_eci)
     rho = atmosphere_density_msis(EPOCH, float(lat_deg), float(lon_deg), float(alt_m))
     f_exp, tau_exp = aerodynamic_drag(state.r_eci, state.v_eci, state.q_bi, surfaces, rho)
 
