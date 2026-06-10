@@ -25,21 +25,25 @@ def get_base_config() -> dict[str, Any]:
             "step_value": 1.0,
             "start_time": 0.0,
         },
-        "sensor": {
-            "class_path": "simulate.sensor.GaussianSensor",
-            "dt": 0.01,
-            "std_dev": 0.0,
-        },
+        "sensors": [
+            {
+                "class_path": "simulate.sensor.GaussianSensor",
+                "dt": 0.01,
+                "std_dev": 0.0,
+            },
+        ],
         "estimator": {
             "class_path": "simulate.estimator.IdentityEstimator",
             "dt": 0.01,
         },
-        "output": {
-            "class_path": "simulate.output.LinearOutput",
-            "dt": 0.01,
-            "c": [[1.0]],
-            "d": [[0.0]],
-        },
+        "outputs": [
+            {
+                "class_path": "simulate.output.LinearOutput",
+                "dt": 0.01,
+                "c": [[1.0]],
+                "d": [[0.0]],
+            },
+        ],
         "controller": {
             "class_path": "simulate.controller.PIDController",
             "dt": 0.01,
@@ -95,3 +99,24 @@ def test_experiment_manager_failure_handling(tmp_path: Path) -> None:
     assert len(results) == 2
     assert results[0] is True
     assert results[1] is False
+
+
+def test_single_simulation_from_config_with_single_elements() -> None:
+    """Verify that a simulation config with single dicts for outputs/sensors can be loaded."""
+    config = get_base_config()
+    config["outputs"] = {
+        "class_path": "simulate.output.LinearOutput",
+        "dt": 0.01,
+        "c": [[1.0]],
+        "d": [[0.0]],
+    }
+    config["sensors"] = {
+        "class_path": "simulate.sensor.GaussianSensor",
+        "dt": 0.01,
+        "std_dev": 0.0,
+    }
+    sim = Simulation.from_config(config)
+    sim.run()
+    assert sim.dynamics.dt == 0.01
+    assert len(sim.outputs) == 1
+    assert len(sim.sensors) == 1

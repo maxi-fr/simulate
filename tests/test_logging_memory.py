@@ -30,9 +30,9 @@ def _create_simulation(steps: int) -> Simulation:
     return Simulation(
         t_end=t_end,
         dynamics=dynamics,
-        output=output,
+        outputs=[output],
         reference=reference,
-        sensor=sensor,
+        sensors=[sensor],
         estimator=estimator,
         controller=controller,
     )

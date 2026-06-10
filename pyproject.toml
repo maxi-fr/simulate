@@ -13,6 +13,7 @@ dependencies = [
     "numpy>=2.4.4",
     "pandas>=3.0.2",
     "pandas-stubs>=3.0.0.260204",
+    "polars>=1.41.2",
     "pydantic>=2.13.4",
     "pyyaml>=6.0.3",
     "tqdm>=4.68.1",
@@ -29,6 +30,7 @@ dev = [
     "mypy>=1.0.0",
     "validate-pyproject>=0.23",
     "marimo>=0.23.6",
+    "scalene>=2.3.0",
 ]
 
 [build-system]
@@ -80,6 +82,9 @@ convention = "numpy"
     "PLC0415",  # imports inside cells (marimo idiom)
     "B018",     # last expression renders the cell output (e.g. `fig`)
     "PLR1711",  # useless return statements (marimo adds them; not all cells need return)
+    "ICN001",   # marimo requires private imports like _pd/_plt to avoid cell namespace clashes
+    "N803",     # marimo cell arguments can be CamelCase class names
+    "PLR0913",  # too many arguments in cell function definitions
 ]
 
 [tool.ruff.format]

@@ -128,9 +128,9 @@ def test_invalid_simulation_config_non_integer_multiple() -> None:
         Simulation(
             t_end=1.0,
             dynamics=dynamics,
-            output=output,
+            outputs=[output],
             reference=reference,
-            sensor=sensor,
+            sensors=[sensor],
             estimator=estimator,
             controller=controller,
         )
@@ -148,9 +148,9 @@ def test_floating_point_precision_handling() -> None:
     sim = Simulation(
         t_end=1.0,
         dynamics=dynamics,
-        output=output,
+        outputs=[output],
         reference=reference,
-        sensor=sensor,
+        sensors=[sensor],
         estimator=estimator,
         controller=controller,
     )
@@ -191,9 +191,9 @@ def test_simulation_execution_and_logging() -> None:
     sim = Simulation(
         t_end=1.0,
         dynamics=dynamics,
-        output=output,
+        outputs=[output],
         reference=reference,
-        sensor=sensor,
+        sensors=[sensor],
         estimator=estimator,
         controller=controller,
     )
@@ -203,7 +203,8 @@ def test_simulation_execution_and_logging() -> None:
 
     assert len(sim.logger.component_logs["dynamics"]) == 11
     assert len(sim.logger.component_logs["reference"]) == 11
-    assert len(sim.logger.component_logs["sensor"]) == 11
+    assert len(sim.logger.component_logs["output_0"]) == 11
+    assert len(sim.logger.component_logs["sensor_0"]) == 11
     assert len(sim.logger.component_logs["estimator"]) == 11
     assert len(sim.logger.component_logs["controller"]) == 11
 
@@ -212,3 +213,30 @@ def test_simulation_execution_and_logging() -> None:
 
     assert math.isclose(sim.logger.universal_logs[-1]["t"], 1.0, rel_tol=1e-9)
     assert sim.logger.universal_logs[-1]["u"] != 0.0
+
+
+def test_simulation_single_output_and_sensor() -> None:
+    """Test that Simulation accepts a single output and sensor directly instead of lists."""
+    dynamics = LinearDynamics(dt=0.1, a=[[0.9]], b=[[1.0]])
+    output = LinearOutput(dt=0.1, c=[[1.0]], d=[[0.0]])
+    reference = StepReference(dt=0.1, start_time=0.5)
+    sensor = GaussianSensor(dt=0.1, std_dev=0.0)
+    estimator = IdentityEstimator(dt=0.1)
+    controller = PIDController(dt=0.2, kp=[[0.5]], ki=[[0.1]], kd=[[0.0]])
+
+    sim = Simulation(
+        t_end=1.0,
+        dynamics=dynamics,
+        outputs=output,
+        reference=reference,
+        sensors=sensor,
+        estimator=estimator,
+        controller=controller,
+    )
+    sim.run()
+
+    assert len(sim.logger.universal_logs) == 11
+    assert len(sim.outputs) == 1
+    assert len(sim.sensors) == 1
+    assert sim.outputs[0] is output
+    assert sim.sensors[0] is sensor

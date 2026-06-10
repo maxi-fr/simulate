@@ -1,0 +1,314 @@
+# mypy: ignore-errors
+
+import marimo
+
+__generated_with = "0.23.6"
+app = marimo.App(width="medium")
+
+
+@app.cell
+def _():
+    import marimo as mo
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import polars as pl
+
+    from simulate.effector import BodyWrench, GravityGradient, ReactionWheel
+    from simulate.rigid_body import (
+        ReactionWheelTelemetryOutput,
+        RigidBodyAttitudeOutput,
+        RigidBodyDynamics,
+        RigidBodyRateOutput,
+    )
+    from simulate.sensor import GaussianSensor
+
+    return (
+        BodyWrench,
+        GaussianSensor,
+        GravityGradient,
+        ReactionWheel,
+        ReactionWheelTelemetryOutput,
+        RigidBodyAttitudeOutput,
+        RigidBodyDynamics,
+        RigidBodyRateOutput,
+        mo,
+        np,
+        pl,
+        plt,
+    )
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    # Rigid Body Dynamics with Modular Actuators
+
+    This notebook demonstrates the pre-built `RigidBodyDynamics` component and the modular
+    `Effector` abstraction. We compose two actuators into one body:
+
+    1. A **`BodyWrench`** applying a body-frame thrust (translation), and
+    2. A **`ReactionWheel`** about the body z-axis (a momentum-exchange device).
+
+    We step the dynamics open-loop and verify that spinning up the wheel rotates the body
+    while the **total angular momentum** $H = J\omega + h$ is conserved.
+    """)
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    ## 1. Build the rigid body
+
+    State layout: $x = [\,r(3)\;|\;v(3)\;|\;q(4)\;|\;\omega(3)\;|\;h_w\,]$, with $q$ a
+    scalar-first body$\to$inertial unit quaternion. Attitude integration uses
+    `QuaternionRK4`, which renormalizes the quaternion after each step.
+    """)
+    return
+
+
+@app.cell
+def _(BodyWrench, ReactionWheel, RigidBodyDynamics, np):
+    dt = 0.01
+    inertia = np.diag([1.0, 2.0, 3.0])
+    dynamics = RigidBodyDynamics(
+        dt=dt,
+        mass=5.0,
+        inertia=inertia,
+        effectors=[BodyWrench(), ReactionWheel(axis=[0.0, 0.0, 1.0])],
+    )
+    return dt, dynamics, inertia
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    ## 2. Step the simulation open-loop
+
+    Command layout is `[Fx, Fy, Fz, tau_x, tau_y, tau_z, tau_wheel]`. We apply a constant
+    body-x thrust and a constant wheel motor torque for 5 s.
+    """)
+    return
+
+
+@app.cell
+def _(dt, dynamics, inertia, np):
+    t_end = 5.0
+    n_steps = int(t_end / dt)
+
+    fx = 2.0  # body-frame thrust (N)
+    tau_wheel = 0.1  # wheel motor torque (N*m)
+    cmd = np.array([fx, 0.0, 0.0, 0.0, 0.0, 0.0, tau_wheel])
+
+    rows = []
+    for _k in range(n_steps):
+        _, log = dynamics.evaluate(_k * dt, cmd)
+        omega = log.angular_velocity.ravel()
+        h_w = log.effector_states[0, 0]
+        total_h = inertia @ omega + np.array([0.0, 0.0, h_w])
+        rows.append(
+            {
+                "t": _k * dt,
+                "x": log.position[0, 0],
+                "qw": log.quaternion[0, 0],
+                "qz": log.quaternion[3, 0],
+                "wz": omega[2],
+                "h_w": h_w,
+                "H_norm": float(np.linalg.norm(total_h)),
+            }
+        )
+    return (rows,)
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    ## 3. Visualize
+
+    The body counter-rotates as the wheel spins up ($\omega_z < 0$, $h_w > 0$), the body
+    translates under thrust, and $\|H\|$ stays at zero — confirming momentum exchange with
+    no external torque.
+    """)
+    return
+
+
+@app.cell
+def _(pl, plt, rows):
+    data = pl.DataFrame(rows)
+    fig, axes = plt.subplots(4, 1, figsize=(12, 12))
+
+    axes[0].plot(data["t"], data["x"], "b-", label="position x (m)")
+    axes[0].set_ylabel("x (m)")
+    axes[0].legend()
+    axes[0].grid(visible=True)
+
+    axes[1].plot(data["t"], data["wz"], "r-", label="body $\\omega_z$ (rad/s)")
+    axes[1].set_ylabel("rad/s")
+    axes[1].legend()
+    axes[1].grid(visible=True)
+
+    axes[2].plot(data["t"], data["h_w"], "g-", label="wheel momentum $h_w$")
+    axes[2].set_ylabel("N*m*s")
+    axes[2].legend()
+    axes[2].grid(visible=True)
+
+    axes[3].plot(data["t"], data["H_norm"], "k-", label="$\\|H\\|$ total angular momentum")
+    axes[3].set_xlabel("Time (s)")
+    axes[3].set_ylabel("N*m*s")
+    axes[3].legend()
+    axes[3].grid(visible=True)
+
+    fig.tight_layout()
+    plt.gca()
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    ## 4. An environmental effector: gravity-gradient torque
+
+    Environmental effects are just **command-free effectors** (`n_inputs = 0`) — autonomous
+    functions of the body state rather than the control input. We release a gravity-gradient
+    stabilized body with a small attitude tilt and watch it librate. The effector receives
+    the body's inertia automatically via `bind`, so there is no commanded input.
+    """)
+    return
+
+
+@app.cell
+def _(GravityGradient, RigidBodyDynamics, np):
+    dt_gg = 1.0
+    body = RigidBodyDynamics(
+        dt=dt_gg,
+        mass=500.0,
+        inertia=np.diag([100.0, 200.0, 300.0]),
+        effectors=[GravityGradient(mu=3.986e14)],
+    )
+    body.x[0:3] = np.array([[7.0e6], [0.0], [0.0]])  # LEO radius along inertial x
+    half = np.deg2rad(10.0)  # initial tilt about body z
+    body.x[6:10] = np.array([[np.cos(half)], [0.0], [0.0], [np.sin(half)]])
+
+    gg_rows = []
+    for _k in range(6000):
+        _, gg_log = body.evaluate(_k * dt_gg, np.zeros((0, 1)))
+        gg_rows.append({"t": _k * dt_gg, "wz": gg_log.angular_velocity[2, 0], "qz": gg_log.quaternion[3, 0]})
+    return (gg_rows,)
+
+
+@app.cell
+def _(gg_rows, pl, plt):
+    gg_data = pl.DataFrame(gg_rows)
+    gg_fig, gg_axes = plt.subplots(2, 1, figsize=(12, 6))
+    gg_axes[0].plot(gg_data["t"], gg_data["qz"], "b-", label="$q_z$ (attitude)")
+    gg_axes[0].set_ylabel("$q_z$")
+    gg_axes[0].legend()
+    gg_axes[0].grid(visible=True)
+    gg_axes[1].plot(gg_data["t"], gg_data["wz"], "r-", label="body $\\omega_z$ (rad/s)")
+    gg_axes[1].set_xlabel("Time (s)")
+    gg_axes[1].set_ylabel("rad/s")
+    gg_axes[1].legend()
+    gg_axes[1].grid(visible=True)
+    gg_fig.tight_layout()
+    plt.gca()
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    ## 5. Measuring the body: per-part Outputs + Sensors
+
+    Measurement is modular and split into two roles. An **Output** transforms the state into a
+    true sub-measurement (always at the dynamics rate); a reusable **`GaussianSensor`** then
+    adds noise at *its own* sampling rate. Here a slow **star tracker** reads the attitude $q$,
+    a fast **gyro** reads the body rate $\omega$, and a **wheel tachometer** reads the
+    reaction-wheel momentum $h_w$ — each at a different rate.
+
+    (Note: additive noise on $q$ yields a non-unit quaternion; a real pipeline renormalizes.)
+    """)
+    return
+
+
+@app.cell
+def _(
+    BodyWrench,
+    GaussianSensor,
+    ReactionWheel,
+    ReactionWheelTelemetryOutput,
+    RigidBodyAttitudeOutput,
+    RigidBodyDynamics,
+    RigidBodyRateOutput,
+    np,
+):
+    dt_m = 0.01
+    body_m = RigidBodyDynamics(
+        dt=dt_m,
+        mass=5.0,
+        inertia=np.diag([1.0, 2.0, 3.0]),
+        effectors=[BodyWrench(), ReactionWheel(axis=[0.0, 0.0, 1.0])],
+    )
+
+    # (Output transform, Sensor noise) channels, each at its own rate.
+    gyro_out, gyro_sen = RigidBodyRateOutput(dt=dt_m), GaussianSensor(dt=dt_m, std_dev=2e-3)
+    track_out, track_sen = RigidBodyAttitudeOutput(dt=10 * dt_m), GaussianSensor(dt=10 * dt_m, std_dev=2e-3)
+    tach_out, tach_sen = ReactionWheelTelemetryOutput(dt=5 * dt_m), GaussianSensor(dt=5 * dt_m, std_dev=1e-2)
+
+    cmd_m = np.array([2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1])
+    meas_rows = []
+    for _k in range(500):
+        t_m = _k * dt_m
+        x_m, _ = body_m.evaluate(t_m, cmd_m)
+
+        wz_true, _ = gyro_out.evaluate(t_m, x_m, cmd_m)
+        wz_mea, _ = gyro_sen.evaluate(t_m, wz_true)
+        hw_true, _ = tach_out.evaluate(t_m, x_m, cmd_m)
+        hw_mea, _ = tach_sen.evaluate(t_m, hw_true)
+        q_true, _ = track_out.evaluate(t_m, x_m, cmd_m)
+        q_mea, _ = track_sen.evaluate(t_m, q_true)
+
+        meas_rows.append(
+            {
+                "t": t_m,
+                "wz_true": np.ravel(wz_true)[2],
+                "wz_mea": np.ravel(wz_mea)[2],
+                "hw_true": float(np.ravel(hw_true)[0]),
+                "hw_mea": float(np.ravel(hw_mea)[0]),
+                "qz_true": np.ravel(q_true)[3],
+                "qz_mea": np.ravel(q_mea)[3],
+            }
+        )
+    return (meas_rows,)
+
+
+@app.cell
+def _(meas_rows, pl, plt):
+    meas_data = pl.DataFrame(meas_rows)
+    meas_fig, meas_axes = plt.subplots(3, 1, figsize=(12, 9))
+
+    meas_axes[0].plot(meas_data["t"], meas_data["wz_true"], "b-", label="gyro $\\omega_z$ truth")
+    meas_axes[0].plot(meas_data["t"], meas_data["wz_mea"], "r.", alpha=0.3, label="gyro measured")
+    meas_axes[0].set_ylabel("rad/s")
+    meas_axes[0].legend()
+    meas_axes[0].grid(visible=True)
+
+    meas_axes[1].plot(meas_data["t"], meas_data["hw_true"], "g-", label="wheel $h_w$ truth")
+    meas_axes[1].plot(meas_data["t"], meas_data["hw_mea"], "r.", alpha=0.3, label="tachometer measured (5x slower)")
+    meas_axes[1].set_ylabel("N*m*s")
+    meas_axes[1].legend()
+    meas_axes[1].grid(visible=True)
+
+    meas_axes[2].plot(meas_data["t"], meas_data["qz_true"], "b-", label="star tracker $q_z$ truth")
+    meas_axes[2].plot(meas_data["t"], meas_data["qz_mea"], "r.", alpha=0.3, label="measured (10x slower)")
+    meas_axes[2].set_xlabel("Time (s)")
+    meas_axes[2].set_ylabel("$q_z$")
+    meas_axes[2].legend()
+    meas_axes[2].grid(visible=True)
+
+    meas_fig.tight_layout()
+    plt.gca()
+    return
+
+
+if __name__ == "__main__":
+    app.run()

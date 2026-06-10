@@ -9,8 +9,12 @@ app = marimo.App(width="medium")
 @app.cell
 def _():
     import marimo as mo
+    import matplotlib.pyplot as plt
+    import polars as pl
 
-    return (mo,)
+    from simulate.simulation import Simulation
+
+    return Simulation, mo, pl, plt
 
 
 @app.cell
@@ -77,7 +81,7 @@ def _(kd, ki, kp, start_time, step_value):
             "b": 0.001,
             "integrator": "simulate.integrator.rk4",
         },
-        "output": {
+        "outputs": {
             "class_path": "dc_motor.DCMotorOutput",
             "dt": 0.001,
         },
@@ -87,7 +91,7 @@ def _(kd, ki, kp, start_time, step_value):
             "step_value": float(step_value.value),
             "start_time": float(start_time.value),
         },
-        "sensor": {
+        "sensors": {
             "class_path": "simulate.sensor.GaussianSensor",
             "dt": 0.001,
             "std_dev": 0.1,
@@ -116,9 +120,7 @@ def _(mo):
 
 
 @app.cell
-def _(config):
-    from simulate.simulation import Simulation
-
+def _(Simulation, config):
     sim = Simulation.from_config(config)
     sim.run()
     return (sim,)
@@ -133,18 +135,18 @@ def _(mo):
 
 
 @app.cell
-def _(sim):
-    import matplotlib.pyplot as plt
-    import pandas as pd
-
-    data = pd.DataFrame(sim.logger.universal_logs)
-    dynamics_data = pd.DataFrame(sim.logger.component_logs["dynamics"])
+def _(pl, plt, sim):
+    data = pl.DataFrame(sim.logger.universal_logs)
+    dynamics_data = pl.DataFrame(sim.logger.component_logs["dynamics"])
+    # Per-channel measurements: output_0 = true speed, sensor_0 = noisy measured speed.
+    output_data = pl.DataFrame(sim.logger.component_logs["output_0"])
+    sensor_data = pl.DataFrame(sim.logger.component_logs["sensor_0"])
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 10))
 
     axes[0].plot(data["t"], data["ref"], "k--", label="Reference (rad/s)")
-    axes[0].plot(data["t"], data["y"], "b-", label="Actual Speed (rad/s)")
-    axes[0].plot(data["t"], data["y_mea"], "r.", alpha=0.1, label="Measured Speed (rad/s)")
+    axes[0].plot(output_data["t"], output_data["value"], "b-", label="Actual Speed (rad/s)")
+    axes[0].plot(sensor_data["t"], sensor_data["value"], "r.", alpha=0.1, label="Measured Speed (rad/s)")
     axes[0].set_title("DC Motor Speed Control")
     axes[0].set_ylabel("Speed (rad/s)")
     axes[0].legend()
@@ -162,7 +164,7 @@ def _(sim):
     axes[2].grid(visible=True)
 
     fig.tight_layout()
-    fig
+    plt.gca()
     return
 
 

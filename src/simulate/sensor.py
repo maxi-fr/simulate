@@ -28,6 +28,7 @@ class GaussianSensorLog:
     """Dataclass for internal GaussianSensor logging."""
 
     noise: float | np.ndarray
+    value: float | np.ndarray  # measured output (true output + noise)
 
 
 class GaussianSensor(Sensor[GaussianSensorLog]):
@@ -58,4 +59,4 @@ class GaussianSensor(Sensor[GaussianSensorLog]):
         y_vec = self.to_col_vec(y)
         noise = self.rng.normal(0, self.std_dev, size=y_vec.shape)
         y_mea_vec = y_vec + noise
-        return self.from_col_vec(y_mea_vec), GaussianSensorLog(noise=noise)
+        return self.from_col_vec(y_mea_vec), GaussianSensorLog(noise=noise, value=y_mea_vec.copy())

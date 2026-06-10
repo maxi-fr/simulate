@@ -13,11 +13,11 @@ class UniversalLog:
 
     t: float
     x: float | npt.NDArray[np.float64]
-    y: float | npt.NDArray[np.float64]
-    y_mea: float | npt.NDArray[np.float64]
     x_hat: float | npt.NDArray[np.float64]
     u: float | npt.NDArray[np.float64]
     ref: float | npt.NDArray[np.float64]
+    y: float | npt.NDArray[np.float64] | None = None
+    y_mea: float | npt.NDArray[np.float64] | None = None
 
 
 def _determine_dtype(val: object) -> np.dtype | type:
