@@ -13,8 +13,8 @@ import numpy as np
 
 
 def skew(v: np.ndarray) -> np.ndarray:
-    """Return the 3x3 skew-symmetric cross-product matrix of a 3-vector ``v`` (shape ``(3, 1)``)."""
-    vx, vy, vz = v[0, 0], v[1, 0], v[2, 0]
+    """Return the 3x3 skew-symmetric cross-product matrix of a 3-vector ``v`` (shape ``(3,)``)."""
+    vx, vy, vz = v[0], v[1], v[2]
     return np.array(
         [
             [0.0, -vz, vy],
@@ -25,8 +25,8 @@ def skew(v: np.ndarray) -> np.ndarray:
 
 
 def quat_to_rotation_matrix(q: np.ndarray) -> np.ndarray:
-    """Convert a scalar-first unit quaternion ``(4, 1)`` to its body->inertial rotation matrix ``(3, 3)``."""
-    w, x, y, z = q[0, 0], q[1, 0], q[2, 0], q[3, 0]
+    """Convert a scalar-first unit quaternion ``(4,)`` to its body->inertial rotation matrix ``(3, 3)``."""
+    w, x, y, z = q[0], q[1], q[2], q[3]
     return np.array(
         [
             [1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
@@ -39,9 +39,9 @@ def quat_to_rotation_matrix(q: np.ndarray) -> np.ndarray:
 def quat_kinematics_matrix(omega: np.ndarray) -> np.ndarray:
     """Return the 4x4 matrix ``Omega(omega)`` such that ``q_dot = 0.5 * Omega(omega) @ q``.
 
-    ``omega`` is the body-frame angular velocity ``(3, 1)``.
+    ``omega`` is the body-frame angular velocity ``(3,)``.
     """
-    wx, wy, wz = omega[0, 0], omega[1, 0], omega[2, 0]
+    wx, wy, wz = omega[0], omega[1], omega[2]
     return np.array(
         [
             [0.0, -wx, -wy, -wz],
@@ -53,5 +53,5 @@ def quat_kinematics_matrix(omega: np.ndarray) -> np.ndarray:
 
 
 def normalize_quat(q: np.ndarray) -> np.ndarray:
-    """Return the unit-norm quaternion for ``q`` (shape ``(4, 1)``)."""
+    """Return the unit-norm quaternion for ``q`` (shape ``(4,)``)."""
     return cast("np.ndarray", q / np.linalg.norm(q))

@@ -84,9 +84,7 @@ class RigidBodyDynamics(Dynamics[NoLog]):
         inertia_arr = np.asarray(inertia, dtype=float)
         self.inertia = np.diag(inertia_arr) if inertia_arr.ndim == 1 else inertia_arr
         self.inertia_inv: np.ndarray = np.linalg.inv(self.inertia)
-        self.gravity = (
-            np.zeros((3, 1), dtype=float) if gravity is None else np.asarray(gravity, dtype=float).reshape((3, 1))
-        )
+        self.gravity = np.zeros(3, dtype=float) if gravity is None else np.asarray(gravity, dtype=float).flatten()
         self.effectors = effectors if effectors is not None else []
 
         # Precompute the per-effector slices into the state and command vectors.
@@ -101,8 +99,8 @@ class RigidBodyDynamics(Dynamics[NoLog]):
             state_idx += eff.n_states
             cmd_idx += eff.n_inputs
 
-        self.x = np.zeros((state_idx, 1), dtype=float)
-        self.x[_Q] = np.array([[1.0], [0.0], [0.0], [0.0]])  # identity attitude
+        self.x = np.zeros(state_idx, dtype=float)
+        self.x[_Q] = np.array([1.0, 0.0, 0.0, 0.0])  # identity attitude
         for eff, sl in zip(self.effectors, self._state_slices, strict=True):
             self.x[sl] = eff.initial_state()
 
@@ -136,9 +134,9 @@ class RigidBodyDynamics(Dynamics[NoLog]):
         omega = x[_W]
         state = BodyState(r=x[_R], v=x[_V], q=q, omega=omega)
 
-        force = np.zeros((3, 1), dtype=float)
-        torque = np.zeros((3, 1), dtype=float)
-        momentum = np.zeros((3, 1), dtype=float)
+        force = np.zeros(3, dtype=float)
+        torque = np.zeros(3, dtype=float)
+        momentum = np.zeros(3, dtype=float)
         state_dots: list[np.ndarray] = []
         for eff, s_sl, c_sl in zip(self.effectors, self._state_slices, self._cmd_slices, strict=True):
             out = eff.evaluate(t, state, x[s_sl], u[c_sl])
@@ -152,7 +150,7 @@ class RigidBodyDynamics(Dynamics[NoLog]):
         q_dot = 0.5 * quat_kinematics_matrix(omega) @ q
         omega_dot = self.inertia_inv @ (torque - skew(omega) @ (self.inertia @ omega + momentum))
 
-        return np.vstack([r_dot, v_dot, q_dot, omega_dot, *state_dots])
+        return np.concatenate([r_dot, v_dot, q_dot, omega_dot, *state_dots])
 
     def _make_log(self) -> NoLog:
         """Build a snapshot log of the current state."""
@@ -174,9 +172,9 @@ class RigidBodyOutput(Output[NoLog]):
         u: float | np.ndarray,  # noqa: ARG002
     ) -> tuple[float | np.ndarray, NoLog]:
         """Extract pose ``[r(3), q(4)]`` from the full rigid body state."""
-        x_vec = self.to_col_vec(x)
-        y_vec = np.vstack([x_vec[_R], x_vec[_Q]])
-        return self.from_col_vec(y_vec), NoLog()
+        x_arr = np.atleast_1d(x)
+        y = np.concatenate([x_arr[_R], x_arr[_Q]])
+        return y, NoLog()
 
 
 class RigidBodyAttitudeOutput(Output[NoLog]):
@@ -198,8 +196,8 @@ class RigidBodyAttitudeOutput(Output[NoLog]):
         u: float | np.ndarray,  # noqa: ARG002
     ) -> tuple[float | np.ndarray, NoLog]:
         """Select the attitude quaternion from the full rigid body state."""
-        y_vec = self.to_col_vec(x)[QUATERNION]
-        return self.from_col_vec(y_vec), NoLog()
+        x_arr = np.atleast_1d(x)
+        return x_arr[QUATERNION], NoLog()
 
 
 class RigidBodyRateOutput(Output[NoLog]):
@@ -220,8 +218,8 @@ class RigidBodyRateOutput(Output[NoLog]):
         u: float | np.ndarray,  # noqa: ARG002
     ) -> tuple[float | np.ndarray, NoLog]:
         """Select the body-frame angular velocity from the full rigid body state."""
-        y_vec = self.to_col_vec(x)[ANGULAR_VELOCITY]
-        return self.from_col_vec(y_vec), NoLog()
+        x_arr = np.atleast_1d(x)
+        return x_arr[ANGULAR_VELOCITY], NoLog()
 
 
 class ReactionWheelTelemetryOutput(Output[NoLog]):
@@ -249,5 +247,5 @@ class ReactionWheelTelemetryOutput(Output[NoLog]):
         u: float | np.ndarray,  # noqa: ARG002
     ) -> tuple[float | np.ndarray, NoLog]:
         """Select the effector internal state at ``index`` from the full rigid body state."""
-        y_vec = self.to_col_vec(x)[self.index : self.index + 1]
-        return self.from_col_vec(y_vec), NoLog()
+        x_arr = np.atleast_1d(x)
+        return x_arr[self.index : self.index + 1], NoLog()

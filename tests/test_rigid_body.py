@@ -24,20 +24,20 @@ def test_constant_body_force_translates() -> None:
 
     t = n * dt
     accel = fx / mass
-    assert np.isclose(dynamics.x[0, 0], 0.5 * accel * t**2, rtol=1e-4)
-    assert np.isclose(dynamics.x[3, 0], accel * t, rtol=1e-4)
+    assert np.isclose(dynamics.x[0], 0.5 * accel * t**2, rtol=1e-4)
+    assert np.isclose(dynamics.x[3], accel * t, rtol=1e-4)
     # No rotation should be induced.
-    assert np.allclose(dynamics.x[6:10, 0], np.array([1.0, 0.0, 0.0, 0.0]))
+    assert np.allclose(dynamics.x[6:10], np.array([1.0, 0.0, 0.0, 0.0]))
 
 
 def test_torque_free_symmetric_spin_preserves_omega_and_unit_quaternion() -> None:
     """With a symmetric inertia and no torque, omega is constant and |q| stays 1."""
     dt = 0.001
     dynamics = RigidBodyDynamics(dt=dt, mass=1.0, inertia=[1.0, 1.0, 1.0], effectors=[])
-    omega0 = np.array([[0.3], [-0.2], [0.5]])
+    omega0 = np.array([0.3, -0.2, 0.5])
     dynamics.x[10:13] = omega0
 
-    _run(dynamics, np.zeros((0, 1)), 2000)
+    _run(dynamics, np.zeros(0), 2000)
 
     assert np.allclose(dynamics.x[10:13], omega0)
     assert np.isclose(np.linalg.norm(dynamics.x[6:10]), 1.0)
@@ -48,11 +48,11 @@ def test_torque_free_asymmetric_conserves_angular_momentum() -> None:
     dt = 0.001
     inertia = np.diag([1.0, 2.0, 3.0])
     dynamics = RigidBodyDynamics(dt=dt, mass=1.0, inertia=inertia, effectors=[])
-    omega0 = np.array([[1.0], [1.0], [1.0]])
+    omega0 = np.array([1.0, 1.0, 1.0])
     dynamics.x[10:13] = omega0
 
     h0 = np.linalg.norm(inertia @ omega0)
-    _run(dynamics, np.zeros((0, 1)), 3000)
+    _run(dynamics, np.zeros(0), 3000)
     h_final = np.linalg.norm(inertia @ dynamics.x[10:13])
 
     assert np.isclose(h_final, h0, rtol=1e-6)
@@ -70,13 +70,13 @@ def test_reaction_wheel_conserves_total_angular_momentum() -> None:
     _run(dynamics, np.array([tau_m]), 1000)
 
     omega = dynamics.x[10:13]
-    h_w = dynamics.x[13, 0]
+    h_w = dynamics.x[13]
     momentum = h_w * wheel.axis
     total_h = inertia @ omega + momentum
 
     assert np.allclose(total_h, 0.0, atol=1e-9)
     # The body must spin opposite to the wheel about z.
-    assert omega[2, 0] < 0.0
+    assert omega[2] < 0.0
     assert h_w > 0.0
 
 
@@ -101,7 +101,7 @@ def test_from_config_round_trip() -> None:
 
     # Command layout is 6 (wrench) + 1 (wheel) = 7; stepping must not raise.
     dynamics.evaluate(0.0, np.zeros(7))
-    assert dynamics.x.shape == (14, 1)
+    assert dynamics.x.shape == (14,)
 
 
 def test_gravity_gradient_torque_acts_through_ode() -> None:
@@ -115,12 +115,12 @@ def test_gravity_gradient_torque_acts_through_ode() -> None:
         effectors=[GravityGradient(mu=3.986e14)],
     )
     # Orbital radius along inertial x, tilted attitude so the torque is nonzero.
-    body.x[0:3] = np.array([[7.0e6], [0.0], [0.0]])
+    body.x[0:3] = np.array([7.0e6, 0.0, 0.0])
     half = np.pi / 8  # 22.5 deg about body z
-    body.x[6:10] = np.array([[np.cos(half)], [0.0], [0.0], [np.sin(half)]])
+    body.x[6:10] = np.array([np.cos(half), 0.0, 0.0, np.sin(half)])
 
     for k in range(200):
-        body.evaluate(k * dt, np.zeros((0, 1)))
+        body.evaluate(k * dt, np.zeros(0))
 
     assert np.linalg.norm(body.x[10:13]) > 0.0
     assert np.isclose(np.linalg.norm(body.x[6:10]), 1.0)

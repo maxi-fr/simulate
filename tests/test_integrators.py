@@ -14,9 +14,9 @@ def test_euler_accuracy() -> None:
         return x
 
     dt = 0.1
-    x0 = np.array([[1.0]])
-    x1 = euler(f, 0.0, dt, x0, np.array([[0.0]]))
-    assert math.isclose(x1[0, 0], 1.1)
+    x0 = np.array([1.0])
+    x1 = euler(f, 0.0, dt, x0, np.array([0.0]))
+    assert math.isclose(x1[0], 1.1)
 
 
 def test_midpoint_accuracy() -> None:
@@ -26,9 +26,9 @@ def test_midpoint_accuracy() -> None:
         return x
 
     dt = 0.1
-    x0 = np.array([[1.0]])
-    x1 = midpoint(f, 0.0, dt, x0, np.array([[0.0]]))
-    assert math.isclose(x1[0, 0], 1.105)
+    x0 = np.array([1.0])
+    x1 = midpoint(f, 0.0, dt, x0, np.array([0.0]))
+    assert math.isclose(x1[0], 1.105)
 
 
 def test_rk4_accuracy() -> None:
@@ -38,9 +38,9 @@ def test_rk4_accuracy() -> None:
         return x
 
     dt = 0.1
-    x0 = np.array([[1.0]])
-    x1 = rk4(f, 0.0, dt, x0, np.array([[0.0]]))
-    assert math.isclose(x1[0, 0], math.exp(0.1), rel_tol=1e-5)
+    x0 = np.array([1.0])
+    x1 = rk4(f, 0.0, dt, x0, np.array([0.0]))
+    assert math.isclose(x1[0], math.exp(0.1), rel_tol=1e-5)
 
 
 def test_linear_dynamics_continuous() -> None:
@@ -56,8 +56,8 @@ def test_linear_dynamics_continuous() -> None:
 
     x, _log = dynamics.evaluate(0.0, 1.0)
     y, _ = output.evaluate(0.0, x, 1.0)
-    assert math.isclose(y, 1 - math.exp(-0.1), rel_tol=1e-5)
-    assert math.isclose(x, 1 - math.exp(-0.1), rel_tol=1e-5)
+    assert math.isclose(float(np.asarray(y).item()), 1 - math.exp(-0.1), rel_tol=1e-5)
+    assert math.isclose(float(np.asarray(x).item()), 1 - math.exp(-0.1), rel_tol=1e-5)
 
 
 def test_linear_dynamics_discrete_fallback() -> None:
@@ -73,8 +73,8 @@ def test_linear_dynamics_discrete_fallback() -> None:
 
     x, _log = dynamics.evaluate(0.0, 1.0)
     y, _ = output.evaluate(0.0, x, 1.0)
-    assert y == 1.0
-    assert x == 1.0
+    assert float(np.asarray(y).item()) == 1.0
+    assert float(np.asarray(x).item()) == 1.0
 
 
 def test_linear_dynamics_from_config_dynamic_integrator() -> None:
@@ -96,7 +96,7 @@ def test_linear_dynamics_from_config_dynamic_integrator() -> None:
 
     x, _ = dynamics.evaluate(0.0, 1.0)
     y, _ = output.evaluate(0.0, x, 1.0)
-    assert math.isclose(y, 1 - math.exp(-0.1), rel_tol=1e-5)
+    assert math.isclose(float(np.asarray(y).item()), 1 - math.exp(-0.1), rel_tol=1e-5)
 
 
 def test_quaternion_rk4_normalizes_quat_slice() -> None:
@@ -105,9 +105,9 @@ def test_quaternion_rk4_normalizes_quat_slice() -> None:
     def f(t: float, x: np.ndarray, u: np.ndarray) -> np.ndarray:
         return np.full_like(x, 0.1)
 
-    x0 = np.zeros((13, 1))
-    x0[6:10] = np.array([[1.0], [0.0], [0.0], [0.0]])
-    u = np.zeros((1, 1))
+    x0 = np.zeros(13)
+    x0[6:10] = np.array([1.0, 0.0, 0.0, 0.0])
+    u = np.zeros(1)
 
     plain = rk4(f, 0.0, 0.1, x0, u)
     integ = QuaternionRK4((6, 10))

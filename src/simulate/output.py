@@ -61,9 +61,9 @@ class LinearOutput(Output[NoLog]):
             x: State vector.
             u: Control input vector.
         """
-        x_vec = self.to_col_vec(x)
-        u_vec = self.to_col_vec(u)
+        x_arr = np.atleast_1d(x)
+        u_arr = np.atleast_1d(u)
 
-        y_vec = cast("np.ndarray", self.c @ x_vec + self.d @ u_vec)
+        y = cast("np.ndarray", self.c @ x_arr + self.d @ u_arr)
 
-        return self.from_col_vec(y_vec), NoLog()
+        return y, NoLog()

@@ -55,7 +55,7 @@ class GaussianSensor(Sensor[GaussianSensorLog]):
             t: Simulation time.
             y: True plant output vector.
         """
-        y_vec = self.to_col_vec(y)
-        noise = self.rng.normal(0, self.std_dev, size=y_vec.shape)
-        y_mea_vec = y_vec + noise
-        return self.from_col_vec(y_mea_vec), GaussianSensorLog(noise=noise)
+        y_arr = np.atleast_1d(y)
+        noise = self.rng.normal(0, self.std_dev, size=y_arr.shape)
+        y_mea = y_arr + noise
+        return y_mea, GaussianSensorLog(noise=noise)

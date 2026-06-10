@@ -102,16 +102,16 @@ def _(dt, dynamics, inertia, np):
 
     rows = []
     for _k in range(n_steps):
-        _, log = dynamics.evaluate(_k * dt, cmd)
-        omega = log.angular_velocity.ravel()
-        h_w = log.effector_states[0, 0]
+        dynamics.evaluate(_k * dt, cmd)
+        omega = dynamics.x[10:13]
+        h_w = dynamics.x[13]
         total_h = inertia @ omega + np.array([0.0, 0.0, h_w])
         rows.append(
             {
                 "t": _k * dt,
-                "x": log.position[0, 0],
-                "qw": log.quaternion[0, 0],
-                "qz": log.quaternion[3, 0],
+                "x": dynamics.x[0],
+                "qw": dynamics.x[6],
+                "qz": dynamics.x[9],
                 "wz": omega[2],
                 "h_w": h_w,
                 "H_norm": float(np.linalg.norm(total_h)),
@@ -185,14 +185,14 @@ def _(GravityGradient, RigidBodyDynamics, np):
         inertia=np.diag([100.0, 200.0, 300.0]),
         effectors=[GravityGradient(mu=3.986e14)],
     )
-    body.x[0:3] = np.array([[7.0e6], [0.0], [0.0]])  # LEO radius along inertial x
+    body.x[0:3] = np.array([7.0e6, 0.0, 0.0])  # LEO radius along inertial x
     half = np.deg2rad(10.0)  # initial tilt about body z
-    body.x[6:10] = np.array([[np.cos(half)], [0.0], [0.0], [np.sin(half)]])
+    body.x[6:10] = np.array([np.cos(half), 0.0, 0.0, np.sin(half)])
 
     gg_rows = []
     for _k in range(6000):
-        _, gg_log = body.evaluate(_k * dt_gg, np.zeros((0, 1)))
-        gg_rows.append({"t": _k * dt_gg, "wz": gg_log.angular_velocity[2, 0], "qz": gg_log.quaternion[3, 0]})
+        body.evaluate(_k * dt_gg, np.zeros(0))
+        gg_rows.append({"t": _k * dt_gg, "wz": body.x[12], "qz": body.x[9]})
     return (gg_rows,)
 
 

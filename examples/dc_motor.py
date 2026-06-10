@@ -1,24 +1,16 @@
 """DC Motor dynamics and output components for the example notebook."""
 
-import dataclasses
 import importlib
 from typing import Any, Self
 
 import numpy as np
 
+from simulate import NoLog
 from simulate.dynamics import Dynamics
 from simulate.output import Output
 
 
-@dataclasses.dataclass(frozen=True)
-class DCMotorLog:
-    """Dataclass for logging DC Motor internal state."""
-
-    omega: float
-    current: float
-
-
-class DCMotorDynamics(Dynamics[DCMotorLog]):
+class DCMotorDynamics(Dynamics[NoLog]):
     """Custom DC Motor dynamics implementation."""
 
     def __init__(  # noqa: PLR0913
@@ -41,7 +33,7 @@ class DCMotorDynamics(Dynamics[DCMotorLog]):
         self.b = b
 
         # Initialize state: [omega, i]
-        self.x = np.zeros((2, 1))
+        self.x = np.zeros(2)
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> Self:
@@ -65,30 +57,20 @@ class DCMotorDynamics(Dynamics[DCMotorLog]):
 
     def dynamics(self, t: float, x: np.ndarray, u: np.ndarray) -> np.ndarray:  # noqa: ARG002
         """Continuous-time dynamics x_dot = f(t, x, u)."""
-        omega = x[0, 0]
-        i = x[1, 0]
-        V = u[0, 0]  # noqa: N806
+        omega = x[0]
+        i = x[1]
 
         d_omega = (self.Kt * i - self.b * omega) / self.J
-        d_i = (-self.R * i - self.Ke * omega + V) / self.L
+        d_i = (-self.R * i - self.Ke * omega + u) / self.L
 
-        return np.array([[d_omega], [d_i]])
+        return np.array([d_omega, d_i])
 
-    def _make_log(self) -> DCMotorLog:
+    def _make_log(self) -> NoLog:
         """Build a snapshot log of the current state."""
-        omega = float(self.x[0, 0])
-        i = float(self.x[1, 0])
-        return DCMotorLog(omega=omega, current=i)
+        return NoLog()
 
 
-@dataclasses.dataclass(frozen=True)
-class DCMotorOutputLog:
-    """Dataclass for logging DC Motor output."""
-
-    y: float
-
-
-class DCMotorOutput(Output[DCMotorOutputLog]):
+class DCMotorOutput(Output[NoLog]):
     """Custom DC Motor output implementation."""
 
     @classmethod
@@ -101,8 +83,6 @@ class DCMotorOutput(Output[DCMotorOutputLog]):
         t: float,  # noqa: ARG002
         x: float | np.ndarray,
         u: float | np.ndarray,  # noqa: ARG002
-    ) -> tuple[float | np.ndarray, DCMotorOutputLog]:
+    ) -> tuple[float | np.ndarray, NoLog]:
         """Compute output from current state and input."""
-        x_vec = self.to_col_vec(x)
-        y = float(x_vec[0, 0])
-        return y, DCMotorOutputLog(y=y)
+        return x, NoLog()

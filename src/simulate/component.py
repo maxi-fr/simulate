@@ -27,21 +27,6 @@ class Component[L](abc.ABC):
     def from_config(cls, config: dict[str, Any]) -> Self:
         """Instantiate the component from a raw configuration dictionary."""
 
-    @staticmethod
-    def to_col_vec(val: float | np.ndarray) -> np.ndarray:
-        """Convert a float or array to a 2D column vector (N, 1)."""
-        arr = np.atleast_1d(val)
-        if arr.ndim == 1:
-            return arr.reshape((-1, 1))
-        return arr
-
-    @staticmethod
-    def from_col_vec(vec: np.ndarray) -> float | np.ndarray:
-        """Convert a 2D column vector (N, 1) to a float (if N=1) or 1D array (if N>1)."""
-        if vec.size == 1:
-            return float(vec.item())
-        return vec.flatten()
-
     def should_update(self, t: float) -> bool:
         """Check if the component should update at the given simulation time."""
         # Use math.isclose to mitigate floating-point precision issues

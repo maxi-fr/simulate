@@ -59,8 +59,8 @@ class Effector(abc.ABC):
     n_states: int
 
     def initial_state(self) -> np.ndarray:
-        """Return the initial internal state ``(n_states, 1)`` (zeros by default)."""
-        return np.zeros((self.n_states, 1), dtype=float)
+        """Return the initial internal state ``(n_states,)`` (zeros by default)."""
+        return np.zeros(self.n_states, dtype=float)
 
     def bind(self, mass: float, inertia: np.ndarray) -> None:  # noqa: B027
         """Receive the host body's mass and inertia. No-op unless the effector needs them."""
@@ -106,10 +106,10 @@ class BodyWrench(Effector):
     ) -> EffectorOutput:
         """Map the command directly to a body-frame force and torque."""
         return EffectorOutput(
-            force=cmd[0:3].reshape((3, 1)),
-            torque=cmd[3:6].reshape((3, 1)),
-            momentum=np.zeros((3, 1), dtype=float),
-            state_dot=np.zeros((0, 1), dtype=float),
+            force=cmd[0:3],
+            torque=cmd[3:6],
+            momentum=np.zeros(3, dtype=float),
+            state_dot=np.zeros(0, dtype=float),
         )
 
     @classmethod
@@ -132,7 +132,7 @@ class ReactionWheel(Effector):
 
     def __init__(self, axis: ArrayLike) -> None:
         """Initialize the reaction wheel with a (normalized) body-fixed spin axis."""
-        axis_arr = np.asarray(axis, dtype=float).reshape((3, 1))
+        axis_arr = np.asarray(axis, dtype=float).flatten()
         self.axis = axis_arr / np.linalg.norm(axis_arr)
 
     def evaluate(
@@ -143,13 +143,13 @@ class ReactionWheel(Effector):
         cmd: np.ndarray,
     ) -> EffectorOutput:
         """Report reaction torque, carried momentum, and the momentum derivative."""
-        h_w = x_eff[0, 0]
-        tau_m = cmd[0, 0]
+        h_w = x_eff[0]
+        tau_m = cmd[0]
         return EffectorOutput(
-            force=np.zeros((3, 1), dtype=float),
+            force=np.zeros(3, dtype=float),
             torque=-tau_m * self.axis,
             momentum=h_w * self.axis,
-            state_dot=np.array([[tau_m]], dtype=float),
+            state_dot=np.array([tau_m], dtype=float),
         )
 
     @classmethod
@@ -197,10 +197,10 @@ class GravityGradient(Effector):
         torque = (3.0 * self.mu / r_norm**3) * (skew(o_body) @ (self.inertia @ o_body))
 
         return EffectorOutput(
-            force=np.zeros((3, 1), dtype=float),
+            force=np.zeros(3, dtype=float),
             torque=torque,
-            momentum=np.zeros((3, 1), dtype=float),
-            state_dot=np.zeros((0, 1), dtype=float),
+            momentum=np.zeros(3, dtype=float),
+            state_dot=np.zeros(0, dtype=float),
         )
 
     @classmethod

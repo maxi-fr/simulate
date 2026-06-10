@@ -17,7 +17,7 @@ def _two_channel_sim(t_end: float, sensor1_dt: float) -> Simulation:
     out1 = LinearOutput(dt=base, c=[[0.0, 1.0]], d=[[0.0, 0.0]])  # measures state 1
     sen0 = GaussianSensor(dt=base, std_dev=0.0)
     sen1 = GaussianSensor(dt=sensor1_dt, std_dev=0.0)
-    reference = StepReference(dt=base, step_value=np.array([[1.0], [2.0]]))
+    reference = StepReference(dt=base, step_value=np.array([1.0, 2.0]))
     estimator = IdentityEstimator(dt=base)
     controller = PIDController(
         dt=base, kp=[[0.5, 0.0], [0.0, 0.5]], ki=[[0.0, 0.0], [0.0, 0.0]], kd=[[0.0, 0.0], [0.0, 0.0]]
@@ -49,12 +49,12 @@ def test_two_channels_log_per_channel() -> None:
 
 
 def test_estimator_receives_concatenated_measurement() -> None:
-    """The loop reassembles the two channels into one (2, 1) vector for the estimator."""
+    """The loop reassembles the two channels into one (2,) vector for the estimator."""
     sim = _two_channel_sim(t_end=0.03, sensor1_dt=0.01)
     sim.run()
-    # IdentityEstimator passes the (2, 1) concatenated measurement through as x_hat.
+    # IdentityEstimator passes the (2,) concatenated measurement through as x_hat.
     x_hat = sim.logger.universal_logs[-1]["x_hat"]
-    assert np.asarray(x_hat).shape == (2, 1)
+    assert np.asarray(x_hat).shape == (2,)
 
 
 def test_slow_sensor_is_zoh_held() -> None:
