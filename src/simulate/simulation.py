@@ -22,12 +22,6 @@ if TYPE_CHECKING:
     from simulate.sensor import Sensor
 
 
-def _to_col_vec(val: float | np.ndarray) -> np.ndarray:
-    """Convert a float or array to a 2D column vector ``(N, 1)``."""
-    arr = np.atleast_1d(val)
-    return arr.reshape((-1, 1)) if arr.ndim == 1 else arr
-
-
 class Simulation:
     """Central orchestrator for the simulation loop."""
 
@@ -158,8 +152,8 @@ class Simulation:
 
                 # Each sensor samples (at its own rate, ZOH-held) the previous step's truth.
                 sensor_logs = [sensor.evaluate(t, y_list[i]) for i, sensor in enumerate(self.sensors)]
-                y_mea_list = [_to_col_vec(res) for res, _ in sensor_logs]
-                y_mea = np.vstack(y_mea_list) if y_mea_list else np.zeros((0, 1))
+                y_mea_list = [np.atleast_1d(res) for res, _ in sensor_logs]
+                y_mea = np.concatenate(y_mea_list) if y_mea_list else np.zeros(0)
 
                 x_hat, estim_log = self.estimator.evaluate(t, y_mea, u_k)
 
@@ -175,8 +169,8 @@ class Simulation:
                     y_val = y_list[0]
                     y_mea_val = sensor_logs[0][0]
                 else:
-                    y_val = self.dynamics.from_col_vec(np.vstack([_to_col_vec(res) for res in y_list]))
-                    y_mea_val = self.dynamics.from_col_vec(y_mea)
+                    y_val = np.concatenate([np.atleast_1d(res) for res in y_list])
+                    y_mea_val = y_mea
 
                 uni_log = UniversalLog(
                     t=t,

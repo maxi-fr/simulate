@@ -76,10 +76,10 @@ class PIDController(Controller[PIDControllerLog]):
             ref: Reference trajectory vector.
             x_hat: Estimated state vector.
         """
-        ref_vec = self.to_col_vec(ref)
-        x_hat_vec = self.to_col_vec(x_hat)
+        ref_arr = np.atleast_1d(ref)
+        x_hat_arr = np.atleast_1d(x_hat)
 
-        error = ref_vec - x_hat_vec
+        error = ref_arr - x_hat_arr
 
         if self.integral is None:
             self.integral = np.zeros_like(error)
@@ -91,6 +91,6 @@ class PIDController(Controller[PIDControllerLog]):
         derivative = (error - self.prev_error) / self.dt
         self.prev_error = error.copy()
 
-        u_vec = self.kp @ error + self.ki @ self.integral + self.kd @ derivative
+        u = self.kp @ error + self.ki @ self.integral + self.kd @ derivative
 
-        return self.from_col_vec(u_vec), PIDControllerLog(error=error.copy(), integral=self.integral.copy())
+        return u, PIDControllerLog(error=error.copy(), integral=self.integral.copy())

@@ -12,52 +12,24 @@ from simulate.sensor import GaussianSensor
 from simulate.simulation import Simulation
 
 
-def test_component_conversion_utilities() -> None:
-    """Test to_col_vec and from_col_vec utilities in Component."""
-    dynamics = LinearDynamics(dt=0.1, a=[[1]], b=[[1]])
-    LinearOutput(dt=0.1, c=[[1]], d=[[0]])
-
-    res = dynamics.to_col_vec(1.0)
-    assert res.shape == (1, 1)
-    assert res[0, 0] == 1.0
-
-    res = dynamics.to_col_vec(np.array([1.0, 2.0]))
-    assert res.shape == (2, 1)
-    assert res[0, 0] == 1.0
-    assert res[1, 0] == 2.0
-
-    res = dynamics.to_col_vec(np.array([[1.0], [2.0]]))
-    assert res.shape == (2, 1)
-
-    res_back = dynamics.from_col_vec(np.array([[1.0]]))
-    assert isinstance(res_back, float)
-    assert res_back == 1.0
-
-    res_back = dynamics.from_col_vec(np.array([[1.0], [2.0]]))
-    assert isinstance(res_back, np.ndarray)
-    assert res_back.shape == (2,)
-    assert res_back[0] == 1.0
-    assert res_back[1] == 2.0
-
-
 def test_plant_step_logic() -> None:
     """Test standard plant update dynamics."""
     dynamics = LinearDynamics(dt=0.1, a=[[0.9]], b=[[1.0]])
     output = LinearOutput(dt=0.1, c=[[1.0]], d=[[0.0]])
 
-    assert dynamics.x[0, 0] == 0.0
+    assert dynamics.x[0] == 0.0
 
     u1 = 1.0
     x, _dynamics_log = dynamics.evaluate(0.0, 1.0)
     y, _ = output.evaluate(0.0, x, u1)
-    assert y == 1.0
-    assert x == 1.0
+    assert np.allclose(y, 1.0)
+    assert np.allclose(x, 1.0)
 
     u2 = 0.5
     x, _dynamics_log = dynamics.evaluate(0.1, u2)
     y, _output_log = output.evaluate(0.1, x, u2)
-    assert y == 1.4
-    assert x == 1.4
+    assert np.allclose(y, 1.4)
+    assert np.allclose(x, 1.4)
 
 
 def test_sensor_step_logic() -> None:
@@ -65,13 +37,13 @@ def test_sensor_step_logic() -> None:
     sensor = GaussianSensor(dt=0.1, std_dev=0.0)
     y = 1.0
     y_mea, log = sensor.evaluate(0.0, y)
-    assert y_mea == 1.0
-    assert log.noise == 0.0
+    assert np.allclose(y_mea, 1.0)
+    assert np.allclose(log.noise, 0.0)
 
     sensor_noise = GaussianSensor(dt=0.1, std_dev=0.1)
     y_mea2, log2 = sensor_noise.evaluate(0.0, y)
-    assert y_mea2 != 1.0
-    assert log2.noise != 0.0
+    assert not np.allclose(y_mea2, 1.0)
+    assert not np.allclose(log2.noise, 0.0)
 
 
 def test_estimator_step_logic() -> None:
@@ -80,7 +52,7 @@ def test_estimator_step_logic() -> None:
     y_mea = 1.2
     u = 0.5
     x_hat, _log = estimator.evaluate(0.0, y_mea, u)
-    assert x_hat == 1.2
+    assert np.allclose(x_hat, 1.2)
 
 
 def test_controller_step_logic() -> None:
@@ -90,9 +62,9 @@ def test_controller_step_logic() -> None:
     ref = 1.0
     x_hat = 0.0
     u, log = controller.evaluate(0.0, ref, x_hat)
-    assert math.isclose(u, 0.51)
-    assert log.error == 1.0
-    assert log.integral == 0.1
+    assert np.isclose(float(np.asarray(u).item()), 0.51)
+    assert np.allclose(log.error, 1.0)
+    assert np.allclose(log.integral, 0.1)
 
 
 def test_component_zoh_behavior() -> None:
@@ -102,16 +74,16 @@ def test_component_zoh_behavior() -> None:
     ref1 = 1.0
     x_hat1 = 0.0
     u1, log1 = controller.evaluate(0.0, ref1, x_hat1)
-    assert math.isclose(u1, 0.52)
+    assert np.isclose(float(np.asarray(u1).item()), 0.52)
 
     ref2 = 5.0
     u2, log2 = controller.evaluate(0.1, ref2, x_hat1)
-    assert u2 == u1
-    assert log2.error == log1.error
+    assert np.allclose(u2, u1)
+    assert np.allclose(log2.error, log1.error)
 
     u3, log3 = controller.evaluate(0.2, ref1, x_hat1)
-    assert u3 != u1
-    assert log3.integral > log1.integral
+    assert not np.allclose(u3, u1)
+    assert np.all(log3.integral > log1.integral)
 
 
 def test_invalid_simulation_config_non_integer_multiple() -> None:
@@ -208,10 +180,10 @@ def test_simulation_execution_and_logging() -> None:
     assert len(sim.logger.component_logs["controller"]) == 11
 
     assert sim.logger.universal_logs[0]["t"] == 0.0
-    assert sim.logger.universal_logs[0]["u"] == 0.0
+    assert np.allclose(sim.logger.universal_logs[0]["u"], 0.0)
 
     assert math.isclose(sim.logger.universal_logs[-1]["t"], 1.0, rel_tol=1e-9)
-    assert sim.logger.universal_logs[-1]["u"] != 0.0
+    assert not np.allclose(sim.logger.universal_logs[-1]["u"], 0.0)
 
 
 def test_simulation_single_output_and_sensor() -> None:

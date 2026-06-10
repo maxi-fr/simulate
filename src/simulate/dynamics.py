@@ -32,14 +32,14 @@ class Dynamics[L](Component[L], abc.ABC):
         Otherwise, `dynamics(t, x, u)` is treated as a discrete state transition
         returning `x_next` directly.
         """
-        u_vec = self.to_col_vec(u)
+        u_arr = np.atleast_1d(u)
 
         if self.integrator is not None:
-            self.x = self.integrator(self.dynamics, t, self.dt, self.x, u_vec)
+            self.x = self.integrator(self.dynamics, t, self.dt, self.x, u_arr)
         else:
-            self.x = self.dynamics(t, self.x, u_vec)
+            self.x = self.dynamics(t, self.x, u_arr)
 
-        return self.from_col_vec(self.x), self._make_log()
+        return self.x, self._make_log()
 
     @abc.abstractmethod
     def dynamics(self, t: float, x: np.ndarray, u: np.ndarray) -> np.ndarray:
@@ -71,7 +71,7 @@ class LinearDynamics(Dynamics[NoLog]):
         self.a = np.atleast_2d(a)
         self.b = np.atleast_2d(b)
 
-        self.x = np.zeros((self.a.shape[0], 1), dtype=float)
+        self.x = np.zeros(self.a.shape[0], dtype=float)
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> Self:
