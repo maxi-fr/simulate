@@ -1,8 +1,8 @@
 import numpy as np
 
-from rigid_body.effector import BodyState, MagnetorquerArray, ReactionWheelArray
+from rigid_body.effector import MagnetorquerArray, ReactionWheelArray, RigidBodyState
+from rigid_body.quaternion import Quaternion
 from rigid_body.rigid_body import RigidBodyDynamics
-from simulate.attitude import quat_to_rotation_matrix
 
 
 def test_reaction_wheel_array_momentum_conservation() -> None:
@@ -42,26 +42,26 @@ def test_reaction_wheel_array_momentum_conservation() -> None:
     cmd = np.array([1.5, -1.0, 2.0])
 
     # Calculate initial total momentum in inertial frame
-    q_0 = dynamics.x[6:10]
+    q_0 = Quaternion.from_array(dynamics.x[6:10])
     omega_0 = dynamics.x[10:13]
     omega_rel_0 = dynamics.x[16:19]
 
     axes_mat = rw_array.axes  # (3, 3) identity
     h_wheels_0 = wheel_inertia * (omega_rel_0 + axes_mat @ omega_0)
     h_total_0_body = inertia @ omega_0 + h_wheels_0
-    h_total_0_inertial = quat_to_rotation_matrix(q_0) @ h_total_0_body
+    h_total_0_inertial = q_0.conjugate().apply(h_total_0_body)
 
     # Step 100 times
     for k in range(100):
         dynamics.evaluate(k * dt, cmd)
 
     # Calculate final total momentum in inertial frame
-    q_f = dynamics.x[6:10]
+    q_f = Quaternion.from_array(dynamics.x[6:10])
     omega_f = dynamics.x[10:13]
     omega_rel_f = dynamics.x[16:19]
     h_wheels_f = wheel_inertia * (omega_rel_f + axes_mat @ omega_f)
     h_total_f_body = inertia @ omega_f + h_wheels_f
-    h_total_f_inertial = quat_to_rotation_matrix(q_f) @ h_total_f_body
+    h_total_f_inertial = q_f.conjugate().apply(h_total_f_body)
 
     # Total angular momentum must be conserved (constant) in the inertial frame
     assert np.allclose(h_total_f_inertial, h_total_0_inertial, rtol=1e-6, atol=1e-9)
@@ -112,8 +112,9 @@ def test_magnetorquer_array_torque_generation() -> None:
         initial_currents=[1.0, -1.0, 0.5],
     )
 
-    # Evaluate directly
-    state = BodyState(r=np.zeros(3), v=np.zeros(3), q=np.array([1.0, 0.0, 0.0, 0.0]), omega=np.zeros(3))
+    q_bi = Quaternion.from_array(np.array([0.0, 0.0, 0.0, 1.0]), scalar_first=False)
+
+    state = RigidBodyState(r_eci=np.zeros(3), v_eci=np.zeros(3), q_bi=q_bi, omega_b_bi=np.zeros(3))
     x_eff = np.array([1.0, -1.0, 0.5])
     cmd = np.array([0.0, 0.0, 0.0])
 
@@ -174,9 +175,11 @@ def test_reaction_wheel_speed_saturation() -> None:
         max_rpm=6000.0,  # max_omega = 200 * pi ≈ 628.3185
     )
 
+    q_bi = Quaternion.from_array(np.array([0.0, 0.0, 0.0, 1.0]), scalar_first=False)
+
     # State has a current of 1.0A (positive torque) and speed above limit: 630.0 rad/s
     x_eff = np.array([1.0, 630.0])
-    state = BodyState(r=np.zeros(3), v=np.zeros(3), q=np.array([1.0, 0.0, 0.0, 0.0]), omega=np.zeros(3))
+    state = RigidBodyState(r_eci=np.zeros(3), v_eci=np.zeros(3), q_bi=q_bi, omega_b_bi=np.zeros(3))
 
     # calc_contributions should return zero torque because the speed is above limit and torque is positive
     _, torque, _ = rw_array.calc_contributions(0.0, state, x_eff, np.array([1.0]))
@@ -207,8 +210,9 @@ def test_reaction_wheel_didt_limits() -> None:
         time_constant=0.1,
         max_current=1.0,
     )
+    q_bi = Quaternion.from_array(np.array([0.0, 0.0, 0.0, 1.0]), scalar_first=False)
 
-    state = BodyState(r=np.zeros(3), v=np.zeros(3), q=np.array([1.0, 0.0, 0.0, 0.0]), omega=np.zeros(3))
+    state = RigidBodyState(r_eci=np.zeros(3), v_eci=np.zeros(3), q_bi=q_bi, omega_b_bi=np.zeros(3))
 
     # Current is at max limit: 1.0A, and command is 2.0A (pushes further positive)
     x_eff = np.array([1.0, 0.0])
@@ -233,8 +237,9 @@ def test_magnetorquer_array_didt_limits() -> None:
         time_constant=0.05,
         max_current=1.5,
     )
+    q_bi = Quaternion.from_array(np.array([0.0, 0.0, 0.0, 1.0]), scalar_first=False)
 
-    state = BodyState(r=np.zeros(3), v=np.zeros(3), q=np.array([1.0, 0.0, 0.0, 0.0]), omega=np.zeros(3))
+    state = RigidBodyState(r_eci=np.zeros(3), v_eci=np.zeros(3), q_bi=q_bi, omega_b_bi=np.zeros(3))
 
     # Current is at max limit: 1.5A, and command is 2.5A (pushes further positive)
     x_eff = np.array([1.5])

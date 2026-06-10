@@ -104,7 +104,7 @@ def run_raw_physics_gg(dt: float, steps: int) -> float:
     # Set orbit radius and initial attitude tilt to make gravity gradient active
     dynamics.x[0:3] = np.array([7.0e6, 0.0, 0.0])
     half = np.pi / 8
-    dynamics.x[6:10] = np.array([np.cos(half), 0.0, 0.0, np.sin(half)])
+    dynamics.x[6:10] = np.array([0.0, 0.0, np.sin(half), np.cos(half)])
     cmd = np.zeros(0)
 
     start = time.perf_counter()
