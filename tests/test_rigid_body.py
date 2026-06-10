@@ -1,8 +1,8 @@
 import numpy as np
 
-from simulate.effector import BodyWrench, GravityGradient, ReactionWheelArray
+from rigid_body.effector import BodyWrench, GravityGradient, ReactionWheelArray
+from rigid_body.rigid_body import RigidBodyDynamics
 from simulate.integrator import QuaternionRK4
-from simulate.rigid_body import RigidBodyDynamics
 
 
 def _run(dynamics: RigidBodyDynamics, cmd: np.ndarray, n_steps: int) -> None:
@@ -92,9 +92,9 @@ def test_from_config_round_trip() -> None:
         "mass": 3.0,
         "inertia": [1.0, 2.0, 3.0],
         "effectors": [
-            {"class_path": "simulate.effector.BodyWrench"},
+            {"class_path": "rigid_body.effector.BodyWrench"},
             {
-                "class_path": "simulate.effector.ReactionWheelArray",
+                "class_path": "rigid_body.effector.ReactionWheelArray",
                 "axes": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
                 "inertia": 0.05,
                 "torque_constant": 0.08,

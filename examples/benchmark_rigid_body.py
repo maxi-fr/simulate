@@ -19,13 +19,13 @@ from typing import Any, Self
 
 import numpy as np
 
+from rigid_body.effector import BodyWrench, GravityGradient, ReactionWheelArray
+from rigid_body.rigid_body import RigidBodyDynamics
 from simulate.controller import PIDController
 from simulate.dynamics import NoLog
-from simulate.effector import BodyWrench, GravityGradient, ReactionWheelArray
 from simulate.estimator import IdentityEstimator
 from simulate.output import Output
 from simulate.reference import StepReference
-from simulate.rigid_body import RigidBodyDynamics
 from simulate.sensor import GaussianSensor, Sensor
 from simulate.simulation import Simulation
 

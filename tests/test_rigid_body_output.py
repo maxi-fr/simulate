@@ -1,6 +1,6 @@
 import numpy as np
 
-from simulate.rigid_body import (
+from rigid_body.rigid_body import (
     ANGULAR_VELOCITY,
     BASE_STATES,
     QUATERNION,
