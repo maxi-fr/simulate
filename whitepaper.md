@@ -12,25 +12,25 @@ To ensure a modular and extensible environment, the framework adopts a block-bas
 
 The physical system is modeled through two distinct components: **Dynamics** and **Output**. This separation allows for greater flexibility in modeling complex systems where state transitions and measurement generation are decoupled.
 
-*   **Dynamics:** Encapsulates the mathematical model of the system's state transition. It supports both discrete and continuous dynamics.
-    *   **Discrete Time:** Modeled using difference equations where the state advances as `x_k+1 = f(t_k, x_k, u_k)`.
-    *   **Continuous Time:** Utilizes custom-coded numerical integrators (e.g., RK4, Midpoint, or Euler). The `dynamics(t, x, u)` method returns the continuous-time derivative `x_dot`, which is then integrated over the time step `dt`.
-*   **Output:** Generates a *true* observable `y_k = g(t_k, x_k, u_k)` by transforming the state — no noise. A simulation composes a **list of Outputs**, one per measured part (e.g. an attitude transform selecting `q`, a rate transform selecting `ω`, an effector-telemetry transform selecting a reaction wheel's momentum). Because each Output is the ground truth, they run at the **Dynamics base rate** so the truth is always fresh.
+* **Dynamics:** Encapsulates the mathematical model of the system's state transition. It supports both discrete and continuous dynamics.
+  * **Discrete Time:** Modeled using difference equations where the state advances as `x_k+1 = f(t_k, x_k, u_k)`.
+  * **Continuous Time:** Utilizes custom-coded numerical integrators (e.g., RK4, Midpoint, or Euler). The `dynamics(t, x, u)` method returns the continuous-time derivative `x_dot`, which is then integrated over the time step `dt`.
+* **Output:** Generates a *true* observable `y_k = g(t_k, x_k, u_k)` by transforming the state — no noise. A simulation composes a **list of Outputs**, one per measured part (e.g. an attitude transform selecting `q`, a rate transform selecting `ω`, an effector-telemetry transform selecting a reaction wheel's momentum). Because each Output is the ground truth, they run at the **Dynamics base rate** so the truth is always fresh.
 
 ### 1.2. The Sensor, Estimator, and Controller
 
 To accurately model hardware limitations and computational realities, the remaining feedback blocks act as strict, stateful filters:
 
-*   **Sensor:** Adds noise *only* — it ingests the true output `y_k` of its paired Output and corrupts it into a measured output `ym_k`. Sensors are a **list paired positionally with the Outputs** (`sensors[i]` measures `outputs[i]`), and each runs at **its own sample rate**, so a slow star tracker and a fast gyro fall naturally out of the per-component Zero-Order Hold. Keeping the *transform* in the Output and the *noise* in the Sensor means one reusable `GaussianSensor` (parameterized only by its `std` and `dt`) serves every channel, and the true and measured signals remain directly comparable per channel. Each channel is logged separately (`output_i` / `sensor_i`); there is no single merged `y`. (Note: additively noising a quaternion measurement yields a non-unit quaternion, which consumers must renormalize — mirroring the `QuaternionRK4` concern.)
-*   **Estimator:** Reconstructs the unmeasured state `x_hat_k` from the per-channel measurements (the loop reassembles the held `ym_k` of all sensors into one vector) and the known control input `u_k`.
-*   **Controller:** Executes the core logic (e.g., PID, MPC) to compute the optimal control effort `u_k` based on the error between a desired reference trajectory and the estimated state.
+* **Sensor:** Adds noise *only* — it ingests the true output `y_k` of its paired Output and corrupts it into a measured output `ym_k`. Sensors are a **list paired positionally with the Outputs** (`sensors[i]` measures `outputs[i]`), and each runs at **its own sample rate**, so a slow star tracker and a fast gyro fall naturally out of the per-component Zero-Order Hold. Keeping the *transform* in the Output and the *noise* in the Sensor means one reusable `GaussianSensor` (parameterized only by its `std` and `dt`) serves every channel, and the true and measured signals remain directly comparable per channel. Each channel is logged separately (`output_i` / `sensor_i`); there is no single merged `y`. (Note: additively noising a quaternion measurement yields a non-unit quaternion, which consumers must renormalize — mirroring the `QuaternionRK4` concern.)
+* **Estimator:** Reconstructs the unmeasured state `x_hat_k` from the per-channel measurements (the loop reassembles the held `ym_k` of all sensors into one vector) and the known control input `u_k`.
+* **Controller:** Executes the core logic (e.g., PID, MPC) to compute the optimal control effort `u_k` based on the error between a desired reference trajectory and the estimated state.
 
 ### 1.3. Pre-built Rigid Body Dynamics and Effector Composition
 
 Beyond the generic linear blocks, the framework ships a pre-built `RigidBodyDynamics` component providing coupled 6-DOF **attitude and position** dynamics, intended as a ready-to-use plant for aerospace and robotics simulations.
 
-*   **State and conventions:** The state vector is `x = [r(3) | v(3) | q(4) | ω(3) | effector states...]`. Position `r` and velocity `v` are expressed in the inertial frame; the attitude quaternion `q` is a scalar-first Hamilton quaternion (`[w, x, y, z]`) representing the body→inertial rotation; and angular velocity `ω` is in the body frame. The equations of motion follow Newton–Euler: `v̇ = (1/m)·R(q)·F + g` and `ω̇ = J⁻¹·(τ − ω × (J·ω + h))`, with quaternion kinematics `q̇ = ½·Ω(ω)·q`.
-*   **Manifold-aware integration:** Because Euclidean RK4 lets a unit quaternion drift off the sphere, a dedicated `QuaternionRK4` integrator wraps the standard RK4 step and renormalizes the quaternion sub-vector of the state after every step. This keeps attitude normalization in the integration layer rather than embedding it in the dynamics kernel.
+* **State and conventions:** The state vector is `x = [r(3) | v(3) | q(4) | ω(3) | effector states...]`. Position `r` and velocity `v` are expressed in the inertial frame; the attitude quaternion `q` is a scalar-last JPL quaternion (`[x, y, z, w]`) representing the body→inertial rotation; and angular velocity `ω` is in the body frame. The equations of motion follow Newton–Euler: `v̇ = (1/m)·R(q)·F + g` and `ω̇ = J⁻¹·(τ − ω × (J·ω + h))`, with quaternion kinematics `q̇ = ½·Ω(ω)·q`.
+* **Manifold-aware integration:** Because Euclidean RK4 lets a unit quaternion drift off the sphere, a dedicated `QuaternionRK4` integrator wraps the standard RK4 step and renormalizes the quaternion sub-vector of the state after every step. This keeps attitude normalization in the integration layer rather than embedding it in the dynamics kernel.
 
 **The Effector Composition Pattern.** A distinguishing requirement of rigid body simulation is that the forces and torques acting on the body are not merely external inputs: a **momentum-exchange device** (e.g. a reaction wheel) carries its own internal angular momentum and couples *into* the body's rotational ODE through the gyroscopic term `−ω × h` and a reaction torque `−ḣ`. Likewise, an **environmental effect** (e.g. gravity-gradient torque or aerodynamic drag) is a state-dependent term of the ODE that must be evaluated at every integrator substage with the intermediate state. Neither can be modeled as a separate feedback-loop block with its own integrator — they must be integrated *simultaneously* with the body state.
 
@@ -50,12 +50,12 @@ During the execution loop, the orchestrator passes the current simulation time (
 
 The execution sequence rigorously follows causal logic to prevent algebraic loops:
 
-1.  **Reference Generation:** Determine the setpoint for the current time step (`t_k`).
-2.  **Measurement:** Each Sensor corrupts the previous step's truth from its paired Output (at its own rate); the held measurements are reassembled into one vector at time `t_k`.
-3.  **Estimation:** Calculate the state estimate using the measurements and previous input.
-4.  **Control:** Compute the new control action via the Controller at time `t_k`.
-5.  **State Update:** Advance the system state via the Dynamics at time `t_k`.
-6.  **Output Update:** Each Output recomputes its true sub-measurement from the new state and control action (at the base rate), ready for the next step's Sensors.
+1. **Reference Generation:** Determine the setpoint for the current time step (`t_k`).
+2. **Measurement:** Each Sensor corrupts the previous step's truth from its paired Output (at its own rate); the held measurements are reassembled into one vector at time `t_k`.
+3. **Estimation:** Calculate the state estimate using the measurements and previous input.
+4. **Control:** Compute the new control action via the Controller at time `t_k`.
+5. **State Update:** Advance the system state via the Dynamics at time `t_k`.
+6. **Output Update:** Each Output recomputes its true sub-measurement from the new state and control action (at the base rate), ready for the next step's Sensors.
 
 ## 3. Configuration Management
 
@@ -72,8 +72,8 @@ Data generated during the simulation loop must be efficiently captured for post-
 
 The `Logger` implements a standardized interface supporting multiple export formats to balance accessibility and performance:
 
-*   **CSV Export:** Utilizes Pandas to flatten the data into a human-readable, universally accessible `.csv` file, ideal for quick visual inspection.
-*   **NumPy Archive (.npz):** Provides a high-performance, compressed binary format using `numpy.savez`. This is the preferred method for large numerical arrays and multi-dimensional state vectors, as it preserves exact floating-point precision without massive file size overhead.
+* **CSV Export:** Utilizes Pandas to flatten the data into a human-readable, universally accessible `.csv` file, ideal for quick visual inspection.
+* **NumPy Archive (.npz):** Provides a high-performance, compressed binary format using `numpy.savez`. This is the preferred method for large numerical arrays and multi-dimensional state vectors, as it preserves exact floating-point precision without massive file size overhead.
 
 ### 4.1. Component-Driven Dual Logging Architecture
 
@@ -97,11 +97,11 @@ To maintain high code quality, predictability, and efficiency, the project templ
 
 #### Developer Toolchain Setup
 
-*   **uv:** Used for dependency management and virtual environment resolution, replacing legacy tools like pip/poetry.
-*   **Ruff:** A Python linter and code formatter, ensuring consistent stylistic adherence across the codebase.
-*   **Mypy:** For static type checking.
-*   **Pytest:** The standard testing framework, heavily utilized to unit test mathematical operations within the Dynamics and Output components, state tracking in the Controller, and parameter validation within the component `from_config` factories.
-*   **Git Commit Hooks:** Pre-commit hooks are configured to trigger Ruff formatting, syntax validation, mypy type checking and unit tests automatically to ensure code stability before any merge.
+* **uv:** Used for dependency management and virtual environment resolution, replacing legacy tools like pip/poetry.
+* **Ruff:** A Python linter and code formatter, ensuring consistent stylistic adherence across the codebase.
+* **Mypy:** For static type checking.
+* **Pytest:** The standard testing framework, heavily utilized to unit test mathematical operations within the Dynamics and Output components, state tracking in the Controller, and parameter validation within the component `from_config` factories.
+* **Git Commit Hooks:** Pre-commit hooks are configured to trigger Ruff formatting, syntax validation, mypy type checking and unit tests automatically to ensure code stability before any merge.
 
 ### 6.1. CLI Execution and Project Structure
 
@@ -117,7 +117,7 @@ The framework is designed as a foundational library rather than a rigid, plug-an
 
 To utilize the framework effectively, users should adhere to the following general workflow:
 
-1.  **Subclass Components:** Create project-specific Python classes that inherit from the framework's base `Dynamics`, `Output`, `Sensor`, `Estimator`, `Controller`, and `Reference` classes.
+1. **Subclass Components:** Create project-specific Python classes that inherit from the framework's base `Dynamics`, `Output`, `Sensor`, `Estimator`, `Controller`, and `Reference` classes.
  Within these subclasses, implement the specialized mathematical models, filtering algorithms, and control laws required for the specific application.
-2.  **Define Configuration:** Construct a YAML configuration file. This file must include a `class_path` for each component to dictate the exact subclasses to instantiate, alongside their specific parameters and sample times. This dynamic loading ensures that experimental parameters remain fully decoupled from the source code.
-3.  **Execute Simulation/Experiments:** Invoke the framework's CLI, passing the configuration file. The orchestrator will automatically instantiate the custom subclasses, enforce the multi-rate timing requirements, execute the simulation loop (or a batch of experiments), and export the resulting data logs to disk for post-processing.
+2. **Define Configuration:** Construct a YAML configuration file. This file must include a `class_path` for each component to dictate the exact subclasses to instantiate, alongside their specific parameters and sample times. This dynamic loading ensures that experimental parameters remain fully decoupled from the source code.
+3. **Execute Simulation/Experiments:** Invoke the framework's CLI, passing the configuration file. The orchestrator will automatically instantiate the custom subclasses, enforce the multi-rate timing requirements, execute the simulation loop (or a batch of experiments), and export the resulting data logs to disk for post-processing.

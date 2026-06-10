@@ -61,7 +61,7 @@ def _(mo):
     ## 1. Build the rigid body
 
     State layout: $x = [\,r(3)\;|\;v(3)\;|\;q(4)\;|\;\omega(3)\;|\;h_w\,]$, with $q$ a
-    scalar-first body$\to$inertial unit quaternion. Attitude integration uses
+    scalar-last inertial$\to$body unit quaternion. Attitude integration uses
     `QuaternionRK4`, which renormalizes the quaternion after each step.
     """)
     return
@@ -119,8 +119,8 @@ def _(dt, dynamics, inertia, np):
             {
                 "t": _k * dt,
                 "x": dynamics.x[0],
-                "qw": dynamics.x[6],
-                "qz": dynamics.x[9],
+                "qw": dynamics.x[9],
+                "qz": dynamics.x[8],
                 "wz": omega[2],
                 "h_w": h_w_z,
                 "H_norm": float(np.linalg.norm(total_h)),
@@ -196,12 +196,12 @@ def _(GravityGradient, RigidBodyDynamics, np):
     )
     body.x[0:3] = np.array([7.0e6, 0.0, 0.0])  # LEO radius along inertial x
     half = np.deg2rad(10.0)  # initial tilt about body z
-    body.x[6:10] = np.array([np.cos(half), 0.0, 0.0, np.sin(half)])
+    body.x[6:10] = np.array([0.0, 0.0, np.sin(half), np.cos(half)])
 
     gg_rows = []
     for _k in range(6000):
         body.evaluate(_k * dt_gg, np.zeros(0))
-        gg_rows.append({"t": _k * dt_gg, "wz": body.x[12], "qz": body.x[9]})
+        gg_rows.append({"t": _k * dt_gg, "wz": body.x[12], "qz": body.x[8]})
     return (gg_rows,)
 
 

@@ -14,7 +14,7 @@ The distinction is whether the effector consumes a command, not whether it is st
 over ``[body state | effector states]`` keeps state-dependent environmental forces evaluated
 at every integrator substage with the intermediate state.
 
-Conventions match :mod:`simulate.attitude`: forces/torques/momenta are body-frame ``(3, 1)``
+Conventions match :mod:`rigid_body.quaternion`: forces/torques/momenta are body-frame ``(3, 1)``
 column vectors.
 """
 
@@ -27,17 +27,18 @@ from typing import Any, Self, cast
 import numpy as np
 from numpy.typing import ArrayLike
 
-from simulate.attitude import quat_to_rotation_matrix, skew
+import rigid_body.disturbances as dis
+from rigid_body.quaternion import Quaternion
 
 
 @dataclasses.dataclass(frozen=True)
-class BodyState:
+class RigidBodyState:
     """Instantaneous kinematic state of the host body, handed to every effector."""
 
-    r: np.ndarray  # (3, 1) position, inertial frame
-    v: np.ndarray  # (3, 1) velocity, inertial frame
-    q: np.ndarray  # (4, 1) body->inertial unit quaternion (scalar-first)
-    omega: np.ndarray  # (3, 1) angular velocity, body frame
+    r_eci: np.ndarray  # (3) position, inertial frame
+    v_eci: np.ndarray  # (3) velocity, inertial frame
+    q_bi: Quaternion
+    omega_b_bi: np.ndarray  # (3) angular velocity, body frame
 
 
 class Effector(abc.ABC):
@@ -61,7 +62,7 @@ class Effector(abc.ABC):
     def calc_contributions(
         self,
         t: float,
-        state: BodyState,
+        state: RigidBodyState,
         x_eff: np.ndarray,
         cmd: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -81,7 +82,7 @@ class Effector(abc.ABC):
     def dynamics(
         self,
         t: float,  # noqa: ARG002
-        state: BodyState,  # noqa: ARG002
+        state: RigidBodyState,  # noqa: ARG002
         x_eff: np.ndarray,  # noqa: ARG002
         cmd: np.ndarray,  # noqa: ARG002
         omega_dot: np.ndarray,  # noqa: ARG002
@@ -115,7 +116,7 @@ class BodyWrench(Effector):
     def calc_contributions(
         self,
         t: float,  # noqa: ARG002
-        state: BodyState,  # noqa: ARG002
+        state: RigidBodyState,  # noqa: ARG002
         x_eff: np.ndarray,  # noqa: ARG002
         cmd: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -156,7 +157,7 @@ class GravityGradient(Effector):
     def calc_contributions(
         self,
         t: float,  # noqa: ARG002
-        state: BodyState,
+        state: RigidBodyState,
         x_eff: np.ndarray,  # noqa: ARG002
         cmd: np.ndarray,  # noqa: ARG002
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -165,10 +166,7 @@ class GravityGradient(Effector):
             msg = "GravityGradient inertia is unbound; compose it into a RigidBodyDynamics."
             raise RuntimeError(msg)
 
-        r_norm = np.linalg.norm(state.r)
-        nadir_inertial = -state.r / r_norm
-        o_body = quat_to_rotation_matrix(state.q).T @ nadir_inertial
-        torque = (3.0 * self.mu / r_norm**3) * (skew(o_body) @ (self.inertia @ o_body))
+        torque = dis.gravity_gradient(state.r_eci, state.q_bi, self.inertia)
 
         return (
             np.zeros(3, dtype=float),
@@ -259,7 +257,7 @@ class ReactionWheelArray(Effector):
     def calc_contributions(
         self,
         t: float,  # noqa: ARG002
-        state: BodyState,
+        state: RigidBodyState,
         x_eff: np.ndarray,
         cmd: np.ndarray,  # noqa: ARG002
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -279,7 +277,7 @@ class ReactionWheelArray(Effector):
         torque = -self.axes.T @ tau_w
 
         # Carried angular momentum: sum_k J_w_k * (omega_rel_k + axis_k^T @ omega_body) * axis_k
-        omega_abs = omega_rel + self.axes @ state.omega
+        omega_abs = omega_rel + self.axes @ state.omega_b_bi
         h_w = self.inertia * omega_abs
         momentum = self.axes.T @ h_w
 
@@ -292,7 +290,7 @@ class ReactionWheelArray(Effector):
     def dynamics(
         self,
         t: float,  # noqa: ARG002
-        state: BodyState,  # noqa: ARG002
+        state: RigidBodyState,  # noqa: ARG002
         x_eff: np.ndarray,
         cmd: np.ndarray,
         omega_dot: np.ndarray,
@@ -345,7 +343,7 @@ class MagnetorquerArray(Effector):
         dipole_constant: ArrayLike,
         time_constant: ArrayLike,
         max_current: ArrayLike,
-        b_field_model: Callable[[float, BodyState], np.ndarray] | ArrayLike | None = None,
+        b_field_model: Callable[[float, RigidBodyState], np.ndarray] | ArrayLike | None = None,
         initial_currents: ArrayLike | None = None,
     ) -> None:
         """Initialize the magnetorquer array.
@@ -385,9 +383,11 @@ class MagnetorquerArray(Effector):
             self.initial_currents = _to_array(initial_currents, m, "initial_currents")
 
         if b_field_model is None:
-            self.b_field_model: Callable[[float, BodyState], np.ndarray] = lambda _t, _state: np.zeros(3, dtype=float)
+            self.b_field_model: Callable[[float, RigidBodyState], np.ndarray] = lambda _t, _state: np.zeros(
+                3, dtype=float
+            )
         elif callable(b_field_model):
-            self.b_field_model = cast("Callable[[float, BodyState], np.ndarray]", b_field_model)
+            self.b_field_model = cast("Callable[[float, RigidBodyState], np.ndarray]", b_field_model)
         else:
             const_b = np.asarray(b_field_model, dtype=float).flatten()
             if len(const_b) != 3:  # noqa: PLR2004
@@ -402,7 +402,7 @@ class MagnetorquerArray(Effector):
     def calc_contributions(
         self,
         t: float,
-        state: BodyState,
+        state: RigidBodyState,
         x_eff: np.ndarray,
         cmd: np.ndarray,  # noqa: ARG002
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -431,7 +431,7 @@ class MagnetorquerArray(Effector):
     def dynamics(
         self,
         t: float,  # noqa: ARG002
-        state: BodyState,  # noqa: ARG002
+        state: RigidBodyState,  # noqa: ARG002
         x_eff: np.ndarray,
         cmd: np.ndarray,
         omega_dot: np.ndarray,  # noqa: ARG002

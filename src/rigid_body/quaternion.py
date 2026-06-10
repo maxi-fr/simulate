@@ -1,0 +1,340 @@
+# ruff: noqa: FBT001, FBT002
+from collections.abc import Callable
+from dataclasses import dataclass
+from functools import cached_property
+from typing import Annotated, Literal
+
+import numpy as np
+from numpy.typing import ArrayLike, NDArray
+from scipy.spatial.transform import Rotation
+
+from simulate.integrator import rk4
+
+FloatArray = NDArray[np.float64]
+Vec3 = Annotated[FloatArray, Literal[3]]
+Vec4 = Annotated[FloatArray, Literal[4]]
+Mat3x3 = Annotated[FloatArray, Literal[3]]
+Mat4x3 = Annotated[FloatArray, Literal[4, 3]]
+
+
+@dataclass(frozen=True)
+class Quaternion:
+    """A unit quaternion representing 3D rotations, following the JPL convention."""
+
+    vec: Vec3
+    scalar: float
+
+    def __post_init__(self) -> None:
+        """Validate the quaternion vector."""
+        object.__setattr__(self, "vec", np.asarray(self.vec))
+
+    @classmethod
+    def from_array(cls, q: ArrayLike, scalar_first: bool = False) -> "Quaternion":
+        """
+        Create a Quaternion from an array-like object.
+
+        Parameters
+        ----------
+        q : ArrayLike
+            Input array representing the quaternion. Expected shape is (4,).
+        scalar_first : bool, optional
+            If True, the input array is interpreted as [scalar, v1, v2, v3].
+            If False, it is interpreted as [v1, v2, v3, scalar].
+            Default is False.
+
+        Returns
+        -------
+        Quaternion
+            The created Quaternion object.
+        """
+        q = np.asarray(q)
+        if scalar_first:
+            return cls(q[1:], q[0])
+        return cls(q[:3], q[3])
+
+    def to_array(self, scalar_first: bool = False) -> Vec4:
+        """
+        Convert the Quaternion to a numpy array.
+
+        Parameters
+        ----------
+        scalar_first : bool, optional
+            If True, returns [scalar, v1, v2, v3].
+            If False, returns [v1, v2, v3, scalar].
+            Default is False.
+
+        Returns
+        -------
+        np.ndarray
+            The quaternion as a numpy array.
+        """
+        if scalar_first:
+            return np.array((self.scalar, *self.vec))
+
+        return np.array((*self.vec, self.scalar))
+
+    @classmethod
+    def from_scipy(cls, rot: Rotation, canonical: bool = True) -> "Quaternion":
+        """
+        Create a Quaternion from a scipy.spatial.transform.Rotation object.
+
+        Note: Scipy uses the Hamilton convention for quaternions. This class uses the JPL convention.
+        The conversion handles the difference (JPL q = [-v, w] relative to Hamilton q = [v, w] for the same rotation).
+
+        Parameters
+        ----------
+        rot : scipy.spatial.transform.Rotation
+            The rotation object.
+        canonical : bool, optional
+            Whether to map the quaternion to the canonical hemisphere (w > 0). Default is True.
+
+        Returns
+        -------
+        Quaternion
+            The corresponding JPL quaternion.
+        """
+        q = rot.as_quat(canonical=canonical, scalar_first=False)
+        return cls(-q[:3], q[3])
+
+    def to_scipy(self) -> Rotation:
+        """
+        Convert the Quaternion to a scipy.spatial.transform.Rotation object.
+
+        Note: Handles the conversion from JPL convention to Hamilton convention used by Scipy.
+
+        Returns
+        -------
+        scipy.spatial.transform.Rotation
+            The rotation object.
+        """
+        return Rotation.from_quat(
+            self.conjugate().to_array(scalar_first=False)
+        )  # conjugate because scipy uses hamilton convention
+
+    def to_rot_mat(self) -> Mat3x3:
+        """
+        Convert the quaternion to a rotation matrix.
+
+        Returns
+        -------
+        np.ndarray
+            The 3x3 rotation matrix.
+        """
+        return self.to_scipy().as_matrix()
+
+    def __mul__(self, other: "Quaternion") -> "Quaternion":
+        r"""
+        Multiplies two quaternions according to the JPL convention.
+
+        Note: This is NOT the Hamilton product.
+
+        Formula:
+        .. math::
+            \begin{bmatrix}
+            q_4 \overline{\mathbf{q}}_{1: 3}+\bar{q}_4 \mathbf{q}_{1: 3}-\overline{\mathbf{q}}_{1: 3} \times \mathbf{q}_{1: 3} \\
+            \bar{q}_4 q_4-\overline{\mathbf{q}}_{1: 3} \cdot \mathbf{q}_{1: 3}
+            \end{bmatrix}
+
+        Parameters
+        ----------
+        other : Quaternion
+            The right-hand side quaternion.
+
+        Returns
+        -------
+        Quaternion
+            The product of the two quaternions.
+        """
+        qv = self.vec
+        w = self.scalar
+
+        qv_other = other.vec
+        w_other = other.scalar
+
+        w_ret = w * w_other - np.dot(qv, qv_other)
+        v_ret = w_other * qv + w * qv_other - np.cross(qv, qv_other)
+
+        return Quaternion(v_ret, w_ret)
+
+    def mult_jpl(self, rhs: "Quaternion") -> "Quaternion":
+        """
+        Perform JPL quaternion multiplication (same as * operator).
+
+        Parameters
+        ----------
+        rhs : Quaternion
+            The right-hand side quaternion.
+
+        Returns
+        -------
+        Quaternion
+            The result of self * rhs.
+        """
+        return self * rhs
+
+    def mult_hamilton(self, rhs: "Quaternion") -> "Quaternion":
+        """
+        Perform Hamilton quaternion multiplication.
+
+        Parameters
+        ----------
+        rhs : Quaternion
+            The right-hand side quaternion.
+
+        Returns
+        -------
+        Quaternion
+            The Hamilton product of self and rhs.
+        """
+        return rhs * self
+
+    def conjugate(self) -> "Quaternion":
+        """
+        Calculate the conjugate of the quaternion.
+
+        For a unit quaternion, this represents the inverse rotation.
+
+        Returns
+        -------
+        Quaternion
+            The conjugate quaternion [-v, w].
+        """
+        return Quaternion(-self.vec, self.scalar)
+
+    def apply(self, v: ArrayLike) -> Vec3:
+        """
+        Rotates a vector v using this quaternion.
+
+        Parameters
+        ----------
+        v : ArrayLike
+            The 3D vector to rotate.
+
+        Returns
+        -------
+        np.ndarray
+            The rotated vector.
+        """
+        v = np.asarray(v)
+
+        qv = self.vec
+        w = self.scalar
+
+        t = -2.0 * np.cross(qv, v)
+
+        return v + w * t - np.cross(qv, t)
+
+    def kinematics(self, omega: Vec3, scalar_first: bool = False) -> Vec4:
+        """
+        Calculate the time derivative of the quaternion given an angular velocity.
+
+        dq/dt = 0.5 * Xi(q) * omega
+
+        Parameters
+        ----------
+        omega : np.ndarray
+            Angular velocity vector in the body frame [rad/s].
+        scalar_first : bool, optional
+            If True, returns the derivative as [dw, dx, dy, dz].
+            If False, returns [dx, dy, dz, dw].
+            Default is False.
+
+        Returns
+        -------
+        np.ndarray
+            The time derivative of the quaternion.
+        """
+        if scalar_first:
+            return 0.5 * np.roll(self.xi @ omega, 1)
+
+        return 0.5 * self.xi @ omega
+
+    def exact_integration(self, omega: Vec3, dt: float) -> "Quaternion":
+        """
+        Integrates the quaternion given a constant angular velocity over a time step.
+
+        Parameters
+        ----------
+        omega : np.ndarray
+            Constant angular velocity vector in the body frame [rad/s].
+        dt : float
+             Time step [s].
+
+        Returns
+        -------
+        Quaternion
+            The new quaternion after integration.
+        """
+        omega = np.asarray(omega) * dt
+
+        omega_norm = np.linalg.norm(omega)
+        if omega_norm < 1e-9:  # Avoid division by zero for very small angular velocities  # noqa: PLR2004
+            return self
+
+        delta_theta = omega_norm
+        delta_q_vec = (omega / omega_norm) * np.sin(delta_theta / 2)
+        delta_q_scalar = np.cos(delta_theta / 2)
+        delta_q = Quaternion(delta_q_vec, delta_q_scalar)
+
+        return self * delta_q
+
+    @cached_property
+    def xi(self) -> Mat4x3:
+        r"""
+        Compute the xi matrix for JPL quaternion kinematics.
+
+        The kinematics equation is:
+        .. math::
+            \dot{q} = \frac{1}{2} \Xi(\mathbf{q}) \omega
+
+        where:
+        .. math::
+            \Xi(\mathbf{q}) :=
+            \begin{bmatrix}
+                q_4 I_3+\left[\mathbf{q}_{1: 3} \times\right] \\
+                -\mathbf{q}_{1: 3}^T
+            \end{bmatrix} =
+            \begin{bmatrix}
+                q_4 & -q_3 & q_2 \\
+                q_3 & q_4 & -q_1 \\
+                -q_2 & q_1 & q_4 \\
+                -q_1 & -q_2 & -q_3
+            \end{bmatrix}
+
+        Returns
+        -------
+        np.ndarray
+            The 4x3 xi matrix.
+        """
+        qw = self.scalar
+        qx, qy, qz = self.vec
+
+        return np.array([[qw, -qz, qy], [qz, qw, -qx], [-qy, qx, qw], [-qx, -qy, -qz]])
+
+
+class QuaternionRK4:
+    """RK4 integrator that renormalizes a unit quaternion slice of the state after each step.
+
+    Euclidean RK4 lets a quaternion drift off the unit sphere; this wrapper integrates with
+    :func:`rk4` and then rescales the quaternion sub-vector ``x[quat_slice]`` to unit norm.
+    It is reusable for any state layout via ``quat_slice`` and satisfies the
+    :class:`Integrator` protocol.
+    """
+
+    def __init__(self, quat_slice: tuple[int, int] = (6, 10)) -> None:
+        """Store the half-open ``[start, stop)`` index range of the quaternion within the state."""
+        self._sl = slice(*quat_slice)
+
+    def __call__(
+        self,
+        f: Callable[[float, np.ndarray, np.ndarray], np.ndarray],
+        t: float,
+        dt: float,
+        x: np.ndarray,
+        u: np.ndarray,
+    ) -> np.ndarray:
+        """Integrate one step with RK4, then renormalize the quaternion slice."""
+        x_next = rk4(f, t, dt, x, u).copy()
+        q = x_next[self._sl]
+        x_next[self._sl] = q / np.linalg.norm(q)
+        return x_next

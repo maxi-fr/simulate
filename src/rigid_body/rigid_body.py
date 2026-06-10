@@ -1,12 +1,12 @@
 """Pre-built 6-DOF rigid body dynamics with modular actuators.
 
-State layout (single shared column vector)::
+RigidBodyState layout (single shared column vector)::
 
     x = [ r(3) | v(3) | q(4) | omega(3) | actuator internal states... ]
 
 with position ``r`` and velocity ``v`` in the inertial frame, attitude quaternion ``q``
-(scalar-first, body->inertial, unit norm), and angular velocity ``omega`` in the body
-frame. See :mod:`simulate.attitude` and :mod:`simulate.actuator` for conventions.
+(scalar-last, inertial->body, unit norm), and angular velocity ``omega`` in the body
+frame. See :mod:`rigid_body.quaternion` and :mod:`rigid_body.effector` for conventions.
 
 Equations of motion (``dynamics`` returns the continuous-time derivative)::
 
@@ -28,13 +28,13 @@ from typing import Any, Self, cast
 import numpy as np
 from numpy.typing import ArrayLike
 
-from simulate.attitude import quat_kinematics_matrix, quat_to_rotation_matrix, skew
 from simulate.component import NoLog
 from simulate.dynamics import Dynamics
-from simulate.integrator import Integrator, QuaternionRK4
+from simulate.integrator import Integrator
 from simulate.output import Output
 
-from .effector import BodyState, Effector
+from .effector import Effector, RigidBodyState
+from .quaternion import Quaternion, QuaternionRK4
 
 # Public state-vector layout (for building per-part measurement Outputs).
 POSITION = slice(0, 3)
@@ -60,13 +60,12 @@ def _load_class(class_path: str) -> type:
 class RigidBodyDynamics(Dynamics[NoLog]):
     """Coupled attitude + position dynamics for a rigid body with composed effectors."""
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         dt: float,
         mass: float,
         inertia: ArrayLike,
         effectors: list[Effector] | None = None,
-        gravity: ArrayLike | None = None,
         integrator: Integrator | None = None,
     ) -> None:
         """Initialize the rigid body.
@@ -76,7 +75,6 @@ class RigidBodyDynamics(Dynamics[NoLog]):
             mass: Body mass.
             inertia: Inertia tensor, either a ``(3, 3)`` matrix or a 3-vector diagonal.
             effectors: Effectors composed into the body (order fixes the command layout).
-            gravity: Optional constant inertial-frame acceleration ``(3,)``.
             integrator: Defaults to :class:`QuaternionRK4` over the quaternion slice.
         """
         super().__init__(dt, integrator if integrator is not None else QuaternionRK4((6, 10)))
@@ -85,7 +83,6 @@ class RigidBodyDynamics(Dynamics[NoLog]):
         inertia_arr = np.asarray(inertia, dtype=float)
         self.inertia = np.diag(inertia_arr) if inertia_arr.ndim == 1 else inertia_arr
         self.inertia_inv: np.ndarray = np.linalg.inv(self.inertia)
-        self.gravity = np.zeros(3, dtype=float) if gravity is None else np.asarray(gravity, dtype=float).flatten()
         self.effectors = effectors if effectors is not None else []
 
         # Precompute the per-effector slices into the state and command vectors.
@@ -101,7 +98,7 @@ class RigidBodyDynamics(Dynamics[NoLog]):
             cmd_idx += eff.n_inputs
 
         self.x = np.zeros(state_idx, dtype=float)
-        self.x[_Q] = np.array([1.0, 0.0, 0.0, 0.0])  # identity attitude
+        self.x[_Q] = np.array([0.0, 0.0, 0.0, 1.0])  # identity attitude
         for eff, sl in zip(self.effectors, self._state_slices, strict=True):
             self.x[sl] = eff.initial_state()
 
@@ -125,29 +122,28 @@ class RigidBodyDynamics(Dynamics[NoLog]):
             mass=float(config["mass"]),
             inertia=config["inertia"],
             effectors=effectors,
-            gravity=config.get("gravity"),
             integrator=integrator,
         )
 
     def dynamics(self, t: float, x: np.ndarray, u: np.ndarray) -> np.ndarray:
         """Continuous-time rigid body derivative ``x_dot = f(t, x, u)``."""
-        q = x[_Q]
+        q = Quaternion.from_array(x[_Q])
         omega = x[_W]
-        state = BodyState(r=x[_R], v=x[_V], q=q, omega=omega)
+        state = RigidBodyState(r_eci=x[_R], v_eci=x[_V], q_bi=q, omega_b_bi=omega)
 
         force = np.zeros(3, dtype=float)
         torque = np.zeros(3, dtype=float)
         momentum = np.zeros(3, dtype=float)
         for eff, s_sl, c_sl in zip(self.effectors, self._state_slices, self._cmd_slices, strict=True):
             f_eff, tau_eff, h_eff = eff.calc_contributions(t, state, x[s_sl], u[c_sl])
-            force = force + f_eff
-            torque = torque + tau_eff
-            momentum = momentum + h_eff
+            force += f_eff
+            torque += tau_eff
+            momentum += h_eff
 
         r_dot = x[_V]
-        v_dot = (quat_to_rotation_matrix(q) @ force) / self.mass + self.gravity
-        q_dot = 0.5 * quat_kinematics_matrix(omega) @ q
-        omega_dot = self.inertia_inv @ (torque - skew(omega) @ (self.inertia @ omega + momentum))
+        v_dot = force / self.mass
+        q_dot = q.kinematics(omega)
+        omega_dot = self.inertia_inv @ (torque - np.cross(omega, self.inertia @ omega + momentum))
 
         state_dots: list[np.ndarray] = []
         for eff, s_sl, c_sl in zip(self.effectors, self._state_slices, self._cmd_slices, strict=True):

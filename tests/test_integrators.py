@@ -2,8 +2,9 @@ import math
 
 import numpy as np
 
+from rigid_body.quaternion import QuaternionRK4
 from simulate.dynamics import LinearDynamics
-from simulate.integrator import QuaternionRK4, euler, midpoint, rk4
+from simulate.integrator import euler, midpoint, rk4
 from simulate.output import LinearOutput
 
 

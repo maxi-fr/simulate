@@ -1,8 +1,8 @@
 import numpy as np
 
 from rigid_body.effector import BodyWrench, GravityGradient, ReactionWheelArray
+from rigid_body.quaternion import QuaternionRK4
 from rigid_body.rigid_body import RigidBodyDynamics
-from simulate.integrator import QuaternionRK4
 
 
 def _run(dynamics: RigidBodyDynamics, cmd: np.ndarray, n_steps: int) -> None:
@@ -27,7 +27,7 @@ def test_constant_body_force_translates() -> None:
     assert np.isclose(dynamics.x[0], 0.5 * accel * t**2, rtol=1e-4)
     assert np.isclose(dynamics.x[3], accel * t, rtol=1e-4)
     # No rotation should be induced.
-    assert np.allclose(dynamics.x[6:10], np.array([1.0, 0.0, 0.0, 0.0]))
+    assert np.allclose(dynamics.x[6:10], np.array([0.0, 0.0, 0.0, 1.0]))
 
 
 def test_torque_free_symmetric_spin_preserves_omega_and_unit_quaternion() -> None:
@@ -129,7 +129,7 @@ def test_gravity_gradient_torque_acts_through_ode() -> None:
     # Orbital radius along inertial x, tilted attitude so the torque is nonzero.
     body.x[0:3] = np.array([7.0e6, 0.0, 0.0])
     half = np.pi / 8  # 22.5 deg about body z
-    body.x[6:10] = np.array([np.cos(half), 0.0, 0.0, np.sin(half)])
+    body.x[6:10] = np.array([0.0, 0.0, np.sin(half), np.cos(half)])
 
     for k in range(200):
         body.evaluate(k * dt, np.zeros(0))
