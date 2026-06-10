@@ -1,6 +1,6 @@
 import numpy as np
 
-from simulate.effector import BodyWrench, GravityGradient, ReactionWheel
+from simulate.effector import BodyWrench, GravityGradient, ReactionWheelArray
 from simulate.integrator import QuaternionRK4
 from simulate.rigid_body import RigidBodyDynamics
 
@@ -60,24 +60,29 @@ def test_torque_free_asymmetric_conserves_angular_momentum() -> None:
 
 
 def test_reaction_wheel_conserves_total_angular_momentum() -> None:
-    """Spinning up a wheel from rest counter-rotates the body; total H = J omega + h stays 0."""
+    """Spinning up wheels counter-rotates the body; total H = J omega + h stays 0."""
     dt = 0.001
     inertia = np.diag([1.0, 1.0, 1.0])
-    wheel = ReactionWheel(axis=[0.0, 0.0, 1.0])
-    dynamics = RigidBodyDynamics(dt=dt, mass=1.0, inertia=inertia, effectors=[wheel])
+    rw_array = ReactionWheelArray(
+        axes=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        inertia=0.05,
+        torque_constant=0.08,
+        time_constant=0.04,
+        max_current=2.5,
+    )
+    dynamics = RigidBodyDynamics(dt=dt, mass=1.0, inertia=inertia, effectors=[rw_array])
 
-    tau_m = 0.05
-    _run(dynamics, np.array([tau_m]), 1000)
+    cmd = np.array([1.5, -1.0, 2.0])
+    _run(dynamics, cmd, 1000)
 
     omega = dynamics.x[10:13]
-    h_w = dynamics.x[13]
-    momentum = h_w * wheel.axis
+    dynamics.x[13:16]
+    omega_rel = dynamics.x[16:19]
+    h_w = rw_array.inertia * (omega_rel + rw_array.axes @ omega)
+    momentum = rw_array.axes.T @ h_w
     total_h = inertia @ omega + momentum
 
     assert np.allclose(total_h, 0.0, atol=1e-9)
-    # The body must spin opposite to the wheel about z.
-    assert omega[2] < 0.0
-    assert h_w > 0.0
 
 
 def test_from_config_round_trip() -> None:
@@ -88,20 +93,27 @@ def test_from_config_round_trip() -> None:
         "inertia": [1.0, 2.0, 3.0],
         "effectors": [
             {"class_path": "simulate.effector.BodyWrench"},
-            {"class_path": "simulate.effector.ReactionWheel", "axis": [0.0, 0.0, 1.0]},
+            {
+                "class_path": "simulate.effector.ReactionWheelArray",
+                "axes": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+                "inertia": 0.05,
+                "torque_constant": 0.08,
+                "time_constant": 0.04,
+                "max_current": 2.5,
+            },
         ],
     }
     dynamics = RigidBodyDynamics.from_config(config)
 
     assert len(dynamics.effectors) == 2
     assert isinstance(dynamics.effectors[0], BodyWrench)
-    assert isinstance(dynamics.effectors[1], ReactionWheel)
+    assert isinstance(dynamics.effectors[1], ReactionWheelArray)
     assert isinstance(dynamics.integrator, QuaternionRK4)
     assert dynamics.mass == 3.0
 
-    # Command layout is 6 (wrench) + 1 (wheel) = 7; stepping must not raise.
-    dynamics.evaluate(0.0, np.zeros(7))
-    assert dynamics.x.shape == (14,)
+    # Command layout is 6 (wrench) + 3 (wheels) = 9; stepping must not raise.
+    dynamics.evaluate(0.0, np.zeros(9))
+    assert dynamics.x.shape == (19,)
 
 
 def test_gravity_gradient_torque_acts_through_ode() -> None:

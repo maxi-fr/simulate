@@ -13,7 +13,7 @@ def _():
     import numpy as np
     import polars as pl
 
-    from simulate.effector import BodyWrench, GravityGradient, ReactionWheel
+    from simulate.effector import BodyWrench, GravityGradient, ReactionWheelArray
     from simulate.rigid_body import (
         ReactionWheelTelemetryOutput,
         RigidBodyAttitudeOutput,
@@ -26,7 +26,7 @@ def _():
         BodyWrench,
         GaussianSensor,
         GravityGradient,
-        ReactionWheel,
+        ReactionWheelArray,
         ReactionWheelTelemetryOutput,
         RigidBodyAttitudeOutput,
         RigidBodyDynamics,
@@ -47,7 +47,7 @@ def _(mo):
     `Effector` abstraction. We compose two actuators into one body:
 
     1. A **`BodyWrench`** applying a body-frame thrust (translation), and
-    2. A **`ReactionWheel`** about the body z-axis (a momentum-exchange device).
+    2. A **`ReactionWheelArray`** with 3 orthogonal reaction wheels.
 
     We step the dynamics open-loop and verify that spinning up the wheel rotates the body
     while the **total angular momentum** $H = J\omega + h$ is conserved.
@@ -68,14 +68,21 @@ def _(mo):
 
 
 @app.cell
-def _(BodyWrench, ReactionWheel, RigidBodyDynamics, np):
+def _(BodyWrench, ReactionWheelArray, RigidBodyDynamics, np):
     dt = 0.01
     inertia = np.diag([1.0, 2.0, 3.0])
+    rw_array = ReactionWheelArray(
+        axes=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        inertia=0.05,
+        torque_constant=0.08,
+        time_constant=0.04,
+        max_current=2.5,
+    )
     dynamics = RigidBodyDynamics(
         dt=dt,
         mass=5.0,
         inertia=inertia,
-        effectors=[BodyWrench(), ReactionWheel(axis=[0.0, 0.0, 1.0])],
+        effectors=[BodyWrench(), rw_array],
     )
     return dt, dynamics, inertia
 
@@ -85,8 +92,8 @@ def _(mo):
     mo.md(r"""
     ## 2. Step the simulation open-loop
 
-    Command layout is `[Fx, Fy, Fz, tau_x, tau_y, tau_z, tau_wheel]`. We apply a constant
-    body-x thrust and a constant wheel motor torque for 5 s.
+    Command layout is `[Fx, Fy, Fz, tau_x, tau_y, tau_z, i_cmd_x, i_cmd_y, i_cmd_z]`. We apply a constant
+    body-x thrust and a constant z-wheel current command for 5 s.
     """)
     return
 
@@ -97,15 +104,17 @@ def _(dt, dynamics, inertia, np):
     n_steps = int(t_end / dt)
 
     fx = 2.0  # body-frame thrust (N)
-    tau_wheel = 0.1  # wheel motor torque (N*m)
-    cmd = np.array([fx, 0.0, 0.0, 0.0, 0.0, 0.0, tau_wheel])
+    i_cmd_z = 1.25  # z-wheel commanded current (A)
+    cmd = np.array([fx, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, i_cmd_z])
 
     rows = []
     for _k in range(n_steps):
         dynamics.evaluate(_k * dt, cmd)
         omega = dynamics.x[10:13]
-        h_w = dynamics.x[13]
-        total_h = inertia @ omega + np.array([0.0, 0.0, h_w])
+        # currents: x[13:16], omega_rel: x[16:19]
+        h_wheels = 0.05 * (dynamics.x[16:19] + omega)
+        total_h = inertia @ omega + h_wheels
+        h_w_z = h_wheels[2]
         rows.append(
             {
                 "t": _k * dt,
@@ -113,7 +122,7 @@ def _(dt, dynamics, inertia, np):
                 "qw": dynamics.x[6],
                 "qz": dynamics.x[9],
                 "wz": omega[2],
-                "h_w": h_w,
+                "h_w": h_w_z,
                 "H_norm": float(np.linalg.norm(total_h)),
             }
         )
@@ -234,7 +243,7 @@ def _(mo):
 def _(
     BodyWrench,
     GaussianSensor,
-    ReactionWheel,
+    ReactionWheelArray,
     ReactionWheelTelemetryOutput,
     RigidBodyAttitudeOutput,
     RigidBodyDynamics,
@@ -242,19 +251,26 @@ def _(
     np,
 ):
     dt_m = 0.01
+    rw_array_m = ReactionWheelArray(
+        axes=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        inertia=0.05,
+        torque_constant=0.08,
+        time_constant=0.04,
+        max_current=2.5,
+    )
     body_m = RigidBodyDynamics(
         dt=dt_m,
         mass=5.0,
         inertia=np.diag([1.0, 2.0, 3.0]),
-        effectors=[BodyWrench(), ReactionWheel(axis=[0.0, 0.0, 1.0])],
+        effectors=[BodyWrench(), rw_array_m],
     )
 
     # (Output transform, Sensor noise) channels, each at its own rate.
     gyro_out, gyro_sen = RigidBodyRateOutput(dt=dt_m), GaussianSensor(dt=dt_m, std_dev=2e-3)
     track_out, track_sen = RigidBodyAttitudeOutput(dt=10 * dt_m), GaussianSensor(dt=10 * dt_m, std_dev=2e-3)
-    tach_out, tach_sen = ReactionWheelTelemetryOutput(dt=5 * dt_m), GaussianSensor(dt=5 * dt_m, std_dev=1e-2)
+    tach_out, tach_sen = ReactionWheelTelemetryOutput(dt=5 * dt_m, index=18), GaussianSensor(dt=5 * dt_m, std_dev=1e-2)
 
-    cmd_m = np.array([2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.1])
+    cmd_m = np.array([2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.25])
     meas_rows = []
     for _k in range(500):
         t_m = _k * dt_m
@@ -292,9 +308,9 @@ def _(meas_rows, pl, plt):
     meas_axes[0].legend()
     meas_axes[0].grid(visible=True)
 
-    meas_axes[1].plot(meas_data["t"], meas_data["hw_true"], "g-", label="wheel $h_w$ truth")
+    meas_axes[1].plot(meas_data["t"], meas_data["hw_true"], "g-", label="wheel relative speed $\\omega_{z, rel}$ truth")
     meas_axes[1].plot(meas_data["t"], meas_data["hw_mea"], "r.", alpha=0.3, label="tachometer measured (5x slower)")
-    meas_axes[1].set_ylabel("N*m*s")
+    meas_axes[1].set_ylabel("rad/s")
     meas_axes[1].legend()
     meas_axes[1].grid(visible=True)
 

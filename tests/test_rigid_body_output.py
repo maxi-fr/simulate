@@ -11,11 +11,11 @@ from simulate.rigid_body import (
 
 
 def _state() -> np.ndarray:
-    """A full rigid body state (13 base + 1 reaction-wheel momentum) with known parts."""
-    x = np.zeros(BASE_STATES + 1)
+    """A full rigid body state (13 base + 6 reaction-wheel array states) with known parts."""
+    x = np.zeros(BASE_STATES + 6)
     x[QUATERNION] = np.array([0.5, 0.5, 0.5, 0.5])
     x[ANGULAR_VELOCITY] = np.array([0.1, 0.2, 0.3])
-    x[BASE_STATES] = 7.5  # wheel momentum h_w
+    x[BASE_STATES] = 7.5  # first state (e.g. current_0)
     return x
 
 

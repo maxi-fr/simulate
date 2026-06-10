@@ -137,18 +137,21 @@ class RigidBodyDynamics(Dynamics[NoLog]):
         force = np.zeros(3, dtype=float)
         torque = np.zeros(3, dtype=float)
         momentum = np.zeros(3, dtype=float)
-        state_dots: list[np.ndarray] = []
         for eff, s_sl, c_sl in zip(self.effectors, self._state_slices, self._cmd_slices, strict=True):
-            out = eff.evaluate(t, state, x[s_sl], u[c_sl])
-            force = force + out.force
-            torque = torque + out.torque
-            momentum = momentum + out.momentum
-            state_dots.append(out.state_dot)
+            f_eff, tau_eff, h_eff = eff.calc_contributions(t, state, x[s_sl], u[c_sl])
+            force = force + f_eff
+            torque = torque + tau_eff
+            momentum = momentum + h_eff
 
         r_dot = x[_V]
         v_dot = (quat_to_rotation_matrix(q) @ force) / self.mass + self.gravity
         q_dot = 0.5 * quat_kinematics_matrix(omega) @ q
         omega_dot = self.inertia_inv @ (torque - skew(omega) @ (self.inertia @ omega + momentum))
+
+        state_dots: list[np.ndarray] = []
+        for eff, s_sl, c_sl in zip(self.effectors, self._state_slices, self._cmd_slices, strict=True):
+            s_dot = eff.dynamics(t, state, x[s_sl], u[c_sl], omega_dot)
+            state_dots.append(s_dot)
 
         return np.concatenate([r_dot, v_dot, q_dot, omega_dot, *state_dots])
 
@@ -172,8 +175,7 @@ class RigidBodyOutput(Output[NoLog]):
         u: float | np.ndarray,  # noqa: ARG002
     ) -> tuple[float | np.ndarray, NoLog]:
         """Extract pose ``[r(3), q(4)]`` from the full rigid body state."""
-        x_arr = np.atleast_1d(x)
-        y = np.concatenate([x_arr[_R], x_arr[_Q]])
+        y = np.concatenate([x[_R], x[_Q]])  # ty:ignore[not-subscriptable]
         return y, NoLog()
 
 
@@ -196,8 +198,7 @@ class RigidBodyAttitudeOutput(Output[NoLog]):
         u: float | np.ndarray,  # noqa: ARG002
     ) -> tuple[float | np.ndarray, NoLog]:
         """Select the attitude quaternion from the full rigid body state."""
-        x_arr = np.atleast_1d(x)
-        return x_arr[QUATERNION], NoLog()
+        return x[QUATERNION], NoLog()  # ty:ignore[not-subscriptable]
 
 
 class RigidBodyRateOutput(Output[NoLog]):
@@ -218,8 +219,7 @@ class RigidBodyRateOutput(Output[NoLog]):
         u: float | np.ndarray,  # noqa: ARG002
     ) -> tuple[float | np.ndarray, NoLog]:
         """Select the body-frame angular velocity from the full rigid body state."""
-        x_arr = np.atleast_1d(x)
-        return x_arr[ANGULAR_VELOCITY], NoLog()
+        return x[ANGULAR_VELOCITY], NoLog()  # ty:ignore[not-subscriptable]
 
 
 class ReactionWheelTelemetryOutput(Output[NoLog]):
@@ -247,5 +247,4 @@ class ReactionWheelTelemetryOutput(Output[NoLog]):
         u: float | np.ndarray,  # noqa: ARG002
     ) -> tuple[float | np.ndarray, NoLog]:
         """Select the effector internal state at ``index`` from the full rigid body state."""
-        x_arr = np.atleast_1d(x)
-        return x_arr[self.index : self.index + 1], NoLog()
+        return x[self.index : self.index + 1], NoLog()  # ty:ignore[not-subscriptable]

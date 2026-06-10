@@ -6,6 +6,8 @@ from typing import Any
 import numpy as np
 import numpy.typing as npt
 
+from simulate.component import NoLog
+
 
 @dataclasses.dataclass(frozen=True)
 class UniversalLog:
@@ -44,6 +46,7 @@ class Logger:
 
         self._universal_buffers: dict[str, np.ndarray] = {}
         self._component_buffers: dict[str, dict[str, np.ndarray]] = {}
+        self._component_fields: dict[str, list[str]] = {}
 
         self._universal_list: list[dict[str, Any]] = []
         self._component_lists: dict[str, list[dict[str, Any]]] = {}
@@ -120,6 +123,7 @@ class Logger:
         """Initialize the pre-allocated buffers based on incoming data shapes and types."""
         self._universal_buffers = {}
         self._component_buffers = {}
+        self._component_fields = {}
 
         # Universal signals
         for key in ("t", "x", "y", "y_mea", "x_hat", "u", "ref"):
@@ -132,16 +136,18 @@ class Logger:
             self._component_buffers[name] = {}
             self._component_buffers[name]["t"] = np.zeros((self._buffer_size,), dtype=np.float64)
 
-            if hasattr(log_model, "model_dump"):
-                raw_dict = log_model.model_dump()
-            elif hasattr(log_model, "__dict__"):
-                raw_dict = dict(log_model.__dict__)
-            else:
-                raw_dict = dataclasses.asdict(log_model)
+            if isinstance(log_model, NoLog):
+                self._component_fields[name] = []
+                continue
 
-            log_dict = {k: v for k, v in raw_dict.items() if k not in {"x", "y", "y_mea", "x_hat", "u", "ref"}}
+            # Assuming log_model is a dataclass
+            fields = [
+                f.name for f in dataclasses.fields(log_model) if f.name not in {"x", "y", "y_mea", "x_hat", "u", "ref"}
+            ]
+            self._component_fields[name] = fields
 
-            for key, val in log_dict.items():
+            for key in fields:
+                val = getattr(log_model, key)
                 self._component_buffers[name][key] = self._create_buffer_array(val)
 
         self._buffers_initialized = True
@@ -171,18 +177,16 @@ class Logger:
             if name not in self._component_buffers:
                 continue
 
-            if hasattr(log_model, "model_dump"):
-                raw_dict = log_model.model_dump()
-            elif hasattr(log_model, "__dict__"):
-                raw_dict = dict(log_model.__dict__)
-            else:
-                raw_dict = dataclasses.asdict(log_model)
+            # Fast path for NoLog
+            if isinstance(log_model, NoLog):
+                if "t" in self._component_buffers[name]:
+                    self._component_buffers[name]["t"][self._write_idx] = universal.t
+                continue
 
-            log_dict = {k: v for k, v in raw_dict.items() if k not in {"x", "y", "y_mea", "x_hat", "u", "ref"}}
-
-            for key, val in log_dict.items():
-                if key in self._component_buffers[name]:
-                    self._component_buffers[name][key][self._write_idx] = val
+            # Write fields cached at initialization
+            fields = self._component_fields.get(name, [])
+            for key in fields:
+                self._component_buffers[name][key][self._write_idx] = getattr(log_model, key)
 
             if "t" in self._component_buffers[name]:
                 self._component_buffers[name]["t"][self._write_idx] = universal.t
