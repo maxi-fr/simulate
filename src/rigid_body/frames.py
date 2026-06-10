@@ -13,7 +13,9 @@ inertial->ORC rotation (consistent with the ``q_bi`` convention used elsewhere, 
 ORC frame's angular velocity expressed in ORC coordinates.
 """
 
+import astropy.units as u
 import numpy as np
+from astropy.coordinates import EarthLocation
 from numpy.typing import ArrayLike
 from scipy.spatial.transform import Rotation
 
@@ -113,3 +115,26 @@ def quaternion_from_euler(angles: ArrayLike, *, degrees: bool = False) -> Quater
     """
     rot = Rotation.from_euler(_EULER_SEQUENCE, np.asarray(angles, dtype=float), degrees=degrees)
     return Quaternion.from_scipy(rot)
+
+
+def eci_to_geodedic(pos_eci: np.ndarray) -> tuple[float, float, float]:
+    """
+    Convert ECI position to geodetic coordinates.
+
+    Parameters
+    ----------
+    pos_eci : np.ndarray
+        Position vector in the ECI frame [m].
+
+    Returns
+    -------
+    tuple[float, float, float]
+        A tuple containing (latitude [deg], longitude [deg], altitude [m]).
+    """
+    loc = EarthLocation.from_geocentric(*(pos_eci * u.m)).to_geodetic("WGS84")
+
+    lat = loc.lat.value
+    lon = loc.lon.value
+    alt = loc.height.to(u.m).value
+
+    return lat, lon, alt
