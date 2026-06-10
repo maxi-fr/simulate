@@ -22,7 +22,6 @@ effects alike: total angular momentum ``H = J @ omega + h`` is conserved under z
 torque.
 """
 
-import dataclasses
 import importlib
 from typing import Any, Self, cast
 
@@ -30,6 +29,7 @@ import numpy as np
 from numpy.typing import ArrayLike
 
 from simulate.attitude import quat_kinematics_matrix, quat_to_rotation_matrix, skew
+from simulate.component import NoLog
 from simulate.dynamics import Dynamics
 from simulate.effector import BodyState, Effector
 from simulate.integrator import Integrator, QuaternionRK4
@@ -49,17 +49,6 @@ _W = ANGULAR_VELOCITY
 _BASE_STATES = BASE_STATES
 
 
-@dataclasses.dataclass(frozen=True)
-class RigidBodyLog:
-    """Snapshot of the rigid body state."""
-
-    position: np.ndarray
-    velocity: np.ndarray
-    quaternion: np.ndarray
-    angular_velocity: np.ndarray
-    effector_states: np.ndarray  # concatenated internal states (e.g. wheel momenta)
-
-
 def _load_class(class_path: str) -> type:
     """Resolve a dotted ``module.Class`` path to the class object."""
     module_name, cls_name = class_path.rsplit(".", 1)
@@ -67,7 +56,7 @@ def _load_class(class_path: str) -> type:
     return cast("type", getattr(module, cls_name))
 
 
-class RigidBodyDynamics(Dynamics[RigidBodyLog]):
+class RigidBodyDynamics(Dynamics[NoLog]):
     """Coupled attitude + position dynamics for a rigid body with composed effectors."""
 
     def __init__(  # noqa: PLR0913
@@ -165,25 +154,12 @@ class RigidBodyDynamics(Dynamics[RigidBodyLog]):
 
         return np.vstack([r_dot, v_dot, q_dot, omega_dot, *state_dots])
 
-    def _make_log(self) -> RigidBodyLog:
+    def _make_log(self) -> NoLog:
         """Build a snapshot log of the current state."""
-        return RigidBodyLog(
-            position=self.x[_R].copy(),
-            velocity=self.x[_V].copy(),
-            quaternion=self.x[_Q].copy(),
-            angular_velocity=self.x[_W].copy(),
-            effector_states=self.x[_BASE_STATES:].copy(),
-        )
+        return NoLog()
 
 
-@dataclasses.dataclass(frozen=True)
-class RigidBodyOutputLog:
-    """Dataclass for internal RigidBodyOutput logging."""
-
-    y: np.ndarray
-
-
-class RigidBodyOutput(Output[RigidBodyOutputLog]):
+class RigidBodyOutput(Output[NoLog]):
     """Minimal pose output: position (inertial) and attitude quaternion."""
 
     @classmethod
@@ -196,21 +172,14 @@ class RigidBodyOutput(Output[RigidBodyOutputLog]):
         t: float,  # noqa: ARG002
         x: float | np.ndarray,
         u: float | np.ndarray,  # noqa: ARG002
-    ) -> tuple[float | np.ndarray, RigidBodyOutputLog]:
+    ) -> tuple[float | np.ndarray, NoLog]:
         """Extract pose ``[r(3), q(4)]`` from the full rigid body state."""
         x_vec = self.to_col_vec(x)
         y_vec = np.vstack([x_vec[_R], x_vec[_Q]])
-        return self.from_col_vec(y_vec), RigidBodyOutputLog(y=y_vec.copy())
+        return self.from_col_vec(y_vec), NoLog()
 
 
-@dataclasses.dataclass(frozen=True)
-class RigidBodyAttitudeOutputLog:
-    """Dataclass for internal RigidBodyAttitudeOutput logging."""
-
-    value: np.ndarray
-
-
-class RigidBodyAttitudeOutput(Output[RigidBodyAttitudeOutputLog]):
+class RigidBodyAttitudeOutput(Output[NoLog]):
     """Attitude measurement: the body->inertial unit quaternion ``q`` ``(4, 1)``.
 
     Pair with a :class:`~simulate.sensor.GaussianSensor` to model a star tracker. Note that
@@ -227,20 +196,13 @@ class RigidBodyAttitudeOutput(Output[RigidBodyAttitudeOutputLog]):
         t: float,  # noqa: ARG002
         x: float | np.ndarray,
         u: float | np.ndarray,  # noqa: ARG002
-    ) -> tuple[float | np.ndarray, RigidBodyAttitudeOutputLog]:
+    ) -> tuple[float | np.ndarray, NoLog]:
         """Select the attitude quaternion from the full rigid body state."""
         y_vec = self.to_col_vec(x)[QUATERNION]
-        return self.from_col_vec(y_vec), RigidBodyAttitudeOutputLog(value=y_vec.copy())
+        return self.from_col_vec(y_vec), NoLog()
 
 
-@dataclasses.dataclass(frozen=True)
-class RigidBodyRateOutputLog:
-    """Dataclass for internal RigidBodyRateOutput logging."""
-
-    value: np.ndarray
-
-
-class RigidBodyRateOutput(Output[RigidBodyRateOutputLog]):
+class RigidBodyRateOutput(Output[NoLog]):
     """Angular-rate measurement: the body-frame angular velocity ``omega`` ``(3, 1)``.
 
     Pair with a :class:`~simulate.sensor.GaussianSensor` to model a rate gyro.
@@ -256,20 +218,13 @@ class RigidBodyRateOutput(Output[RigidBodyRateOutputLog]):
         t: float,  # noqa: ARG002
         x: float | np.ndarray,
         u: float | np.ndarray,  # noqa: ARG002
-    ) -> tuple[float | np.ndarray, RigidBodyRateOutputLog]:
+    ) -> tuple[float | np.ndarray, NoLog]:
         """Select the body-frame angular velocity from the full rigid body state."""
         y_vec = self.to_col_vec(x)[ANGULAR_VELOCITY]
-        return self.from_col_vec(y_vec), RigidBodyRateOutputLog(value=y_vec.copy())
+        return self.from_col_vec(y_vec), NoLog()
 
 
-@dataclasses.dataclass(frozen=True)
-class ReactionWheelTelemetryOutputLog:
-    """Dataclass for internal ReactionWheelTelemetryOutput logging."""
-
-    value: np.ndarray
-
-
-class ReactionWheelTelemetryOutput(Output[ReactionWheelTelemetryOutputLog]):
+class ReactionWheelTelemetryOutput(Output[NoLog]):
     """Effector telemetry: a single effector internal state (e.g. a wheel's momentum ``h_w``).
 
     ``index`` is the absolute position of the effector state in the rigid body state vector;
@@ -292,7 +247,7 @@ class ReactionWheelTelemetryOutput(Output[ReactionWheelTelemetryOutputLog]):
         t: float,  # noqa: ARG002
         x: float | np.ndarray,
         u: float | np.ndarray,  # noqa: ARG002
-    ) -> tuple[float | np.ndarray, ReactionWheelTelemetryOutputLog]:
+    ) -> tuple[float | np.ndarray, NoLog]:
         """Select the effector internal state at ``index`` from the full rigid body state."""
         y_vec = self.to_col_vec(x)[self.index : self.index + 1]
-        return self.from_col_vec(y_vec), ReactionWheelTelemetryOutputLog(value=y_vec.copy())
+        return self.from_col_vec(y_vec), NoLog()

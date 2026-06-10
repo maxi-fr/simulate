@@ -43,9 +43,9 @@ def test_two_channels_log_per_channel() -> None:
     for name in ("output_0", "output_1", "sensor_0", "sensor_1"):
         assert len(logs[name]) == n
 
-    # The merged universal y/y_mea are dropped in multi-channel mode.
-    assert "y" not in sim.logger.universal_logs[0]
-    assert "y_mea" not in sim.logger.universal_logs[0]
+    # The merged universal y/y_mea are present in the universal log.
+    assert "y" in sim.logger.universal_logs[0]
+    assert "y_mea" in sim.logger.universal_logs[0]
 
 
 def test_estimator_receives_concatenated_measurement() -> None:
@@ -62,8 +62,8 @@ def test_slow_sensor_is_zoh_held() -> None:
     sim = _two_channel_sim(t_end=0.06, sensor1_dt=0.02)
     sim.run()
 
-    fast = [np.ravel(e["value"])[0] for e in sim.logger.component_logs["sensor_0"]]
-    slow = [np.ravel(e["value"])[0] for e in sim.logger.component_logs["sensor_1"]]
+    fast = [e["y_mea"][0] for e in sim.logger.universal_logs]
+    slow = [e["y_mea"][1] for e in sim.logger.universal_logs]
 
     # The fast channel updates every base step once the truth starts moving.
     assert fast[2] != fast[1]

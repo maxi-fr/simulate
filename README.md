@@ -13,7 +13,7 @@ A modular Python framework for control system simulation, designed for flexibili
 - **Zero-Order Hold (ZOH):** Automatic handling of sample time synchronization.
 - **Configuration-Driven:** Simulations are defined in human-readable YAML files, allowing for dynamic loading of components without code changes.
 - **Robust Numerical Integration:** Includes built-in support for Euler, Midpoint, and RK4 integration schemes for continuous-time dynamics.
-- **Component-Driven Logging:** Standardized logging of universal signals (t, x, u, y, etc.) alongside strictly-typed internal component data via Pydantic models.
+- **Component-Driven Logging:** Standardized logging of universal signals (t, x, u, y, etc.) alongside strictly-typed internal component data. Note that component-specific logs are reserved for internal, component-specific variables and must not duplicate signals already logged universally.
 - **High-Performance Batch Execution:** Run large-scale experiments in parallel using multiprocessing, with results written directly to disk (CSV or NPZ).
 
 ## Core Components

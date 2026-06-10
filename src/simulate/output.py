@@ -1,11 +1,10 @@
 import abc
-import dataclasses
 from typing import Any, Self, cast
 
 import numpy as np
 from numpy.typing import ArrayLike
 
-from simulate.component import Component
+from simulate.component import Component, NoLog
 
 
 class Output[L](Component[L], abc.ABC):
@@ -24,14 +23,7 @@ class Output[L](Component[L], abc.ABC):
         """Execute internal update for output. Returns the output y."""
 
 
-@dataclasses.dataclass(frozen=True)
-class LinearOutputLog:
-    """Dataclass for internal LinearOutput state logging."""
-
-    y: np.ndarray
-
-
-class LinearOutput(Output[LinearOutputLog]):
+class LinearOutput(Output[NoLog]):
     """Generic linear output implementation using state space matrices C and D."""
 
     def __init__(
@@ -60,7 +52,7 @@ class LinearOutput(Output[LinearOutputLog]):
         t: float,  # noqa: ARG002
         x: float | np.ndarray,
         u: float | np.ndarray,
-    ) -> tuple[float | np.ndarray, LinearOutputLog]:
+    ) -> tuple[float | np.ndarray, NoLog]:
         """
         Compute output from current state and input.
 
@@ -74,4 +66,4 @@ class LinearOutput(Output[LinearOutputLog]):
 
         y_vec = cast("np.ndarray", self.c @ x_vec + self.d @ u_vec)
 
-        return self.from_col_vec(y_vec), LinearOutputLog(y=y_vec.copy())
+        return self.from_col_vec(y_vec), NoLog()
