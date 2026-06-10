@@ -201,6 +201,40 @@ class Quaternion:
         """
         return Quaternion(-self.vec, self.scalar)
 
+    def inverse(self) -> "Quaternion":
+        """
+        Return the inverse rotation.
+
+        For a unit quaternion the inverse equals the conjugate.
+
+        Returns
+        -------
+        Quaternion
+            The inverse quaternion [-v, w].
+        """
+        return self.conjugate()
+
+    def error_to(self, reference: "Quaternion") -> "Quaternion":
+        r"""
+        Attitude error of this quaternion relative to a reference.
+
+        Returns the error quaternion :math:`q_{err} = q_{ref}^{-1} \otimes q`. For
+        ``self == reference`` the result is the identity quaternion ``([0, 0, 0], 1)``;
+        for a small rotation the vector part is approximately half the rotation vector
+        that takes ``reference`` onto ``self``.
+
+        Parameters
+        ----------
+        reference : Quaternion
+            The reference (desired) attitude.
+
+        Returns
+        -------
+        Quaternion
+            The error quaternion.
+        """
+        return reference.conjugate() * self
+
     def apply(self, v: ArrayLike) -> Vec3:
         """
         Rotates a vector v using this quaternion.
