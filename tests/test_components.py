@@ -238,7 +238,7 @@ def test_random_walk_bias_sensor() -> None:
     assert np.allclose(log_n1.bias, 0.0)
     assert not np.allclose(log_n1.noise, 0.0)
 
-    y_mea_n2, log_n2 = sensor_noise.evaluate(0.1, y)
+    _y_mea_n2, log_n2 = sensor_noise.evaluate(0.1, y)
     assert np.allclose(log_n2.bias, 0.0)
 
     # 3. Bias only

@@ -1,5 +1,8 @@
 import datetime
+import functools
 import math
+from collections.abc import Callable
+from typing import Any
 
 import astropy.coordinates as coord
 import numpy as np
@@ -103,6 +106,26 @@ def magnetic_field_vector(dt_utc: datetime.datetime, lat_deg: float, lon_deg: fl
     return np.asarray((b_eci / np.linalg.norm(b_eci)) * b_tot * 1e-9, dtype=np.float64)  # Convert from nT to T
 
 
+def cache_per_minute(func: Callable[[datetime.datetime], np.ndarray]) -> Callable[[datetime.datetime], np.ndarray]:
+    """Cache the output of a function for the same simulation minute."""
+    cache: dict[datetime.datetime, np.ndarray] = {}
+
+    @functools.wraps(func)
+    def wrapper(dt_utc: datetime.datetime, *args: Any, **kwargs: Any) -> np.ndarray:  # noqa: ANN401
+        if dt_utc.tzinfo is not None:
+            dt_utc = dt_utc.astimezone(datetime.UTC)
+        dt_minute = dt_utc.replace(second=0, microsecond=0)
+
+        if dt_minute not in cache:
+            cache.clear()
+            cache[dt_minute] = func(dt_utc, *args, **kwargs)
+        return cache[dt_minute].copy()
+
+    wrapper.cache = cache  # type: ignore  # noqa: PGH003
+    return wrapper
+
+
+@cache_per_minute
 def sun_position(dt_utc: datetime.datetime) -> np.ndarray:
     """
     Calculate the Sun's position vector in the GCRS (ECI) frame.
@@ -123,6 +146,7 @@ def sun_position(dt_utc: datetime.datetime) -> np.ndarray:
     return sun.cartesian.xyz.to(u.m).value
 
 
+@cache_per_minute
 def moon_position(dt_utc: datetime.datetime) -> np.ndarray:
     """
     Calculate the Moon's position vector in the GCRS (ECI) frame.
