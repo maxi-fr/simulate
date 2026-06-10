@@ -11,12 +11,14 @@ frame. See :mod:`rigid_body.quaternion` and :mod:`rigid_body.effector` for conve
 Equations of motion (``dynamics`` returns the continuous-time derivative)::
 
     r_dot     = v
-    v_dot     = (1/m) * R(q) @ F + g
+    v_dot     = (1/m) * F
     q_dot     = 0.5 * Omega(omega) @ q
     omega_dot = J^-1 @ ( tau - omega x (J @ omega + h) )
 
 where ``F``/``tau``/``h`` are the summed effector force, body torque, and internal angular
-momentum (summed over the composed actuators and environmental effectors). This single
+momentum (summed over the composed actuators and environmental effectors). The summed force
+``F`` is applied directly in the translational equation (no body->inertial rotation or
+gravity term is currently added). This single
 formulation covers stateless force/torque actuators, reaction wheels, and environmental
 effects alike: total angular momentum ``H = J @ omega + h`` is conserved under zero external
 torque.

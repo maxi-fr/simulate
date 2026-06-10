@@ -1,6 +1,6 @@
 import numpy as np
 
-from rigid_body.effector import BodyWrench, GravityGradient, ReactionWheelArray
+from rigid_body.effector import GravityGradient, ReactionWheelArray, Wrench
 from rigid_body.quaternion import QuaternionRK4
 from rigid_body.rigid_body import RigidBodyDynamics
 
@@ -11,12 +11,12 @@ def _run(dynamics: RigidBodyDynamics, cmd: np.ndarray, n_steps: int) -> None:
         dynamics.evaluate(k * dynamics.dt, cmd)
 
 
-def test_constant_body_force_translates() -> None:
-    """A constant body-frame force at identity attitude gives constant acceleration."""
+def test_constant_inertial_force_translates() -> None:
+    """A constant inertial-frame force gives constant acceleration."""
     dt = 0.001
     mass = 2.0
     fx = 4.0
-    dynamics = RigidBodyDynamics(dt=dt, mass=mass, inertia=[1.0, 1.0, 1.0], effectors=[BodyWrench()])
+    dynamics = RigidBodyDynamics(dt=dt, mass=mass, inertia=[1.0, 1.0, 1.0], effectors=[Wrench()])
 
     n = 1000
     cmd = np.array([fx, 0.0, 0.0, 0.0, 0.0, 0.0])
@@ -92,7 +92,7 @@ def test_from_config_round_trip() -> None:
         "mass": 3.0,
         "inertia": [1.0, 2.0, 3.0],
         "effectors": [
-            {"class_path": "rigid_body.effector.BodyWrench"},
+            {"class_path": "rigid_body.effector.Wrench"},
             {
                 "class_path": "rigid_body.effector.ReactionWheelArray",
                 "axes": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
@@ -106,7 +106,7 @@ def test_from_config_round_trip() -> None:
     dynamics = RigidBodyDynamics.from_config(config)
 
     assert len(dynamics.effectors) == 2
-    assert isinstance(dynamics.effectors[0], BodyWrench)
+    assert isinstance(dynamics.effectors[0], Wrench)
     assert isinstance(dynamics.effectors[1], ReactionWheelArray)
     assert isinstance(dynamics.integrator, QuaternionRK4)
     assert dynamics.mass == 3.0
