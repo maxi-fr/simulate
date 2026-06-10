@@ -1,6 +1,6 @@
 import numpy as np
 
-from simulate.effector import BodyState, GravityGradient
+from rigid_body.effector import BodyState, GravityGradient
 
 MU_EARTH = 3.986e14
 

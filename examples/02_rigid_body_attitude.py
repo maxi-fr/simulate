@@ -13,8 +13,8 @@ def _():
     import numpy as np
     import polars as pl
 
-    from simulate.effector import BodyWrench, GravityGradient, ReactionWheelArray
-    from simulate.rigid_body import (
+    from rigid_body.effector import BodyWrench, GravityGradient, ReactionWheelArray
+    from rigid_body.rigid_body import (
         ReactionWheelTelemetryOutput,
         RigidBodyAttitudeOutput,
         RigidBodyDynamics,

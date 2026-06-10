@@ -31,9 +31,10 @@ from numpy.typing import ArrayLike
 from simulate.attitude import quat_kinematics_matrix, quat_to_rotation_matrix, skew
 from simulate.component import NoLog
 from simulate.dynamics import Dynamics
-from simulate.effector import BodyState, Effector
 from simulate.integrator import Integrator, QuaternionRK4
 from simulate.output import Output
+
+from .effector import BodyState, Effector
 
 # Public state-vector layout (for building per-part measurement Outputs).
 POSITION = slice(0, 3)

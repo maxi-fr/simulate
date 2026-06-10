@@ -5,7 +5,7 @@ from typing import Any, Self
 
 import numpy as np
 
-from simulate import NoLog
+from simulate.component import NoLog
 from simulate.dynamics import Dynamics
 from simulate.output import Output
 

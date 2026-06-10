@@ -40,6 +40,9 @@ build-backend = "uv_build"
 [tool.uv]
 default-groups = ["dev"]
 
+[tool.uv.build-backend]
+module-name = ["simulate", "rigid_body"]
+
 [tool.ruff]
 line-length = 120
 target-version = "py313"
@@ -58,7 +61,7 @@ ignore = [
 
 [tool.ruff.lint.isort]
 # Ensures imports are grouped logically
-known-first-party = ["simulate"]
+known-first-party = ["simulate", "rigid_body"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
@@ -97,7 +100,7 @@ line-ending = "auto"
 [tool.pytest.ini_options]
 minversion = "6.0"
 # Added -v for more detail and --cov to integrate coverage
-addopts = "-ra -q -v --cov=simulate"
+addopts = "-ra -q -v --cov=simulate --cov=rigid_body"
 testpaths = ["tests"]
 
 [tool.ty]

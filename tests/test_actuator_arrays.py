@@ -1,8 +1,8 @@
 import numpy as np
 
+from rigid_body.effector import BodyState, MagnetorquerArray, ReactionWheelArray
+from rigid_body.rigid_body import RigidBodyDynamics
 from simulate.attitude import quat_to_rotation_matrix
-from simulate.effector import BodyState, MagnetorquerArray, ReactionWheelArray
-from simulate.rigid_body import RigidBodyDynamics
 
 
 def test_reaction_wheel_array_momentum_conservation() -> None:
@@ -135,7 +135,7 @@ def test_from_config_loading() -> None:
         "inertia": [1.0, 1.0, 1.0],
         "effectors": [
             {
-                "class_path": "simulate.effector.ReactionWheelArray",
+                "class_path": "rigid_body.effector.ReactionWheelArray",
                 "axes": [[1, 0, 0], [0, 1, 0]],
                 "inertia": 0.01,
                 "torque_constant": 0.05,
@@ -144,7 +144,7 @@ def test_from_config_loading() -> None:
                 "initial_omega": [10.0, -10.0],
             },
             {
-                "class_path": "simulate.effector.MagnetorquerArray",
+                "class_path": "rigid_body.effector.MagnetorquerArray",
                 "axes": [[0, 0, 1]],
                 "dipole_constant": 1.5,
                 "time_constant": 0.05,
@@ -189,12 +189,12 @@ def test_reaction_wheel_speed_saturation() -> None:
 
     # Check dynamics (domega_dt) behavior:
     # If speed is above limit and torque would be positive (accelerating), domega_dt should have zero motor torque term
-    didt, domega_dt = np.split(rw_array.dynamics(0.0, state, x_eff, np.array([1.0]), np.zeros(3)), 2)
+    _didt, domega_dt = np.split(rw_array.dynamics(0.0, state, x_eff, np.array([1.0]), np.zeros(3)), 2)
     assert np.allclose(domega_dt, 0.0)
 
     # If speed is below -limit (-630.0) and torque is negative (accelerating negative), domega_dt should have zero motor torque term
     x_eff_neg_speed = np.array([-1.0, -630.0])
-    didt, domega_dt = np.split(rw_array.dynamics(0.0, state, x_eff_neg_speed, np.array([-1.0]), np.zeros(3)), 2)
+    _didt, domega_dt = np.split(rw_array.dynamics(0.0, state, x_eff_neg_speed, np.array([-1.0]), np.zeros(3)), 2)
     assert np.allclose(domega_dt, 0.0)
 
 
