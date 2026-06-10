@@ -218,7 +218,7 @@ class Logger:
         if arrays_to_save:
             save_fn(
                 dir_path / f"{prefix}_chunk_{self._chunk_idx:04d}.npz",
-                **arrays_to_save,  # type: ignore[arg-type]
+                **arrays_to_save,  # ty: ignore[invalid-argument-type]
             )
 
         self._chunk_idx += 1
@@ -247,7 +247,7 @@ class Logger:
         merged = {key: np.concatenate(arrays, axis=0) for key, arrays in combined.items()}
 
         save_fn = np.savez_compressed if compress else np.savez
-        save_fn(dir_path / f"{prefix}.npz", **merged)  # type: ignore[arg-type]
+        save_fn(dir_path / f"{prefix}.npz", **merged)  # ty: ignore[invalid-argument-type]
 
         for chunk_file in chunk_files:
             chunk_file.unlink()

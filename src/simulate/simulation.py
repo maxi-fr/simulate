@@ -50,9 +50,9 @@ class Simulation:
 
         self.t_end = t_end
         self.dynamics = dynamics
-        self.outputs = outputs_list
+        self.outputs: list[Output] = outputs_list  # ty:ignore[invalid-assignment]
         self.reference = reference
-        self.sensors = sensors_list
+        self.sensors: list[Sensor] = sensors_list  # ty:ignore[invalid-assignment]
         self.estimator = estimator
         self.controller = controller
         self.logger = Logger()
