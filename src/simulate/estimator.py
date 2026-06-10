@@ -1,10 +1,9 @@
 import abc
-import dataclasses
 from typing import Any, Self
 
 import numpy as np
 
-from simulate.component import Component
+from simulate.component import Component, NoLog
 
 
 class Estimator[L](Component[L], abc.ABC):
@@ -23,14 +22,7 @@ class Estimator[L](Component[L], abc.ABC):
         """Execute internal update dynamics. Must be implemented by subclasses."""
 
 
-@dataclasses.dataclass(frozen=True)
-class IdentityEstimatorLog:
-    """Dataclass for internal IdentityEstimator logging."""
-
-    y_mea: float | np.ndarray
-
-
-class IdentityEstimator(Estimator[IdentityEstimatorLog]):
+class IdentityEstimator(Estimator[NoLog]):
     """Simple estimator that returns the measurement as the state estimate."""
 
     def __init__(self, dt: float) -> None:
@@ -47,7 +39,7 @@ class IdentityEstimator(Estimator[IdentityEstimatorLog]):
         t: float,  # noqa: ARG002
         y_mea: float | np.ndarray,
         u: float | np.ndarray,  # noqa: ARG002
-    ) -> tuple[float | np.ndarray, IdentityEstimatorLog]:
+    ) -> tuple[float | np.ndarray, NoLog]:
         """
         Return the measurement as the state estimate.
 
@@ -57,4 +49,4 @@ class IdentityEstimator(Estimator[IdentityEstimatorLog]):
             u: Control input vector.
         """
         res = y_mea.copy() if isinstance(y_mea, np.ndarray) else y_mea
-        return res, IdentityEstimatorLog(y_mea=res)
+        return res, NoLog()

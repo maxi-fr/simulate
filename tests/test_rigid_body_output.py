@@ -23,9 +23,7 @@ def test_attitude_output_selects_quaternion() -> None:
     """RigidBodyAttitudeOutput projects the quaternion slice as the truth measurement."""
     out = RigidBodyAttitudeOutput(dt=0.1)
     x = _state()
-    y, log = out.evaluate(0.0, x, 0.0)
-    assert log.value.shape == (4, 1)
-    assert np.allclose(log.value, x[QUATERNION])
+    y, _log = out.evaluate(0.0, x, 0.0)
     assert np.allclose(np.asarray(y).reshape(4, 1), x[QUATERNION])
 
 
@@ -33,18 +31,15 @@ def test_rate_output_selects_angular_velocity() -> None:
     """RigidBodyRateOutput projects the body-frame angular velocity slice."""
     out = RigidBodyRateOutput(dt=0.1)
     x = _state()
-    _, log = out.evaluate(0.0, x, 0.0)
-    assert log.value.shape == (3, 1)
-    assert np.allclose(log.value, x[ANGULAR_VELOCITY])
+    y, _log = out.evaluate(0.0, x, 0.0)
+    assert np.allclose(np.asarray(y).reshape(3, 1), x[ANGULAR_VELOCITY])
 
 
 def test_wheel_telemetry_reads_effector_slice() -> None:
     """ReactionWheelTelemetryOutput reads the effector internal state at BASE_STATES."""
     out = ReactionWheelTelemetryOutput(dt=0.1)  # default index == BASE_STATES
     x = _state()
-    y, log = out.evaluate(0.0, x, 0.0)
-    assert log.value.shape == (1, 1)
-    assert np.isclose(log.value[0, 0], 7.5)
+    y, _log = out.evaluate(0.0, x, 0.0)
     assert np.isclose(float(y), 7.5)
 
 
@@ -53,8 +48,8 @@ def test_wheel_telemetry_honours_index() -> None:
     out = ReactionWheelTelemetryOutput(dt=0.1, index=BASE_STATES + 2)
     x = np.zeros((BASE_STATES + 3, 1))
     x[BASE_STATES + 2, 0] = -2.0
-    _, log = out.evaluate(0.0, x, 0.0)
-    assert np.isclose(log.value[0, 0], -2.0)
+    y, _log = out.evaluate(0.0, x, 0.0)
+    assert np.isclose(float(y), -2.0)
 
 
 def test_outputs_from_config_round_trip() -> None:

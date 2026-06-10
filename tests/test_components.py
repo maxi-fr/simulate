@@ -48,16 +48,16 @@ def test_plant_step_logic() -> None:
     assert dynamics.x[0, 0] == 0.0
 
     u1 = 1.0
-    x, dynamics_log = dynamics.evaluate(0.0, 1.0)
+    x, _dynamics_log = dynamics.evaluate(0.0, 1.0)
     y, _ = output.evaluate(0.0, x, u1)
     assert y == 1.0
-    assert dynamics_log.x[0, 0] == 1.0
+    assert x == 1.0
 
     u2 = 0.5
-    x, dynamics_log = dynamics.evaluate(0.1, u2)
+    x, _dynamics_log = dynamics.evaluate(0.1, u2)
     y, _output_log = output.evaluate(0.1, x, u2)
     assert y == 1.4
-    assert dynamics_log.x[0, 0] == 1.4
+    assert x == 1.4
 
 
 def test_sensor_step_logic() -> None:
@@ -79,9 +79,8 @@ def test_estimator_step_logic() -> None:
     estimator = IdentityEstimator(dt=0.1)
     y_mea = 1.2
     u = 0.5
-    x_hat, log = estimator.evaluate(0.0, y_mea, u)
+    x_hat, _log = estimator.evaluate(0.0, y_mea, u)
     assert x_hat == 1.2
-    assert log.y_mea == 1.2
 
 
 def test_controller_step_logic() -> None:

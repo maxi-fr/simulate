@@ -1,6 +1,6 @@
 """Top-level package for simulate."""
 
-from simulate.component import Component
+from simulate.component import Component, NoLog
 from simulate.controller import Controller, PIDController
 from simulate.dynamics import Dynamics, LinearDynamics
 from simulate.effector import (
@@ -41,6 +41,7 @@ __all__ = [
     "LinearDynamics",
     "LinearOutput",
     "Logger",
+    "NoLog",
     "Output",
     "PIDController",
     "ReactionWheel",

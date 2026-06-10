@@ -1,12 +1,11 @@
 import abc
-import dataclasses
 import importlib
 from typing import Any, Self, cast
 
 import numpy as np
 from numpy.typing import ArrayLike
 
-from simulate.component import Component
+from simulate.component import Component, NoLog
 from simulate.integrator import Integrator
 
 
@@ -56,14 +55,7 @@ class Dynamics[L](Component[L], abc.ABC):
         """Build the component-specific log snapshot for the current state."""
 
 
-@dataclasses.dataclass(frozen=True)
-class LinearDynamicsLog:
-    """Dataclass for internal LinearDynamics state logging."""
-
-    x: np.ndarray
-
-
-class LinearDynamics(Dynamics[LinearDynamicsLog]):
+class LinearDynamics(Dynamics[NoLog]):
     """Generic linear dynamics implementation using state space matrices A and B."""
 
     def __init__(
@@ -101,6 +93,6 @@ class LinearDynamics(Dynamics[LinearDynamicsLog]):
         """Linear dynamics kernel: Ax + Bu (interpreted as x_dot or x_next based on integrator)."""
         return cast("np.ndarray", self.a @ x + self.b @ u)
 
-    def _make_log(self) -> LinearDynamicsLog:
+    def _make_log(self) -> NoLog:
         """Build a snapshot log of the current state."""
-        return LinearDynamicsLog(x=self.x.copy())
+        return NoLog()

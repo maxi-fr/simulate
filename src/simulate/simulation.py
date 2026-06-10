@@ -171,7 +171,22 @@ class Simulation:
                 output_results = [out.evaluate(t, x_k, u_k) for out in self.outputs]
                 y_list = [res for res, _ in output_results]
 
-                uni_log = UniversalLog(t=t, x=x_k, x_hat=x_hat, u=u_k, ref=ref_k)
+                if len(self.outputs) == 1:
+                    y_val = y_list[0]
+                    y_mea_val = sensor_logs[0][0]
+                else:
+                    y_val = self.dynamics.from_col_vec(np.vstack([_to_col_vec(res) for res in y_list]))
+                    y_mea_val = self.dynamics.from_col_vec(y_mea)
+
+                uni_log = UniversalLog(
+                    t=t,
+                    x=x_k,
+                    x_hat=x_hat,
+                    u=u_k,
+                    ref=ref_k,
+                    y=y_val,
+                    y_mea=y_mea_val,
+                )
                 comp_logs: dict[str, Any] = {
                     "reference": ref_log,
                     "dynamics": dynamics_log,

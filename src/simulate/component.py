@@ -1,9 +1,15 @@
 import abc
+import dataclasses
 import math
 from collections.abc import Callable
 from typing import Any, Self
 
 import numpy as np
+
+
+@dataclasses.dataclass(frozen=True)
+class NoLog:
+    """Dataclass placeholder for components that do not log any internal states."""
 
 
 class Component[L](abc.ABC):
