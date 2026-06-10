@@ -8,7 +8,7 @@ from simulate.dynamics import LinearDynamics
 from simulate.estimator import IdentityEstimator
 from simulate.output import LinearOutput
 from simulate.reference import StepReference
-from simulate.sensor import GaussianSensor
+from simulate.sensor import GaussianSensor, RandomWalkBiasSensor
 from simulate.simulation import Simulation
 
 
@@ -211,3 +211,65 @@ def test_simulation_single_output_and_sensor() -> None:
     assert len(sim.sensors) == 1
     assert sim.outputs[0] is output
     assert sim.sensors[0] is sensor
+
+
+def test_random_walk_bias_sensor() -> None:
+    """Test RandomWalkBiasSensor behavior with zero noise/bias, noise only, and random walk bias."""
+    # 1. Zero noise, zero bias
+    sensor = RandomWalkBiasSensor(dt=0.1, std_dev_noise=0.0, std_dev_bias=0.0)
+    y = np.array([1.0, 2.0])
+
+    # First step (t=0)
+    y_mea, log = sensor.evaluate(0.0, y)
+    assert np.allclose(y_mea, y)
+    assert np.allclose(log.noise, 0.0)
+    assert np.allclose(log.bias, 0.0)
+
+    # Second step (t=0.1)
+    y_mea2, log2 = sensor.evaluate(0.1, y)
+    assert np.allclose(y_mea2, y)
+    assert np.allclose(log2.noise, 0.0)
+    assert np.allclose(log2.bias, 0.0)
+
+    # 2. Noise only
+    sensor_noise = RandomWalkBiasSensor(dt=0.1, std_dev_noise=0.1, std_dev_bias=0.0, seed=123)
+    y_mea_n1, log_n1 = sensor_noise.evaluate(0.0, y)
+    assert not np.allclose(y_mea_n1, y)
+    assert np.allclose(log_n1.bias, 0.0)
+    assert not np.allclose(log_n1.noise, 0.0)
+
+    y_mea_n2, log_n2 = sensor_noise.evaluate(0.1, y)
+    assert np.allclose(log_n2.bias, 0.0)
+
+    # 3. Bias only
+    sensor_bias = RandomWalkBiasSensor(dt=0.1, std_dev_noise=0.0, std_dev_bias=0.1, seed=456)
+
+    # At t=0, bias is initialized to zero
+    y_mea_b1, log_b1 = sensor_bias.evaluate(0.0, y)
+    assert np.allclose(y_mea_b1, y)
+    assert np.allclose(log_b1.bias, 0.0)
+    assert np.allclose(log_b1.noise, 0.0)
+
+    # At t=0.1, bias step is added
+    y_mea_b2, log_b2 = sensor_bias.evaluate(0.1, y)
+    assert not np.allclose(y_mea_b2, y)
+    assert not np.allclose(log_b2.bias, 0.0)
+    assert np.allclose(log_b2.noise, 0.0)
+    assert np.allclose(y_mea_b2, y + log_b2.bias)
+
+    # At t=0.2, bias step is added again, changing the bias
+    y_mea_b3, log_b3 = sensor_bias.evaluate(0.2, y)
+    assert not np.allclose(log_b3.bias, log_b2.bias)
+    assert np.allclose(y_mea_b3, y + log_b3.bias)
+
+    # 4. from_config
+    config = {
+        "dt": 0.2,
+        "std_dev_noise": 0.5,
+        "std_dev_bias": 0.2,
+        "seed": 99,
+    }
+    sensor_cfg = RandomWalkBiasSensor.from_config(config)
+    assert sensor_cfg.dt == 0.2
+    assert sensor_cfg.std_dev_noise == 0.5
+    assert sensor_cfg.std_dev_bias == 0.2

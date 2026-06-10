@@ -59,3 +59,94 @@ class GaussianSensor(Sensor[GaussianSensorLog]):
         noise = self.rng.normal(0, self.std_dev, size=y_arr.shape)
         y_mea = y_arr + noise
         return y_mea, GaussianSensorLog(noise=noise)
+
+
+@dataclasses.dataclass(frozen=True)
+class RandomWalkBiasSensorLog:
+    """Dataclass for internal RandomWalkBiasSensor logging."""
+
+    noise: float | np.ndarray
+    bias: float | np.ndarray
+
+
+class RandomWalkBiasSensor(Sensor[RandomWalkBiasSensorLog]):
+    """Sensor implementation that adds Gaussian noise and a random walk bias to the measurement."""
+
+    def __init__(
+        self,
+        dt: float,
+        std_dev_noise: float = 0.0,
+        std_dev_bias: float = 0.0,
+        seed: int = 42,
+    ) -> None:
+        """Initialize the RandomWalkBiasSensor.
+
+        Parameters
+        ----------
+        dt : float
+            Sampling time step.
+        std_dev_noise : float, optional
+            Standard deviation of the Gaussian measurement noise, by default 0.0.
+        std_dev_bias : float, optional
+            Standard deviation of the random walk bias step, by default 0.0.
+        seed : int, optional
+            Random number generator seed, by default 42.
+        """
+        super().__init__(dt)
+        self.std_dev_noise = std_dev_noise
+        self.std_dev_bias = std_dev_bias
+        self.rng = np.random.default_rng(seed=seed)
+        self.bias: np.ndarray | None = None
+
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> Self:
+        """Instantiate the component from a raw configuration dictionary.
+
+        Parameters
+        ----------
+        config : dict
+            Configuration dictionary.
+
+        Returns
+        -------
+        RandomWalkBiasSensor
+            An instance of the sensor.
+        """
+        return cls(
+            dt=float(config["dt"]),
+            std_dev_noise=float(config.get("std_dev_noise", 0.0)),
+            std_dev_bias=float(config.get("std_dev_bias", 0.0)),
+            seed=int(config.get("seed", 42)),
+        )
+
+    def update(
+        self,
+        t: float,  # noqa: ARG002
+        y: float | np.ndarray,
+    ) -> tuple[float | np.ndarray, RandomWalkBiasSensorLog]:
+        """Add Gaussian noise and a random walk bias to the plant output.
+
+        Parameters
+        ----------
+        t : float
+            Simulation time.
+        y : float or numpy.ndarray
+            True plant output vector.
+
+        Returns
+        -------
+        y_mea : numpy.ndarray
+            Measured output vector.
+        log : RandomWalkBiasSensorLog
+            Detailed component logs containing the generated noise and current bias.
+        """
+        y_arr = np.atleast_1d(y)
+        if self.bias is None:
+            self.bias = np.zeros_like(y_arr, dtype=float)
+        else:
+            bias_step = self.rng.normal(0, self.std_dev_bias, size=y_arr.shape)
+            self.bias += bias_step
+
+        noise = self.rng.normal(0, self.std_dev_noise, size=y_arr.shape)
+        y_mea = y_arr + self.bias + noise
+        return y_mea, RandomWalkBiasSensorLog(noise=noise, bias=self.bias.copy())
