@@ -26,11 +26,11 @@ from collections.abc import Callable
 from typing import Any, Self, cast
 
 import numpy as np
-import pymap3d
 from numpy.typing import ArrayLike
 
 import rigid_body.disturbances as dis
 from rigid_body.environment import atmosphere_density_msis, is_in_shadow, moon_position, sun_position
+from rigid_body.frames import eci_to_geodedic
 from rigid_body.quaternion import Quaternion
 from rigid_body.surface import Surface
 
@@ -585,8 +585,7 @@ class AerodynamicDrag(Effector):
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Compute the inertial-frame aerodynamic drag force and body-frame torque."""
         dt_utc = self.epoch + datetime.timedelta(seconds=t)
-        x_ecef, y_ecef, z_ecef = pymap3d.eci2ecef(*state.r_eci, time=dt_utc)
-        lat_deg, lon_deg, alt_m = pymap3d.ecef2geodetic(x_ecef, y_ecef, z_ecef)
+        lat_deg, lon_deg, alt_m = eci_to_geodedic(state.r_eci)
         rho = atmosphere_density_msis(dt_utc, float(lat_deg), float(lon_deg), float(alt_m))
 
         force, torque = dis.aerodynamic_drag(state.r_eci, state.v_eci, state.q_bi, self.surfaces, rho)

@@ -1,10 +1,9 @@
 import datetime
 
 import numpy as np
-import pymap3d
 
 from rigid_body.environment import magnetic_field_vector, sun_position
-from rigid_body.frames import quaternion_from_euler
+from rigid_body.frames import eci_to_geodedic, quaternion_from_euler
 from rigid_body.measurement import GpsOutput, MagneticFieldOutput, SunDirectionOutput
 from rigid_body.quaternion import Quaternion
 from rigid_body.rigid_body import ANGULAR_VELOCITY, BASE_STATES, ReactionWheelTelemetryOutput, RigidBodyRateOutput
@@ -31,8 +30,7 @@ def test_magnetic_field_identity_attitude_matches_eci_truth() -> None:
 
     y, _ = out.update(0.0, _state(r_eci), 0.0)
 
-    x_ecef, y_ecef, z_ecef = pymap3d.eci2ecef(*r_eci, time=_EPOCH)
-    lat, lon, alt = pymap3d.ecef2geodetic(x_ecef, y_ecef, z_ecef)
+    lat, lon, alt = eci_to_geodedic(r_eci)
     b_eci = magnetic_field_vector(_EPOCH.replace(tzinfo=None), float(lat), float(lon), float(alt))
 
     # Identity attitude: body-frame field equals the inertial field.

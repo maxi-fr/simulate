@@ -16,12 +16,12 @@ import datetime
 from typing import Any, Self
 
 import numpy as np
-import pymap3d
 
 from simulate.component import NoLog
 from simulate.output import Output
 
 from .environment import is_in_shadow, magnetic_field_vector, sun_position
+from .frames import eci_to_geodedic
 from .quaternion import Quaternion
 from .rigid_body import POSITION, QUATERNION, VELOCITY
 
@@ -58,9 +58,8 @@ class MagneticFieldOutput(Output[NoLog]):
     ) -> tuple[float | np.ndarray, NoLog]:
         """Compute the body-frame IGRF magnetic field from position and attitude."""
         dt_utc = self.epoch + datetime.timedelta(seconds=t)
-        r_eci = x[POSITION]  # ty:ignore[not-subscriptable]
-        x_ecef, y_ecef, z_ecef = pymap3d.eci2ecef(*r_eci, time=dt_utc)
-        lat_deg, lon_deg, alt_m = pymap3d.ecef2geodetic(x_ecef, y_ecef, z_ecef)
+        r_eci = np.asarray(x[POSITION], dtype=float)  # ty:ignore[not-subscriptable]
+        lat_deg, lon_deg, alt_m = eci_to_geodedic(r_eci)
         # ppigrf compares against naive pandas timestamps, so strip the (UTC) tzinfo.
         dt_naive = dt_utc.replace(tzinfo=None)
         b_eci = magnetic_field_vector(dt_naive, float(lat_deg), float(lon_deg), float(alt_m))
