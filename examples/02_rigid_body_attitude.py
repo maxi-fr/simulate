@@ -13,7 +13,7 @@ def _():
     import numpy as np
     import polars as pl
 
-    from rigid_body.effector import BodyWrench, GravityGradient, ReactionWheelArray
+    from rigid_body.effector import GravityGradient, ReactionWheelArray, Wrench
     from rigid_body.rigid_body import (
         ReactionWheelTelemetryOutput,
         RigidBodyAttitudeOutput,
@@ -23,7 +23,6 @@ def _():
     from simulate.sensor import GaussianSensor
 
     return (
-        BodyWrench,
         GaussianSensor,
         GravityGradient,
         ReactionWheelArray,
@@ -31,6 +30,7 @@ def _():
         RigidBodyAttitudeOutput,
         RigidBodyDynamics,
         RigidBodyRateOutput,
+        Wrench,
         mo,
         np,
         pl,
@@ -46,7 +46,7 @@ def _(mo):
     This notebook demonstrates the pre-built `RigidBodyDynamics` component and the modular
     `Effector` abstraction. We compose two actuators into one body:
 
-    1. A **`BodyWrench`** applying a body-frame thrust (translation), and
+    1. A **`Wrench`** applying an inertial-frame thrust (translation), and
     2. A **`ReactionWheelArray`** with 3 orthogonal reaction wheels.
 
     We step the dynamics open-loop and verify that spinning up the wheel rotates the body
@@ -68,7 +68,7 @@ def _(mo):
 
 
 @app.cell
-def _(BodyWrench, ReactionWheelArray, RigidBodyDynamics, np):
+def _(ReactionWheelArray, RigidBodyDynamics, Wrench, np):
     dt = 0.01
     inertia = np.diag([1.0, 2.0, 3.0])
     rw_array = ReactionWheelArray(
@@ -82,7 +82,7 @@ def _(BodyWrench, ReactionWheelArray, RigidBodyDynamics, np):
         dt=dt,
         mass=5.0,
         inertia=inertia,
-        effectors=[BodyWrench(), rw_array],
+        effectors=[Wrench(), rw_array],
     )
     return dt, dynamics, inertia
 
@@ -241,13 +241,13 @@ def _(mo):
 
 @app.cell
 def _(
-    BodyWrench,
     GaussianSensor,
     ReactionWheelArray,
     ReactionWheelTelemetryOutput,
     RigidBodyAttitudeOutput,
     RigidBodyDynamics,
     RigidBodyRateOutput,
+    Wrench,
     np,
 ):
     dt_m = 0.01
@@ -262,7 +262,7 @@ def _(
         dt=dt_m,
         mass=5.0,
         inertia=np.diag([1.0, 2.0, 3.0]),
-        effectors=[BodyWrench(), rw_array_m],
+        effectors=[Wrench(), rw_array_m],
     )
 
     # (Output transform, Sensor noise) channels, each at its own rate.

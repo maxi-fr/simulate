@@ -3,7 +3,7 @@
 
 This script benchmarks the performance of the rigid body simulation under
 three different scenarios:
-1. Raw Physics: Direct integration of RigidBodyDynamics with a BodyWrench and ReactionWheel.
+1. Raw Physics: Direct integration of RigidBodyDynamics with a Wrench and ReactionWheel.
 2. Raw Physics with Gravity Gradient: Direct integration including GravityGradient torque.
 3. Orchestrated Simulation: The full OOP simulation loop including reference tracking,
    sensors, estimators, PID controllers, outputs, and logging.
@@ -19,7 +19,7 @@ from typing import Any, Self
 
 import numpy as np
 
-from rigid_body.effector import BodyWrench, GravityGradient, ReactionWheelArray
+from rigid_body.effector import GravityGradient, ReactionWheelArray, Wrench
 from rigid_body.rigid_body import RigidBodyDynamics
 from simulate.controller import PIDController
 from simulate.dynamics import NoLog
@@ -82,7 +82,7 @@ def run_raw_physics(dt: float, steps: int) -> float:
         dt=dt,
         mass=5.0,
         inertia=[1.0, 2.0, 3.0],
-        effectors=[BodyWrench(), rw_array],
+        effectors=[Wrench(), rw_array],
     )
     cmd = np.array([2.0, 0.1, -0.1, 0.05, -0.05, 0.1, 0.0, 0.0, 0.625])  # 6 wrench + 3 wheel currents
 
@@ -128,7 +128,7 @@ def run_orchestrated_simulation(dt: float, steps: int) -> float:
         dt=dt,
         mass=5.0,
         inertia=[1.0, 2.0, 3.0],
-        effectors=[BodyWrench(), rw_array],
+        effectors=[Wrench(), rw_array],
     )
 
     # 9 output channels of size 1 to avoid shape mismatches with ZOH initialization

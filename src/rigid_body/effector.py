@@ -1,11 +1,11 @@
 """Modular effectors composed into :class:`~simulate.rigid_body.RigidBodyDynamics`.
 
-An effector contributes a body-frame force, a body-frame torque applied to the body
+An effector contributes an inertial-frame force, a body-frame torque applied to the body
 (including any reaction torque), an internal angular momentum it carries (body frame), and
 the derivative of its own internal state. The single interface covers three cases:
 
 * **Commanded actuators** (``n_inputs > 0``) driven by the control input ``u`` — e.g.
-  :class:`BodyWrench`, :class:`ReactionWheel`.
+  :class:`Wrench`, :class:`ReactionWheel`.
 * **Environmental effects** (``n_inputs == 0``) that are autonomous functions of time and
   the body state — e.g. :class:`GravityGradient`.
 
@@ -14,21 +14,25 @@ The distinction is whether the effector consumes a command, not whether it is st
 over ``[body state | effector states]`` keeps state-dependent environmental forces evaluated
 at every integrator substage with the intermediate state.
 
-Conventions match :mod:`rigid_body.quaternion`: forces/torques/momenta are body-frame ``(3, 1)``
-column vectors.
+Conventions match :mod:`rigid_body.quaternion`: forces are inertial-frame, and torques/momenta are
+body-frame ``(3, 1)`` column vectors.
 """
 
 import abc
 import dataclasses
+import datetime
 import importlib
 from collections.abc import Callable
 from typing import Any, Self, cast
 
 import numpy as np
+import pymap3d
 from numpy.typing import ArrayLike
 
 import rigid_body.disturbances as dis
+from rigid_body.environment import atmosphere_density_msis, is_in_shadow, moon_position, sun_position
 from rigid_body.quaternion import Quaternion
+from rigid_body.surface import Surface
 
 
 @dataclasses.dataclass(frozen=True)
@@ -76,7 +80,7 @@ class Effector(abc.ABC):
 
         Returns
         -------
-        A tuple of (force, torque, momentum) body-frame vectors.
+        A tuple of (force, torque, momentum) vectors (inertial force, body torque, body momentum).
         """
 
     def dynamics(
@@ -104,10 +108,10 @@ class Effector(abc.ABC):
         """Instantiate the effector from a raw configuration dictionary."""
 
 
-class BodyWrench(Effector):
-    """Stateless actuator applying a commanded body-frame force and torque.
+class Wrench(Effector):
+    """Stateless actuator applying a commanded inertial-frame force and body-frame torque.
 
-    Command layout: ``cmd = [Fx, Fy, Fz, tau_x, tau_y, tau_z]`` (body frame).
+    Command layout: ``cmd = [Fx, Fy, Fz, tau_x, tau_y, tau_z]`` (inertial force, body torque).
     """
 
     n_inputs = 6
@@ -120,7 +124,7 @@ class BodyWrench(Effector):
         x_eff: np.ndarray,  # noqa: ARG002
         cmd: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Map the command directly to a body-frame force and torque."""
+        """Map the command directly to an inertial-frame force and body-frame torque."""
         return (
             cmd[0:3],
             cmd[3:6],
@@ -189,6 +193,16 @@ def _to_array(val: ArrayLike, n: int, name: str) -> np.ndarray:
         msg = f"Length of {name} ({len(arr)}) must be 1 or equal to the number of elements ({n})."
         raise ValueError(msg)
     return arr.astype(float)
+
+
+def _ensure_utc(epoch: datetime.datetime) -> datetime.datetime:
+    """Return ``epoch`` as a timezone-aware UTC datetime (naive inputs are assumed UTC)."""
+    return epoch if epoch.tzinfo is not None else epoch.replace(tzinfo=datetime.UTC)
+
+
+def _surfaces_from_config(config: dict[str, Any]) -> list[Surface]:
+    """Build the surface list from a ``{name: surface_dict}`` mapping under ``config["surfaces"]``."""
+    return [Surface.from_config(name, spec) for name, spec in config["surfaces"].items()]
 
 
 class ReactionWheelArray(Effector):
@@ -281,11 +295,7 @@ class ReactionWheelArray(Effector):
         h_w = self.inertia * omega_abs
         momentum = self.axes.T @ h_w
 
-        return (
-            np.zeros(3, dtype=float),
-            torque,
-            momentum,
-        )
+        return np.zeros(3, dtype=float), torque, momentum
 
     def dynamics(
         self,
@@ -422,11 +432,7 @@ class MagnetorquerArray(Effector):
         # Control torque: m x B
         torque = np.cross(m_vec, b_body)
 
-        return (
-            np.zeros(3, dtype=float),
-            torque,
-            np.zeros(3, dtype=float),
-        )
+        return np.zeros(3, dtype=float), torque, np.zeros(3, dtype=float)
 
     def dynamics(
         self,
@@ -465,4 +471,132 @@ class MagnetorquerArray(Effector):
             max_current=config["max_current"],
             b_field_model=b_field_model,
             initial_currents=config.get("initial_currents"),
+        )
+
+
+class ThirdBody(Effector):
+    """Environmental third-body gravitational force from the Sun and Moon.
+
+    Command-free (``n_inputs = 0``). The host mass is supplied via :meth:`bind`; the Sun and
+    Moon inertial positions are taken from :func:`environment.sun_position` and
+    :func:`environment.moon_position`, evaluated at ``epoch + t``. The inertial-frame force
+    from :func:`disturbances.third_body_forces` is returned directly in the inertial frame.
+    """
+
+    n_inputs = 0
+    n_states = 0
+
+    def __init__(self, epoch: datetime.datetime) -> None:
+        """Initialize with the simulation epoch (``t = 0``) used to evaluate the ephemerides."""
+        self.epoch = _ensure_utc(epoch)
+        self.mass: float | None = None
+
+    def bind(self, mass: float, inertia: np.ndarray) -> None:  # noqa: ARG002
+        """Capture the host body's mass."""
+        self.mass = float(mass)
+
+    def calc_contributions(
+        self,
+        t: float,
+        state: RigidBodyState,
+        x_eff: np.ndarray,  # noqa: ARG002
+        cmd: np.ndarray,  # noqa: ARG002
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Compute the inertial-frame third-body force from position and ephemerides."""
+        if self.mass is None:
+            msg = "ThirdBody mass is unbound; compose it into a RigidBodyDynamics."
+            raise RuntimeError(msg)
+
+        dt_utc = self.epoch + datetime.timedelta(seconds=t)
+        force_eci = dis.third_body_forces(state.r_eci, self.mass, sun_position(dt_utc), moon_position(dt_utc))
+
+        return force_eci, np.zeros(3, dtype=float), np.zeros(3, dtype=float)
+
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> Self:
+        """Instantiate the component from a raw configuration dictionary."""
+        return cls(epoch=datetime.datetime.fromisoformat(config["epoch"]))
+
+
+class SolarRadiationPressure(Effector):
+    """Environmental solar radiation pressure force and torque over the body's surfaces.
+
+    Command-free (``n_inputs = 0``). The Sun inertial position is taken from
+    :func:`environment.sun_position` at ``epoch + t``; eclipse is determined by the cylindrical
+    :func:`environment.is_in_shadow` model. Torque is body-frame; force is returned in the inertial frame.
+    """
+
+    n_inputs = 0
+    n_states = 0
+
+    def __init__(self, surfaces: list[Surface], epoch: datetime.datetime) -> None:
+        """Initialize with the body surfaces and the simulation epoch (``t = 0``)."""
+        self.surfaces = surfaces
+        self.epoch = _ensure_utc(epoch)
+
+    def calc_contributions(
+        self,
+        t: float,
+        state: RigidBodyState,
+        x_eff: np.ndarray,  # noqa: ARG002
+        cmd: np.ndarray,  # noqa: ARG002
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Compute the inertial-frame SRP force and body-frame torque."""
+        dt_utc = self.epoch + datetime.timedelta(seconds=t)
+        sun_pos = sun_position(dt_utc)
+        in_shadow = is_in_shadow(state.r_eci, sun_pos)
+
+        force, torque = dis.solar_radiation_pressure(state.r_eci, sun_pos, in_shadow, state.q_bi, self.surfaces)
+
+        return state.q_bi.conjugate().apply(force), torque, np.zeros(3, dtype=float)
+
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> Self:
+        """Instantiate the component from a raw configuration dictionary."""
+        return cls(
+            surfaces=_surfaces_from_config(config),
+            epoch=datetime.datetime.fromisoformat(config["epoch"]),
+        )
+
+
+class AerodynamicDrag(Effector):
+    """Environmental aerodynamic drag force and torque over the body's surfaces.
+
+    Command-free (``n_inputs = 0``). The atmospheric density at the body comes from the MSIS
+    model (:func:`environment.atmosphere_density_msis`): the inertial position is converted to
+    geodetic latitude/longitude/altitude at ``epoch + t`` and passed to MSIS. Torque is body-frame;
+    force is returned in the inertial frame.
+    """
+
+    n_inputs = 0
+    n_states = 0
+
+    def __init__(self, surfaces: list[Surface], epoch: datetime.datetime) -> None:
+        """Initialize with the body surfaces and the simulation epoch (``t = 0``)."""
+        self.surfaces = surfaces
+        self.epoch = _ensure_utc(epoch)
+
+    def calc_contributions(
+        self,
+        t: float,
+        state: RigidBodyState,
+        x_eff: np.ndarray,  # noqa: ARG002
+        cmd: np.ndarray,  # noqa: ARG002
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Compute the inertial-frame aerodynamic drag force and body-frame torque."""
+        dt_utc = self.epoch + datetime.timedelta(seconds=t)
+        x_ecef, y_ecef, z_ecef = pymap3d.eci2ecef(*state.r_eci, time=dt_utc)
+        lat_deg, lon_deg, alt_m = pymap3d.ecef2geodetic(x_ecef, y_ecef, z_ecef)
+        rho = atmosphere_density_msis(dt_utc, float(lat_deg), float(lon_deg), float(alt_m))
+
+        force, torque = dis.aerodynamic_drag(state.r_eci, state.v_eci, state.q_bi, self.surfaces, rho)
+
+        return state.q_bi.conjugate().apply(force), torque, np.zeros(3, dtype=float)
+
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> Self:
+        """Instantiate the component from a raw configuration dictionary."""
+        return cls(
+            surfaces=_surfaces_from_config(config),
+            epoch=datetime.datetime.fromisoformat(config["epoch"]),
         )

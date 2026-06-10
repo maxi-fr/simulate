@@ -81,7 +81,7 @@ class Surface:
         self.name = name
 
     @classmethod
-    def from_dict(cls, name: str, surface_dict: dict[str, Any]) -> "Surface":
+    def from_config(cls, name: str, surface_dict: dict[str, Any]) -> "Surface":
         """
         Create a Surface from a dictionary.
 
