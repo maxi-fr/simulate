@@ -7,9 +7,9 @@ from simulate.effector import (
     BodyState,
     BodyWrench,
     Effector,
-    EffectorOutput,
     GravityGradient,
-    ReactionWheel,
+    MagnetorquerArray,
+    ReactionWheelArray,
 )
 from simulate.estimator import Estimator, IdentityEstimator
 from simulate.experiment import ExperimentManager
@@ -32,7 +32,6 @@ __all__ = [
     "Controller",
     "Dynamics",
     "Effector",
-    "EffectorOutput",
     "Estimator",
     "ExperimentManager",
     "GaussianSensor",
@@ -41,10 +40,11 @@ __all__ = [
     "LinearDynamics",
     "LinearOutput",
     "Logger",
+    "MagnetorquerArray",
     "NoLog",
     "Output",
     "PIDController",
-    "ReactionWheel",
+    "ReactionWheelArray",
     "ReactionWheelTelemetryOutput",
     "RigidBodyAttitudeOutput",
     "RigidBodyDynamics",
