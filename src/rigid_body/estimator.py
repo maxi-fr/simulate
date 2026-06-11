@@ -12,8 +12,12 @@ expects ``x_hat`` back (see :mod:`simulate.simulation`). This estimator:
 * exposes the environment (magnetic field, sun direction, density, geodetic position) evaluated
   at the *estimated* orbit (Step 4.4),
 
-and assembles ``x_hat = [r(3), v(3), q(4), omega(3)]`` plus a rich log (Step 4.5). The gyro bias
-and the exposed environment variables ride in the log, not in ``x_hat``.
+and assembles ``x_hat = [r(3), v(3), q(4), omega(3), b_body(3), h_wheel(3)]`` plus a rich log
+(Step 4.5). The first 13 entries are the orbit/attitude state; the trailing ``b_body`` (estimated
+magnetic field in the body frame [T]) and ``h_wheel`` (estimated reaction-wheel angular momentum in
+the body frame [N*m*s]) are exposed for the attitude controllers (magnetorquer allocation + wheel
+momentum dumping), which only receive ``x_hat``. The gyro bias and the remaining environment
+variables ride in the log.
 """
 
 import dataclasses
@@ -242,25 +246,42 @@ class FullStateEstimatorLog:
     density: float
     geodetic: np.ndarray
     orbit_cov_trace: float
+    wheel_momentum: np.ndarray
 
 
 class FullStateEstimator(Estimator[FullStateEstimatorLog]):
     """Composes the orbit KF, attitude MEKF and environment exposure into one estimator."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         dt: float,
         epoch: datetime.datetime,
         layout: MeasurementLayout,
         orbit: OrbitKalmanFilter,
         attitude: AttitudeMEKF,
+        rw_axes: np.ndarray | None = None,
+        rw_inertia: np.ndarray | None = None,
+        tach_channel: str = "tachometer",
     ) -> None:
-        """Initialize with the sample time, epoch, channel layout and the two sub-filters."""
+        """Initialize with the sample time, epoch, channel layout and the two sub-filters.
+
+        ``rw_axes`` (N, 3) and ``rw_inertia`` (N,) describe the reaction-wheel array used to turn
+        the tachometer channel (relative wheel speeds) into the body-frame wheel angular momentum
+        exposed in ``x_hat``; when omitted the exposed momentum is zero.
+        """
         super().__init__(dt)
         self.epoch = _ensure_utc(epoch)
         self.layout = layout
         self.orbit = orbit
         self.attitude = attitude
+        self.tach_channel = tach_channel
+        if rw_axes is None:
+            self.rw_axes: np.ndarray | None = None
+            self.rw_inertia: np.ndarray | None = None
+        else:
+            axes = np.asarray(rw_axes, dtype=float)
+            self.rw_axes = axes / np.linalg.norm(axes, axis=1, keepdims=True)
+            self.rw_inertia = np.asarray(rw_inertia, dtype=float)
         self._t_prev: float | None = None
 
     @classmethod
@@ -294,12 +315,24 @@ class FullStateEstimator(Estimator[FullStateEstimatorLog]):
             R_star=_as_matrix(att_cfg["R_star"], 3) if "R_star" in att_cfg else None,
             b0=np.asarray(att_cfg["b0"], dtype=float) if "b0" in att_cfg else None,
         )
+        wheels_cfg = config.get("wheels")
+        if wheels_cfg is None:
+            rw_axes = rw_inertia = None
+            tach_channel = "tachometer"
+        else:
+            rw_axes = np.asarray(wheels_cfg["axes"], dtype=float)
+            rw_inertia = np.asarray(wheels_cfg["inertia"], dtype=float)
+            tach_channel = str(wheels_cfg.get("tach_channel", "tachometer"))
+
         return cls(
             dt=float(config["dt"]),
             epoch=datetime.datetime.fromisoformat(config["epoch"]),
             layout=layout,
             orbit=orbit,
             attitude=attitude,
+            rw_axes=rw_axes,
+            rw_inertia=rw_inertia,
+            tach_channel=tach_channel,
         )
 
     def update(
@@ -337,15 +370,30 @@ class FullStateEstimator(Estimator[FullStateEstimatorLog]):
         q_est = Quaternion.from_array(self.attitude.q)
         omega_est = omega_meas - self.attitude.b
 
-        log = self._expose_environment(r_est, q_est, dt_utc)
-        x_hat = np.concatenate([r_est, v_est, q_est.to_array(), omega_est])
+        h_wheel = self._wheel_momentum(channels, omega_est)
+        log = self._expose_environment(r_est, q_est, dt_utc, h_wheel)
+        x_hat = np.concatenate([r_est, v_est, q_est.to_array(), omega_est, log.b_field_body, h_wheel])
         return x_hat, log
+
+    def _wheel_momentum(self, channels: dict[str, np.ndarray], omega_est: np.ndarray) -> np.ndarray:
+        """Body-frame reaction-wheel angular momentum from the tachometer channel (zero if absent).
+
+        The tachometer reports relative wheel speeds ``omega_rel``; the stored momentum mirrors the
+        :class:`~rigid_body.effector.ReactionWheelArray` contribution
+        ``axes^T @ (J_w * (omega_rel + axes @ omega_body))``.
+        """
+        if self.rw_axes is None or self.rw_inertia is None or self.tach_channel not in channels:
+            return np.zeros(3)
+        omega_rel = channels[self.tach_channel]
+        omega_abs = omega_rel + self.rw_axes @ omega_est
+        return self.rw_axes.T @ (self.rw_inertia * omega_abs)
 
     def _expose_environment(
         self,
         r_est: np.ndarray,
         q_est: Quaternion,
         dt_utc: datetime.datetime,
+        wheel_momentum: np.ndarray,
     ) -> FullStateEstimatorLog:
         """Evaluate the environment at the estimated orbit and pack it into the log."""
         lat, lon, alt = eci_to_geodedic(r_est)
@@ -367,4 +415,5 @@ class FullStateEstimator(Estimator[FullStateEstimatorLog]):
             density=float(density),
             geodetic=np.array([float(lat), float(lon), float(alt)]),
             orbit_cov_trace=float(np.trace(self.orbit.P)),
+            wheel_momentum=wheel_momentum,
         )

@@ -156,13 +156,45 @@ def test_environment_exposure_matches_truth() -> None:
     est = _make_estimator()
     r = np.array([7.0e6, 1.0e5, -2.0e5])
 
-    log = est._expose_environment(r, Quaternion(np.zeros(3), 1.0), _EPOCH)  # noqa: SLF001
+    log = est._expose_environment(r, Quaternion(np.zeros(3), 1.0), _EPOCH, np.zeros(3))  # noqa: SLF001
 
     lat, lon, alt = eci_to_geodedic(r)
     np.testing.assert_allclose(log.geodetic, np.array([lat, lon, alt]), rtol=1e-9)
     assert log.density > 0.0
     # Identity attitude: the exposed body field equals the inertial field magnitude.
     assert np.linalg.norm(log.b_field_body) > 0.0
+
+
+def test_estimator_exposes_wheel_momentum_from_tachometer() -> None:
+    # Two-wheel array along x and y; tachometer reports relative wheel speeds.
+    layout = MeasurementLayout((("gyro", 3), ("tachometer", 2)))
+    orbit = OrbitKalmanFilter(r0=_R0, v0=_V0, P0=np.eye(6), Q=np.eye(6), H=np.eye(6), R=np.eye(6))
+    attitude = AttitudeMEKF(
+        q0=np.array([0.0, 0.0, 0.0, 1.0]),
+        P0=np.eye(6),
+        Qc=np.zeros((6, 6)),
+        R_sun=np.eye(3),
+        R_mag=np.eye(3),
+    )
+    axes = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
+    inertia = np.array([0.01, 0.02])
+    est = FullStateEstimator(
+        dt=1.0,
+        epoch=_EPOCH,
+        layout=layout,
+        orbit=orbit,
+        attitude=attitude,
+        rw_axes=axes,
+        rw_inertia=inertia,
+    )
+
+    omega_est = np.array([0.0, 0.0, 0.0])
+    omega_rel = np.array([100.0, -50.0])
+    h_wheel = est._wheel_momentum({"tachometer": omega_rel}, omega_est)  # noqa: SLF001
+
+    # axes^T @ (J_w * omega_rel) with identity-aligned axes and zero body rate.
+    expected = np.array([inertia[0] * omega_rel[0], inertia[1] * omega_rel[1], 0.0])
+    np.testing.assert_allclose(h_wheel, expected, rtol=1e-12)
 
 
 def test_full_state_estimator_tracks_truth_and_is_deterministic() -> None:
@@ -176,7 +208,7 @@ def test_full_state_estimator_tracks_truth_and_is_deterministic() -> None:
         truth_orbit = np.concatenate([_R0, _V0])
         q_true = Quaternion(np.zeros(3), 1.0)
         local_rng = np.random.default_rng(2)
-        x_hat = np.zeros(13)
+        x_hat = np.zeros(19)
         for k in range(n_steps):
             truth_orbit = rk4(OrbitKalmanFilter._f, 0.0, dt, truth_orbit, np.zeros(0))  # noqa: SLF001
             q_true_next = q_true.exact_integration(omega_true, dt)
@@ -190,9 +222,11 @@ def test_full_state_estimator_tracks_truth_and_is_deterministic() -> None:
 
     x_hat, truth_orbit, q_true = run()
 
-    assert x_hat.shape == (13,)
+    assert x_hat.shape == (19,)  # [r, v, q, omega, b_body, h_wheel]
     np.testing.assert_allclose(x_hat[:3], truth_orbit[:3], atol=50.0)
     assert _angle_between(x_hat[6:10], q_true.to_array()) < np.deg2rad(5.0)
+    # No wheels configured -> exposed wheel momentum is zero; b_body is the exposed field.
+    np.testing.assert_array_equal(x_hat[16:19], np.zeros(3))
 
     # Same seeded inputs -> identical estimate (no hidden state / RNG in the estimator).
     x_hat_again, _, _ = run()

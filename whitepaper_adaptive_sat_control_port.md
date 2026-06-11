@@ -60,8 +60,13 @@ These are things the old repo lacked or did poorly — the port fixes them rathe
 + Target scenario: **nadir pointing** hold (start near-pointed) with reaction wheels under disturbances.
 + All new satellite-specific classes live in `src/rigid_body` (keep `src/simulate` generic).
 + Use `scipy.linalg.solve_discrete_are` for Riccati; **do not** add `control` or `casadi`.
-+ `x_hat` layout exposed to the controller = `[r(3), v(3), q(4), omega(3)]` (first 13 of the state).
-  Gyro bias + environment variables ride in the estimator's **log dataclass**, not in `x_hat`.
++ `x_hat` layout exposed to the controller = `[r(3), v(3), q(4), omega(3), b_body(3), h_wheel(3)]`
+  (length 19). The first 13 are the orbit/attitude state; the trailing **estimated body-frame
+  magnetic field** `b_body` and **reaction-wheel angular momentum** `h_wheel` are appended because
+  the controllers (magnetorquer allocation + momentum dumping) only receive `x_hat`, never the
+  estimator log. Gyro bias and the remaining environment variables still ride in the estimator's
+  **log dataclass**. (Implemented divergence from the original "first 13 only" decision — see
+  [estimator.py](src/rigid_body/estimator.py).)
 
 ---
 
@@ -111,10 +116,12 @@ Desired attitude is deterministic from the orbit, so derive it from SGP4 (decoup
 ## Phase 4 — Full nonlinear estimator (orbit KF + MEKF + environment vars)
 
 The estimator receives the concatenated `y_mea` (attitude, rate, magnetometer, sun, GPS, wheel speeds)
-and `u`, and returns `x_hat = [r, v, q, omega]` ([simulation.py:154-160](src/simulate/simulation.py#L154-L160)).
+and `u`, and returns `x_hat = [r, v, q, omega, b_body, h_wheel]` (length 19,
+[simulation.py:154-160](src/simulate/simulation.py#L154-L160)). The trailing `b_body`/`h_wheel` feed
+the controllers (see the Phase-5 note); the first 13 are the orbit/attitude state.
 Build incrementally; each sub-filter is independently testable. All in `src/rigid_body/estimator.py`,
-subclassing [`Estimator`](src/simulate/estimator.py). A frozen log dataclass carries gyro bias + the
-exposed environment variables.
+subclassing [`Estimator`](src/simulate/estimator.py). A frozen log dataclass carries gyro bias, the
+exposed environment variables, and the body-frame wheel momentum.
 
 + **Step 4.1 — Measurement layout helper.** A small parser mapping the concatenated `y_mea` to named
   channels (must mirror the `outputs`/`sensors` ordering in the config). *Verify:* slicing round-trips a
@@ -133,25 +140,41 @@ exposed environment variables.
   [environment.py](src/rigid_body/environment.py). *Verify:* exposed env vars match the truth-at-estimated-orbit
   within tolerance; logged via the estimator dataclass.
 + **Step 4.5 — Assemble `FullStateEstimator`.** Compose 4.2–4.4 into one `Estimator` producing
-  `x_hat = [r, v, q, omega]` and the rich log; `from_config` wires noise params + the measurement layout.
-  *Verify:* end-to-end on a short sim, `x_hat` tracks truth and the run is deterministic with a fixed seed.
+  `x_hat = [r, v, q, omega, b_body, h_wheel]` (length 19) and the rich log; `from_config` wires noise
+  params, the measurement layout, and the reaction-wheel array (axes + inertia) used to turn the
+  tachometer channel into the body-frame `h_wheel`. *Verify:* end-to-end on a short sim, `x_hat`
+  tracks truth and the run is deterministic with a fixed seed.
 
 ## Phase 5 — Attitude controllers
 
-Consume `x_hat` `[r,v,q,omega]` + reference `[q_des, omega_des]`; output reaction-wheel torque (+
-magnetorquer dipole for dumping). New classes in `src/rigid_body/controller.py`, mirroring `PIDController`
-([controller.py](src/simulate/controller.py)).
+Consume `x_hat` `[r,v,q,omega,b_body,h_wheel]` + reference `[q_des, omega_des]`; output **actuator
+current commands** (not torque). Because the `ReactionWheelArray`/`MagnetorquerArray` effectors
+interpret their command slice as currents, each controller computes a desired torque and then
+allocates it to currents with `to_current_commands` before returning `u` — porting the legacy
+`PI.calc_input_cmds` flow. Output order is `[i_mtq, i_rw]`, so the dynamics config must list the
+magnetorquer array before the reaction-wheel array. New classes in `src/rigid_body/controller.py`,
+mirroring `PIDController` ([controller.py](src/simulate/controller.py)).
 
-+ **Step 5.1 — `QuaternionFeedbackController`.** `u = -Kp·q_err_vec - Kd·(omega - omega_des)` with optional
-  magnetorquer momentum dumping. Port old `ClassicalQuatFeedback`; uses Phase-1 error helpers. *Verify:*
-  closed-loop on real `RigidBodyDynamics` drives a small initial error below tolerance within N steps;
-  wheel momentum bounded with dumping on.
-+ **Step 5.2 — Linearization helpers.** `src/rigid_body/linearization.py`: port the error/attitude jacobian
-  + RK2-normalized error dynamics → reduced discrete `(A, B)` from old `controller_models.py`. *Verify:*
-  finite-difference check of the jacobian against the nonlinear error dynamics.
++ **Step 5.1 — `QuaternionFeedbackController`.** `tau_rw = -Kp·q_err_vec - Kd·(omega - omega_des)`
+  plus magnetorquer momentum dumping `tau_mtq = -k_m·h_wheel` (disabled by `k_m = 0`), both allocated
+  to currents. `b_body` and `h_wheel` come from `x_hat` (the controller never sees the estimator log).
+  Port old `ClassicalQuatFeedback`; uses Phase-1 error helpers. *Verify:* closed-loop on real
+  `RigidBodyDynamics` drives a small initial error below tolerance within N steps; wheel momentum
+  bounded with dumping on.
++ **Step 5.2 — Linearization helpers.** `src/rigid_body/linearization.py`: port the error/attitude
+  jacobian + RK2-normalized error dynamics → reduced discrete `(A, B)` from old `controller_models.py`,
+  reimplemented in **NumPy** (CasADi is out of scope) via central finite differences. The reduced state
+  is the 6-vector `[delta_theta, delta_omega]` with input `[m, tau_rw]` (magnetorquer dipole +
+  reaction-wheel torque); `B` enters the input matrix through `m × B`. *Note: a wheel-momentum state is
+  deliberately omitted* — with a frozen field the total-momentum component along `B` is uncontrollable
+  (`m × B ⊥ B`), which makes the discrete Riccati equation singular; reaction wheels alone keep the
+  6-state model fully controllable. *Verify:* finite-difference check of the jacobian against the
+  nonlinear error dynamics.
 + **Step 5.3 — `LQRController`.** Solve discrete Riccati via `scipy.linalg.solve_discrete_are` on the
-  Phase-5.2 model with field-averaged B; gains from config `Q`/`R`. *Verify:* stabilizes the linearized
-  system (closed-loop eigenvalues inside unit circle) and drives the nonlinear plant error to tolerance.
+  Phase-5.2 model with field-averaged B; gains from config `Q`/`R` (6×6). Outputs `[m, tau_rw] = -K·x`
+  allocated to currents. Magnetic momentum dumping is left to `QuaternionFeedbackController` (the LQR
+  model has no momentum state). *Verify:* stabilizes the linearized system (closed-loop eigenvalues
+  inside unit circle) and drives the nonlinear plant error to tolerance.
 + **Step 5.4 — `AdaptiveLQRController`.** Re-solve on the updated/averaged model with Newton-Kleinman warm
   start. *Verify:* matches `LQRController` on a static model; adapts (gain changes) when the model is varied.
 
