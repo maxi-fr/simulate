@@ -4,7 +4,6 @@ import numpy as np
 
 from rigid_body.controller import (
     AdaptiveLQRController,
-    LQRController,
     QuaternionFeedbackController,
     allocation_matrix,
     to_current_commands,
@@ -68,9 +67,6 @@ def _x_hat(dynamics: RigidBodyDynamics, rw: ReactionWheelArray) -> np.ndarray:
     return np.concatenate([dynamics.x[0:13], _B_BODY, h_wheel])
 
 
-# --------------------------------------------------------------------------------------------- #
-# Allocation helper (ported to_current_commands)
-# --------------------------------------------------------------------------------------------- #
 def test_to_current_commands_round_trip() -> None:
     alpha_rw = allocation_matrix(_AXES, _KT * np.ones(3))
     alpha_mtq = allocation_matrix(_AXES, _KM * np.ones(3))
@@ -96,9 +92,6 @@ def test_to_current_commands_zero_field_skips_magnetorquers() -> None:
     np.testing.assert_array_equal(u[:3], np.zeros(3))  # no field -> no dipole commanded
 
 
-# --------------------------------------------------------------------------------------------- #
-# Step 5.1 - QuaternionFeedbackController
-# --------------------------------------------------------------------------------------------- #
 def _quaternion_controller(*, k_m: float) -> QuaternionFeedbackController:
     return QuaternionFeedbackController(
         dt=0.1,
@@ -147,9 +140,6 @@ def test_quaternion_feedback_dumping_bounds_wheel_momentum() -> None:
     assert h_final < h0  # magnetorquer dumping bled off stored momentum
 
 
-# --------------------------------------------------------------------------------------------- #
-# Step 5.2 - Linearization
-# --------------------------------------------------------------------------------------------- #
 def test_linearization_jacobian_matches_nonlinear_step() -> None:
     omega_c = np.array([0.0, -1.0e-3, 0.0])
     dt = 0.1
@@ -171,9 +161,6 @@ def test_linearization_jacobian_matches_nonlinear_step() -> None:
     np.testing.assert_allclose(b_full @ du, fu - f0, atol=1e-8)
 
 
-# --------------------------------------------------------------------------------------------- #
-# Step 5.3 - LQRController
-# --------------------------------------------------------------------------------------------- #
 def _lqr_kwargs(b_field: np.ndarray) -> dict:
     return {
         "dt": 0.1,
@@ -185,44 +172,6 @@ def _lqr_kwargs(b_field: np.ndarray) -> dict:
         "alpha_rw": allocation_matrix(_AXES, _KT * np.ones(3)),
         "alpha_mtq": allocation_matrix(_AXES, _KM * np.ones(3)),
     }
-
-
-def test_lqr_closed_loop_is_stable() -> None:
-    controller = LQRController(**_lqr_kwargs(_B_BODY))
-    eigvals = np.linalg.eigvals(controller.A - controller.B @ controller.K)
-    assert np.all(np.abs(eigvals) < 1.0)
-
-
-def test_lqr_drives_nonlinear_plant_to_tolerance() -> None:
-    controller = LQRController(**_lqr_kwargs(_B_BODY))
-    dynamics, rw = _make_plant()
-    offset = Quaternion.from_array(np.array([0.05, -0.04, 0.03, 1.0]))
-    q0 = offset * orc_from_orbit(_R0, _V0)
-    dynamics.x[6:10] = q0.to_array() / np.linalg.norm(q0.to_array())
-    ref = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
-
-    angle = np.inf
-    for k in range(800):
-        t = k * 0.1
-        u, _ = controller.evaluate(t, ref, _x_hat(dynamics, rw))
-        dynamics.evaluate(t, u)
-        angle = _nadir_angle(dynamics)
-
-    assert angle < np.deg2rad(2.0)
-
-
-# --------------------------------------------------------------------------------------------- #
-# Step 5.4 - AdaptiveLQRController
-# --------------------------------------------------------------------------------------------- #
-def test_adaptive_lqr_matches_static_lqr() -> None:
-    static = LQRController(**_lqr_kwargs(_B_BODY))
-    adaptive = AdaptiveLQRController(**_lqr_kwargs(_B_BODY))
-
-    ref = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
-    x_hat = np.concatenate([_R0, _V0, [0.0, 0.0, 0.0, 1.0], np.zeros(3), _B_BODY, np.zeros(3)])
-    adaptive.update(0.0, ref, x_hat)
-
-    np.testing.assert_allclose(adaptive.K, static.K, rtol=1e-6, atol=1e-9)
 
 
 def test_adaptive_lqr_adapts_when_field_changes() -> None:

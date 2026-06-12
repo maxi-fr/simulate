@@ -32,6 +32,11 @@ dev = [
     "scalene>=2.3.0",
     "ty>=0.0.46",
 ]
+diff-test = [
+    "casadi>=3.7.2",
+    "control>=0.10.2",
+    "pyigrf==0.3.3",
+]
 rigid-body = [
     "astropy>=7.2.0",
     "ppigrf>=2.1.0",
@@ -83,6 +88,23 @@ convention = "numpy"
     "PLR2004", # Magic value used in comparison
     "D",       # Ignore docstrings in tests
     "INP001",  # No __init__.py in tests folder
+]
+# Differential port tests live in a nested folder (not matched by "tests/*") and intentionally
+# compare across two codebases, poking private members and using math-style variable names.
+"tests/differential/*.py" = [
+    "S101",    # assert
+    "PLR0913", # too-many-arguments
+    "F401",    # unused import
+    "ARG001",  # Unused function args (fixtures)
+    "PLR2004", # Magic value used in comparison
+    "D",       # Ignore docstrings in tests
+    "INP001",  # No __init__.py in tests folder
+    "SLF001",  # private members are deliberately exercised on both sides
+    "N802",    # legacy names like `_continuous_FG`
+    "N803",    # math argument names (J_B, R_BO, ...)
+    "N806",    # math local names (A, B, Q, R, F, G, ...)
+    "PLC0415", # cross-repo imports are done lazily via importorskip inside tests
+    "ANN401",  # legacy/duck-typed objects from the old repo are necessarily typed `Any`
 ]
 "examples/*" = ["INP001"]
 # Marimo notebooks: cells are functions, imports live in cells, and the final

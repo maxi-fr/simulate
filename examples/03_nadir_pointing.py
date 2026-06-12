@@ -226,8 +226,7 @@ def _(mo):
     mo.md(r"""
     ## LQR variant
 
-    The same plant and estimator, driven by the **`LQRController`** (discrete Riccati on the
-    field-averaged reduced model) instead of quaternion feedback. It acquires nadir from the
+    The same plant and estimator, driven by the **`AdaptiveLQRController`** instead of quaternion feedback. It acquires nadir from the
     same initial offset.
     """)
     return
@@ -241,7 +240,7 @@ def _(Simulation, config, d, extract, np, plt):
     )
     lqr_config = dict(config)
     lqr_config["controller"] = {
-        "class_path": "rigid_body.controller.LQRController",
+        "class_path": "rigid_body.controller.AdaptiveLQRController",
         "dt": 0.2,
         "Q": np.diag([10.0, 10.0, 10.0, 1.0, 1.0, 1.0]).tolist(),
         "R": np.eye(6).tolist(),

@@ -108,10 +108,7 @@ def discrete_jacobians(
     The regulation point is the identity error quaternion, zero rate error and zero input.
     ``A`` is (7, 7) and ``B`` is (7, 6).
     """
-    inertia = np.asarray(inertia, dtype=float)
     inertia_inv = np.linalg.inv(inertia)
-    omega_c = np.asarray(omega_c, dtype=float)
-    b_field = np.asarray(b_field, dtype=float)
 
     x_star = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
     u_star = np.zeros(_INPUT)

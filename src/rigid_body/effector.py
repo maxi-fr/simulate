@@ -158,6 +158,7 @@ class EarthGravity(Effector):
         """Initialize with the central body's gravitational parameter ``mu`` [m**3/s**2]."""
         self.mu = float(mu)
         self.mass: float | None = None
+        self.inertia: np.ndarray | None = None
 
     def bind(self, mass: float, inertia: np.ndarray) -> None:
         """Capture the host body's mass."""
@@ -173,8 +174,12 @@ class EarthGravity(Effector):
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Compute the inertial-frame central-gravity force from position."""
         if self.mass is None:
-            msg = "EarthGravity mass or inertia is unbound; compose it into a RigidBodyDynamics."
+            msg = "EarthGravity mass is unbound; compose it into a RigidBodyDynamics."
             raise RuntimeError(msg)
+        if self.inertia is None:
+            msg = "EarthGravity inertia is unbound; compose it into a RigidBodyDynamics."
+            raise RuntimeError(msg)
+
         r_norm = np.linalg.norm(state.r_eci)
         r_norm_3 = r_norm**3
 

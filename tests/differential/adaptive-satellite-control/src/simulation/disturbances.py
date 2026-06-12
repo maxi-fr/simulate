@@ -1,8 +1,7 @@
-# ruff: noqa: N806, N803
 import numpy as np
+from utils import Quaternion
 
 from .environment import solar_radiation_pressure_constant
-from .quaternion import Quaternion
 from .surface import Surface
 
 # Earth constants
@@ -18,7 +17,7 @@ J4 = -1.6196e-6  # J4 zonal harmonic
 
 def non_spherical_gravity_forces(r_eci: np.ndarray, m: float) -> np.ndarray:
     """
-    Calculate the disturbance forces due to Earth's non-spherical gravity.
+    Calculates the disturbance forces due to Earth's non-spherical gravity.
 
     This function computes the perturbing acceleration from the J2, J3, and J4
     zonal harmonic coefficients and returns the corresponding force.
@@ -71,7 +70,7 @@ MU_MOON = 4.9048695e12  # standard GM of Moon
 
 def third_body_forces(r_eci: np.ndarray, m: float, sun_pos_eci: np.ndarray, moon_pos_eci: np.ndarray) -> np.ndarray:
     """
-    Calculate the gravitational disturbance forces from the Sun and Moon.
+    Calculates the gravitational disturbance forces from the Sun and Moon.
 
     Parameters
     ----------
@@ -97,6 +96,36 @@ def third_body_forces(r_eci: np.ndarray, m: float, sun_pos_eci: np.ndarray, moon
     return a * m
 
 
+def gravity_gradient(r_eci: np.ndarray, R_BO: Quaternion, J_B: np.ndarray) -> np.ndarray:
+    """
+    Calculates the gravity gradient torque on a satellite.
+
+    Parameters
+    ----------
+    r_eci : np.ndarray, shape (3,)
+        Position vector in the ECI frame [m].
+    R_BO : Quaternion
+        Rotation from the orbital reference frame (ORC) to the body frame (B).
+
+    J_B : np.ndarray, shape (3, 3)
+        Inertia tensor of the satellite in the body frame [kg*m^2].
+
+    Returns
+    -------
+    np.ndarray, shape (3,)
+        The gravity gradient torque vector in the body frame [N*m].
+    """
+    nadir_body_axis = R_BO.apply(np.array([0, 0, 1]))
+
+    gg_torque: np.ndarray = (
+        (3 * MU)
+        / np.linalg.norm(np.atleast_2d(r_eci), axis=1, keepdims=True) ** 3
+        * np.cross(nadir_body_axis, np.matvec(J_B, nadir_body_axis))
+    )
+
+    return gg_torque.squeeze()
+
+
 # rad/s earth rotates about the z axis of the eci frame with angular velocity OMEGA_E
 OMEGA_E = np.array([0, 0, 0.000_072_921_158_553])
 
@@ -105,7 +134,7 @@ def aerodynamic_drag(
     r_eci: np.ndarray, v_eci: np.ndarray, R_BI: Quaternion, surfaces: list[Surface], rho: float
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Calculate the aerodynamic drag force and torque on the satellite.
+    Calculates the aerodynamic drag force and torque on the satellite.
 
     This function iterates through the satellite's surfaces to compute the total
     aerodynamic force and torque based on a simplified impact model.
@@ -158,14 +187,10 @@ def aerodynamic_drag(
 
 
 def solar_radiation_pressure(
-    r_eci: np.ndarray,
-    sun_pos_eci: np.ndarray,
-    in_shadow: bool,  # noqa: FBT001
-    R_BI: Quaternion,
-    surfaces: list[Surface],
+    r_eci: np.ndarray, sun_pos_eci: np.ndarray, in_shadow: bool, R_BI: Quaternion, surfaces: list[Surface]
 ) -> tuple[np.ndarray, np.ndarray]:
     """
-    Calculate the solar radiation pressure force and torque on the satellite.
+    Calculates the solar radiation pressure force and torque on the satellite.
 
     Parameters
     ----------
