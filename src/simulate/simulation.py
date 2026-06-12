@@ -139,20 +139,7 @@ class Simulation:
         t = 0.0
         step_count: int = 0
 
-        u_k: float | np.ndarray = 0.0
-
-        # Seed the measurement truth from the initial state so every sensor sees its true measurement
-        # width from the first step (a scalar-zero seed makes multi-element, multi-rate channels vary
-        # in length and breaks fixed-width logging). ``update`` is called directly so the outputs'
-        # zero-order-hold schedule is untouched; outputs needing a sized control input (which is not
-        # yet known) fall back to a scalar seed.
-        def _seed_truth(out: Output) -> float | np.ndarray:
-            try:
-                return out.update(0.0, self.dynamics.x, u_k)[0]
-            except ValueError:
-                return 0.0
-
-        y_list: list[float | np.ndarray] = [_seed_truth(out) for out in self.outputs]
+        u_k: float | np.ndarray = np.zeros(self.dynamics.n_inputs)
 
         total_steps = round(self.t_end / self.dt) + 1
         buffer_size = chunk_size if (chunk_size is not None and output_dir is not None) else total_steps
@@ -160,9 +147,13 @@ class Simulation:
 
         with tqdm(total=total_steps, desc="Running simulation") as pbar:
             while t <= self.t_end:
+                x_k = self.dynamics.x
+
                 ref_k, ref_log = self.reference.evaluate(t)
 
-                # Each sensor samples (at its own rate, ZOH-held) the previous step's truth.
+                output_results = [out.evaluate(t, x_k, u_k) for out in self.outputs]
+                y_list = [res for res, _ in output_results]
+
                 sensor_logs = [sensor.evaluate(t, y_list[i]) for i, sensor in enumerate(self.sensors)]
                 y_mea_list = [np.atleast_1d(res) for res, _ in sensor_logs]
                 y_mea = np.concatenate(y_mea_list) if y_mea_list else np.zeros(0)
@@ -171,12 +162,8 @@ class Simulation:
 
                 u_k, ctrl_log = self.controller.evaluate(t, ref_k, x_hat)
 
-                x_k, dynamics_log = self.dynamics.evaluate(t, u_k)
-
-                # Outputs run at the base dt: always-fresh truth for the next step's sensors.
-                output_results = [out.evaluate(t, x_k, u_k) for out in self.outputs]
-                y_list = [res for res, _ in output_results]
-                # TODO: i think "output" should be the first component thats run and x_k is initialized with some value x_0
+                # Advance the plant; ``self.dynamics.x`` becomes the next step's state.
+                _, dynamics_log = self.dynamics.evaluate(t, u_k)
 
                 if len(self.outputs) == 1:
                     y_val = y_list[0]

@@ -102,6 +102,7 @@ class RigidBodyDynamics(Dynamics[NoLog]):
             state_idx += eff.n_states
             cmd_idx += eff.n_inputs
 
+        self.n_inputs = cmd_idx
         self.x = np.zeros(state_idx, dtype=float)
         self.x[_Q] = np.array([0.0, 0.0, 0.0, 1.0])  # identity attitude
         for eff, sl in zip(self.effectors, self._state_slices, strict=True):
