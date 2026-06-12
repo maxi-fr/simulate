@@ -105,13 +105,17 @@ pattern in `AerodynamicDrag`/`ThirdBody` ([effector.py:198-200, 587-590](src/rig
 
 ## Phase 3 — Nadir-pointing reference
 
-Desired attitude is deterministic from the orbit, so derive it from SGP4 (decoupled from feedback state).
+Desired attitude is deterministic from the orbit. **Implemented divergence (simpler than the original
+SGP4-driven plan):** the reference is expressed **relative to the orbital (ORC) frame**, where nadir is
+simply the constant identity. The orbital frame and feedforward rate are reconstructed *inside the
+controller* from the estimated orbit `r, v` in `x_hat`, so the reference needs no propagator of its own.
 
-+ **Step 3.1 — `NadirPointingReference(Reference)`.** `src/rigid_body/reference.py`: holds an
-  [`SGP4`](src/rigid_body/orbit_dynamics.py) propagator + `epoch`; each step propagate to `epoch+t`, build
-  desired `q` via `frames.orc_from_orbit` and feedforward `omega` via `frames.orbital_rate`; emit
-  `ref = [q_des(4), omega_des(3)]`. `from_config` builds SGP4 from TLE/elements. *Verify:* reference
-  attitude tracks nadir over an orbit, `q_des` unit-norm, rate ≈ mean motion.
++ **Step 3.1 — `NadirPointingReference(Reference)`.** [src/rigid_body/reference.py](src/rigid_body/reference.py):
+  emits the constant 7-vector `ref = [q_bo(4), omega_bo(3)] = [0,0,0,1, 0,0,0]`, where `q_bo` is the
+  desired **ORC→body** rotation (identity = nadir) and `omega_bo` the desired rate *relative to* ORC
+  (zero). `from_config` takes only `dt`. The controller (Phase 5) composes this with
+  `frames.orc_from_orbit`/`frames.orbital_rate` evaluated at `x_hat`'s `r, v`. *Verify:* emits the
+  unit-norm orbit-relative reference; closed-loop nadir hold is verified end-to-end in Phase 6.
 
 ## Phase 4 — Full nonlinear estimator (orbit KF + MEKF + environment vars)
 
@@ -155,6 +159,13 @@ allocates it to currents with `to_current_commands` before returning `u` — por
 magnetorquer array before the reaction-wheel array. New classes in `src/rigid_body/controller.py`,
 mirroring `PIDController` ([controller.py](src/simulate/controller.py)).
 
+**Orbit-frame reference handling (implemented).** Because the reference is orbit-relative (Phase 3),
+both controllers route their attitude/rate error through a shared `_attitude_error(ref, x_hat)` helper:
+it builds `q_oi = orc_from_orbit(r, v)` from `x_hat`, forms the body-frame error
+`q_err = q_bo^-1 ⊗ (q_bi ⊗ q_oi^-1)` and the orbital feedforward
+`omega_des = q_bo_act.apply(orbital_rate(r, v)) + omega_bo`. This is what lets a *constant* reference
+command nadir tracking; the LQR reduced model's `omega_c` is the same orbital rate.
+
 + **Step 5.1 — `QuaternionFeedbackController`.** `tau_rw = -Kp·q_err_vec - Kd·(omega - omega_des)`
   plus magnetorquer momentum dumping `tau_mtq = -k_m·h_wheel` (disabled by `k_m = 0`), both allocated
   to currents. `b_body` and `h_wheel` come from `x_hat` (the controller never sees the estimator log).
@@ -178,19 +189,46 @@ mirroring `PIDController` ([controller.py](src/simulate/controller.py)).
 + **Step 5.4 — `AdaptiveLQRController`.** Re-solve on the updated/averaged model with Newton-Kleinman warm
   start. *Verify:* matches `LQRController` on a static model; adapts (gain changes) when the model is varied.
 
-## Phase 6 — End-to-end nadir-pointing example, config & analysis
+## Phase 6 — End-to-end nadir-pointing example, config & analysis (implemented)
 
-+ **Step 6.1 — YAML satellite config.** Full satellite (mass, inertia, surfaces, RW array, magnetorquer
-  array, gravity-gradient + drag + SRP disturbances, epoch/TLE), the five sensor channels,
-  `FullStateEstimator`, `NadirPointingReference`, `QuaternionFeedbackController`. Drives
-  `Simulation.from_yaml`; replaces the old `simulation_config.json`. *Verify:* `from_yaml` builds and runs.
++ **Step 6.1 — YAML satellite config.** [examples/03_nadir_pointing.yaml](examples/03_nadir_pointing.yaml):
+  full satellite (mass, inertia, surfaces, RW array, magnetorquer array, central + gravity-gradient
+  gravity, third-body, SRP, drag, epoch/TLE), the five sensor channels, `FullStateEstimator`,
+  `NadirPointingReference`, `QuaternionFeedbackController`. Drives `Simulation.from_yaml`; replaces the
+  old `simulation_config.json`. *Verified* by [tests/test_nadir_pointing_config.py](tests/test_nadir_pointing_config.py)
+  (builds, runs, acquires and holds nadir under disturbances).
++ **Step 6.2 — Marimo example.** [examples/03_nadir_pointing.py](examples/03_nadir_pointing.py) mirroring
+  [02_rigid_body_attitude.py](examples/02_rigid_body_attitude.py), with an LQR variant cell. `marimo
+  check` clean; pointing error settles from ~15° to <1° and holds.
++ **Step 6.3 — Analysis cells.** Pointing error (Euler, Phase-1 helper), body rates vs. orbital
+  feedforward, wheel speeds, control currents, and estimator-vs-truth overlays (orbit, attitude, gyro
+  bias).
 
-+ **Step 6.2 — Marimo example.** `examples/03_nadir_pointing.py` mirroring
-  [02_rigid_body_attitude.py](examples/02_rigid_body_attitude.py), with an LQR variant cell. *Verify:*
-  `uv run marimo check` clean; pointing error settles and holds nadir over one+ orbit.
-+ **Step 6.3 — Analysis cells.** Pointing error (Euler, Phase-1 helper), body rates, wheel speeds, control
-  torque, and estimator vs. truth overlays — replacing old `analysis.ipynb`. *Verify:* plots render from the
-  logged `.npz`.
+### New component and enabling changes introduced in Phase 6
+
++ **`EarthGravity` effector** ([effector.py](src/rigid_body/effector.py)) — central two-body gravity
+  force `F = -mu*m*r/|r|^3`. The rigid-body translational equation applies effector forces only (no
+  built-in gravity), so this is what makes the integrated orbit Keplerian and consistent with the orbit
+  KF's two-body prediction. Also calculates gravity gradient torque
++ **Shared `initial_state` (TLE + orbit-relative attitude)** — both `RigidBodyDynamics.from_config` and
+  `FullStateEstimator.from_config` resolve their initial orbit/attitude from one `initial_state` block
+  (`epoch`, `tle`, `attitude_orc` roll/pitch/yaw [deg], `angular_velocity_orc` [deg/s]), written once in
+  the YAML and shared via a `&init`/`*init` anchor so the truth and the estimator's guess start
+  consistent. SGP4 propagates the TLE to the epoch for `r/v`; the new helper
+  [`frames.eci_attitude_from_orc`](src/rigid_body/frames.py) converts the ORC-relative attitude/rate into
+  the inertial `q`/`omega` (the inverse of the controller's `_attitude_error`). This replaces the legacy
+  raw `r0/v0/q0/omega0` keys, matching how the old `Simulation.from_json` was configured. When
+  `initial_state` is omitted `RigidBodyDynamics` keeps its zeros/identity defaults.
++ **Estimator robustness** ([estimator.py](src/rigid_body/estimator.py)): the simulation feeds the
+  concatenated `y_mea` every base step with slow channels **zero-order-hold-held**, so `FullStateEstimator`
+  now fuses each channel only on a *fresh* sample (re-fusing a held GPS would pin the orbit estimate).
+  Note also that `update_vector` normalizes its inputs, so `R_mag` is the **unit-vector** noise variance
+  `(σ_B/|B|)²`, not the raw Tesla variance.
++ **Framework**: `Simulation.run` seeds the first measurement truth from the initial state (so multi-rate,
+  multi-element channels have a consistent width); `RandomWalkBiasSensor` re-initialises its bias to the
+  measurement width. **Outputs must run at the base `dt`** (always-fresh truth) — a slow Output feeds the
+  sensor a multi-step-stale value. Actuator current-loop `time_constant` must be `≳ 2·dt` for the explicit
+  integration to stay stable (e.g. `0.5 s` at `dt = 0.2 s`).
 
 ## Phase 7 — Docs & green build
 

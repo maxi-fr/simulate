@@ -13,7 +13,7 @@ def _():
     import numpy as np
     import polars as pl
 
-    from rigid_body.effector import GravityGradient, ReactionWheelArray, Wrench
+    from rigid_body.effector import EarthGravity, ReactionWheelArray, Wrench
     from rigid_body.rigid_body import (
         ReactionWheelTelemetryOutput,
         RigidBodyAttitudeOutput,
@@ -23,8 +23,8 @@ def _():
     from simulate.sensor import GaussianSensor
 
     return (
+        EarthGravity,
         GaussianSensor,
-        GravityGradient,
         ReactionWheelArray,
         ReactionWheelTelemetryOutput,
         RigidBodyAttitudeOutput,
@@ -186,13 +186,13 @@ def _(mo):
 
 
 @app.cell
-def _(GravityGradient, RigidBodyDynamics, np):
+def _(EarthGravity, RigidBodyDynamics, np):
     dt_gg = 1.0
     body = RigidBodyDynamics(
         dt=dt_gg,
         mass=500.0,
         inertia=np.diag([100.0, 200.0, 300.0]),
-        effectors=[GravityGradient(mu=3.986e14)],
+        effectors=[EarthGravity(mu=3.986e14)],
     )
     body.x[0:3] = np.array([7.0e6, 0.0, 0.0])  # LEO radius along inertial x
     half = np.deg2rad(10.0)  # initial tilt about body z

@@ -9,11 +9,17 @@ from simulate.reference import Reference
 
 
 class NadirPointingReference(Reference[NoLog]):
-    """Nadir-pointing attitude reference.
+    """Nadir-pointing attitude reference, expressed **relative to the orbital (ORC) frame**.
 
-    The desired attitude is a constant reference in the BO frame.
-    The emitted reference is the 7-vector ``[q_des(4), omega_des(3)]``
-    (quaternion scalar-last), where q_des is [0, 0, 0, 1] and omega_des is [0, 0, 0].
+    The emitted 7-vector is ``[q_bo(4), omega_bo(3)]`` (quaternion scalar-last): ``q_bo`` is the
+    desired ORC->body rotation and ``omega_bo`` the desired body rate *relative to* the ORC frame.
+    For nadir pointing the body coincides with the ORC frame, so this is constant ``[0, 0, 0, 1]``
+    (identity) and ``[0, 0, 0]``.
+
+    The reference is deliberately orbit-relative and constant: the inertial-frame attitude/rate
+    targets are recovered inside the controller, which reconstructs the ORC frame and the orbital
+    feedforward rate from the estimated orbit ``r, v`` in ``x_hat`` (see
+    :func:`rigid_body.controller._attitude_error`). It therefore needs no orbit propagator of its own.
     """
 
     def __init__(self, dt: float) -> None:
@@ -25,7 +31,7 @@ class NadirPointingReference(Reference[NoLog]):
         """Instantiate the component from a raw configuration dictionary."""
         return cls(dt=float(config["dt"]))
 
-    def update(self, _: float) -> tuple[float | np.ndarray, NoLog]:
-        """Return constant nadir pointing reference ``[0, 0, 0, 1, 0, 0, 0]``."""
+    def update(self, t: float) -> tuple[float | np.ndarray, NoLog]:  # noqa: ARG002
+        """Return the constant nadir reference ``[0, 0, 0, 1, 0, 0, 0]`` (ORC-relative)."""
         ref = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
         return ref, NoLog()

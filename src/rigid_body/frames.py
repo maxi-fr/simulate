@@ -117,6 +117,46 @@ def quaternion_from_euler(angles: ArrayLike, *, degrees: bool = False) -> Quater
     return Quaternion.from_scipy(rot)
 
 
+def eci_attitude_from_orc(  # noqa: PLR0913
+    r_eci: ArrayLike,
+    v_eci: ArrayLike,
+    *,
+    roll: float,
+    pitch: float,
+    yaw: float,
+    omega_bo: ArrayLike,
+    degrees: bool = True,
+) -> tuple[Quaternion, Vec3]:
+    """Inertial attitude and body rate from an attitude expressed relative to the ORC frame.
+
+    This is the inverse of the controller's attitude-error computation: given a desired body
+    attitude and rate *relative to* the orbital frame, it returns the absolute inertial->body
+    quaternion and the inertial body rate that seed the rigid-body state.
+
+    Parameters
+    ----------
+    r_eci, v_eci : ArrayLike
+        Inertial-frame position [m] and velocity [m/s], shape ``(3,)``.
+    roll, pitch, yaw : float
+        Body attitude relative to the ORC frame as intrinsic ``Y-X-Z`` Euler angles.
+    omega_bo : ArrayLike
+        Body angular velocity relative to the ORC frame, expressed in the body frame, shape ``(3,)``.
+    degrees : bool, optional
+        Interpret ``roll``/``pitch``/``yaw`` and ``omega_bo`` as degrees (and deg/s), by default ``True``.
+
+    Returns
+    -------
+    tuple[Quaternion, numpy.ndarray]
+        The inertial->body quaternion ``q_bi`` and the body angular velocity ``omega_b_bi`` [rad/s].
+    """
+    q_bo = quaternion_from_euler([pitch, roll, yaw], degrees=degrees)  # ORC->body
+    q_oi = orc_from_orbit(r_eci, v_eci)
+    q_bi = q_bo * q_oi
+    rate = np.deg2rad(omega_bo) if degrees else np.asarray(omega_bo, dtype=float)
+    omega_b_bi = q_bo.apply(orbital_rate(r_eci, v_eci)) + rate
+    return q_bi, omega_b_bi
+
+
 # TODO: implement smart caching, beause gets recalculated a lot
 def eci_to_geodedic(pos_eci: np.ndarray) -> tuple[float, float, float]:
     """

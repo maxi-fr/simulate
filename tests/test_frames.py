@@ -1,6 +1,7 @@
 import numpy as np
 
 from rigid_body.frames import (
+    eci_attitude_from_orc,
     euler_from_quaternion,
     orbital_rate,
     orc_from_orbit,
@@ -63,6 +64,31 @@ def test_error_to_identity_for_equal() -> None:
 
     np.testing.assert_allclose(q_err.vec, np.zeros(3), atol=1e-12)
     np.testing.assert_allclose(abs(q_err.scalar), 1.0, atol=1e-12)
+
+
+def test_eci_attitude_from_orc_nadir_at_rest() -> None:
+    # Zero ORC-relative attitude and rate => body aligned with ORC, rate == orbital feedforward.
+    q_bi, omega = eci_attitude_from_orc(_R_ECI, _V_ECI, roll=0.0, pitch=0.0, yaw=0.0, omega_bo=np.zeros(3))
+
+    q_bo = q_bi * orc_from_orbit(_R_ECI, _V_ECI).conjugate()
+    np.testing.assert_allclose(q_bo.to_rot_mat(), np.eye(3), atol=1e-9)
+    np.testing.assert_allclose(omega, orbital_rate(_R_ECI, _V_ECI), atol=1e-9)
+
+
+def test_eci_attitude_from_orc_round_trips_orc_attitude() -> None:
+    # The ORC-relative attitude/rate fed in are recovered from the resulting inertial state.
+    roll, pitch, yaw = 5.0, -12.0, 30.0
+    omega_bo = np.array([0.01, -0.02, 0.03])  # deg/s, body wrt ORC
+    q_bi, omega = eci_attitude_from_orc(
+        _R_ECI, _V_ECI, roll=roll, pitch=pitch, yaw=yaw, omega_bo=omega_bo, degrees=True
+    )
+
+    q_bo = q_bi * orc_from_orbit(_R_ECI, _V_ECI).conjugate()
+    pitch_b, roll_b, yaw_b = euler_from_quaternion(q_bo, degrees=True)
+    np.testing.assert_allclose([roll_b, pitch_b, yaw_b], [roll, pitch, yaw], atol=1e-9)
+
+    omega_bo_recovered = np.rad2deg(omega - q_bo.apply(orbital_rate(_R_ECI, _V_ECI)))
+    np.testing.assert_allclose(omega_bo_recovered, omega_bo, atol=1e-9)
 
 
 def test_error_to_small_rotation_axis() -> None:

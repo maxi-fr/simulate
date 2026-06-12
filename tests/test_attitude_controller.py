@@ -9,8 +9,10 @@ from rigid_body.controller import (
     allocation_matrix,
     to_current_commands,
 )
-from rigid_body.effector import MagnetorquerArray, ReactionWheelArray
+from rigid_body.effector import EarthGravity, MagnetorquerArray, ReactionWheelArray
+from rigid_body.frames import orc_from_orbit
 from rigid_body.linearization import discrete_jacobians, reduced_model, rk2_step
+from rigid_body.orbit_dynamics import MU
 from rigid_body.quaternion import Quaternion
 from rigid_body.rigid_body import RigidBodyDynamics
 
@@ -19,10 +21,16 @@ _KT = 0.02  # reaction-wheel torque constant
 _KM = 1.5  # magnetorquer dipole constant
 _INERTIA = np.diag([4.0, 5.0, 6.0])
 _B_BODY = np.array([1.8e-5, -1.2e-5, 3.0e-5])  # representative LEO field [T]
+_R0 = np.array([7.0e6, 0.0, 0.0])  # LEO position [m]
+_V0 = np.array([0.0, float(np.sqrt(MU / 7.0e6)), 0.0])  # circular velocity [m/s]
 
 
 def _make_plant(*, rw_initial_omega: np.ndarray | None = None) -> tuple[RigidBodyDynamics, ReactionWheelArray]:
-    """Rigid body with magnetorquers then reaction wheels (matching the [i_mtq, i_rw] command order)."""
+    """Rigid body on a LEO orbit: magnetorquers, then reaction wheels (the [i_mtq, i_rw] order), then gravity.
+
+    ``EarthGravity`` makes the integrated position follow a Keplerian orbit so the nadir (ORC) frame
+    -- which the controllers reconstruct from ``x_hat``'s ``r, v`` -- evolves physically.
+    """
     mtq = MagnetorquerArray(axes=_AXES, dipole_constant=_KM, time_constant=0.3, max_current=50.0, b_field_model=_B_BODY)
     rw = ReactionWheelArray(
         axes=_AXES,
@@ -33,8 +41,17 @@ def _make_plant(*, rw_initial_omega: np.ndarray | None = None) -> tuple[RigidBod
         max_rpm=8000.0,
         initial_omega=rw_initial_omega,
     )
-    dynamics = RigidBodyDynamics(dt=0.1, mass=50.0, inertia=_INERTIA, effectors=[mtq, rw])
+    dynamics = RigidBodyDynamics(dt=0.1, mass=50.0, inertia=_INERTIA, effectors=[mtq, rw, EarthGravity()])
+    dynamics.x[0:3] = _R0
+    dynamics.x[3:6] = _V0
     return dynamics, rw
+
+
+def _nadir_angle(dynamics: RigidBodyDynamics) -> float:
+    """Geodesic angle [rad] between the body attitude and the nadir (ORC) frame from the plant state."""
+    q_oi = orc_from_orbit(dynamics.x[0:3], dynamics.x[3:6])
+    q_err = Quaternion.from_array(dynamics.x[6:10]).error_to(q_oi)  # desired q_bo = identity (nadir)
+    return float(2.0 * np.arctan2(np.linalg.norm(q_err.vec), abs(q_err.scalar)))
 
 
 def _wheel_momentum(dynamics: RigidBodyDynamics, rw: ReactionWheelArray, omega: np.ndarray) -> np.ndarray:
@@ -95,21 +112,20 @@ def _quaternion_controller(*, k_m: float) -> QuaternionFeedbackController:
 
 def test_quaternion_feedback_drives_attitude_error_to_zero() -> None:
     dynamics, rw = _make_plant()
-    # Start tilted ~10 deg about a tumbling axis.
-    q0 = Quaternion.from_array(np.array([0.06, -0.05, 0.04, 1.0]))
+    # Start ~10 deg off nadir (a small body-frame offset from the ORC frame).
+    offset = Quaternion.from_array(np.array([0.06, -0.05, 0.04, 1.0]))
+    q0 = offset * orc_from_orbit(_R0, _V0)
     dynamics.x[6:10] = q0.to_array() / np.linalg.norm(q0.to_array())
 
-    ref = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])  # nadir = identity, zero rate
+    ref = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])  # q_bo = identity (nadir), zero orbit-relative rate
     controller = _quaternion_controller(k_m=0.0)  # dumping off
 
     angle = np.inf
     for k in range(800):
         t = k * 0.1
-        x_hat = _x_hat(dynamics, rw)
-        u, _ = controller.evaluate(t, ref, x_hat)
+        u, _ = controller.evaluate(t, ref, _x_hat(dynamics, rw))
         dynamics.evaluate(t, u)
-        q_err = Quaternion.from_array(dynamics.x[6:10]).error_to(Quaternion.from_array(ref[0:4]))
-        angle = 2.0 * np.arctan2(np.linalg.norm(q_err.vec), abs(q_err.scalar))
+        angle = _nadir_angle(dynamics)
 
     assert angle < np.deg2rad(1.0)
 
@@ -117,6 +133,7 @@ def test_quaternion_feedback_drives_attitude_error_to_zero() -> None:
 def test_quaternion_feedback_dumping_bounds_wheel_momentum() -> None:
     # Spin the wheels up so there is momentum to dump.
     dynamics, rw = _make_plant(rw_initial_omega=np.array([200.0, -150.0, 100.0]))
+    dynamics.x[6:10] = orc_from_orbit(_R0, _V0).to_array()  # start pointed at nadir
     ref = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
     controller = _quaternion_controller(k_m=5e-4)
 
@@ -179,7 +196,8 @@ def test_lqr_closed_loop_is_stable() -> None:
 def test_lqr_drives_nonlinear_plant_to_tolerance() -> None:
     controller = LQRController(**_lqr_kwargs(_B_BODY))
     dynamics, rw = _make_plant()
-    q0 = Quaternion.from_array(np.array([0.05, -0.04, 0.03, 1.0]))
+    offset = Quaternion.from_array(np.array([0.05, -0.04, 0.03, 1.0]))
+    q0 = offset * orc_from_orbit(_R0, _V0)
     dynamics.x[6:10] = q0.to_array() / np.linalg.norm(q0.to_array())
     ref = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
 
@@ -188,8 +206,7 @@ def test_lqr_drives_nonlinear_plant_to_tolerance() -> None:
         t = k * 0.1
         u, _ = controller.evaluate(t, ref, _x_hat(dynamics, rw))
         dynamics.evaluate(t, u)
-        q_err = Quaternion.from_array(dynamics.x[6:10]).error_to(Quaternion.from_array(ref[0:4]))
-        angle = 2.0 * np.arctan2(np.linalg.norm(q_err.vec), abs(q_err.scalar))
+        angle = _nadir_angle(dynamics)
 
     assert angle < np.deg2rad(2.0)
 
@@ -202,7 +219,7 @@ def test_adaptive_lqr_matches_static_lqr() -> None:
     adaptive = AdaptiveLQRController(**_lqr_kwargs(_B_BODY))
 
     ref = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
-    x_hat = np.concatenate([np.zeros(6), [0.0, 0.0, 0.0, 1.0], np.zeros(3), _B_BODY, np.zeros(3)])
+    x_hat = np.concatenate([_R0, _V0, [0.0, 0.0, 0.0, 1.0], np.zeros(3), _B_BODY, np.zeros(3)])
     adaptive.update(0.0, ref, x_hat)
 
     np.testing.assert_allclose(adaptive.K, static.K, rtol=1e-6, atol=1e-9)
@@ -214,7 +231,7 @@ def test_adaptive_lqr_adapts_when_field_changes() -> None:
 
     ref = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
     b_other = np.array([3.0e-5, 2.0e-5, -1.0e-5])
-    x_hat = np.concatenate([np.zeros(6), [0.0, 0.0, 0.0, 1.0], np.zeros(3), b_other, np.zeros(3)])
+    x_hat = np.concatenate([_R0, _V0, [0.0, 0.0, 0.0, 1.0], np.zeros(3), b_other, np.zeros(3)])
     adaptive.update(0.0, ref, x_hat)
 
     assert not np.allclose(adaptive.K, k_initial)

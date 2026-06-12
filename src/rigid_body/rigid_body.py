@@ -24,6 +24,7 @@ effects alike: total angular momentum ``H = J @ omega + h`` is conserved under z
 torque.
 """
 
+import datetime
 import importlib
 from typing import Any, Self, cast
 
@@ -36,6 +37,8 @@ from simulate.integrator import Integrator
 from simulate.output import Output
 
 from .effector import Effector, RigidBodyState
+from .frames import eci_attitude_from_orc
+from .orbit_dynamics import SGP4
 from .quaternion import Quaternion, QuaternionRK4
 
 # Public state-vector layout (for building per-part measurement Outputs).
@@ -110,6 +113,19 @@ class RigidBodyDynamics(Dynamics[NoLog]):
 
         ``config["effectors"]`` is a list of ``{"class_path": ..., ...params}`` dicts, each
         built via the effector's own ``from_config``. ``integrator`` may be a dotted path.
+
+        An optional ``initial_state`` block seeds the orbit and attitude from a TLE and an
+        ORC-relative attitude::
+
+            initial_state:
+              epoch: "2024-01-01T12:00:00"
+              tle: ["1 ...", "2 ..."]
+              attitude_orc: {roll: ..., pitch: ..., yaw: ...}   # body wrt ORC [deg]
+              angular_velocity_orc: [..., ..., ...]             # body rate wrt ORC [deg/s]
+
+        SGP4 propagates the TLE to the epoch for ``r``/``v``; :func:`~rigid_body.frames.eci_attitude_from_orc`
+        turns the ORC-relative attitude into the inertial ``q``/``omega``. When ``initial_state`` is
+        omitted the state keeps its defaults (zeros, identity quaternion).
         """
         integrator = config.get("integrator")
         if isinstance(integrator, str):
@@ -119,13 +135,33 @@ class RigidBodyDynamics(Dynamics[NoLog]):
             cast("type[Effector]", _load_class(e["class_path"])).from_config(e) for e in config.get("effectors", [])
         ]
 
-        return cls(
+        instance = cls(
             dt=float(config["dt"]),
             mass=float(config["mass"]),
             inertia=config["inertia"],
             effectors=effectors,
             integrator=integrator,
         )
+
+        init = config.get("initial_state")
+        if init is not None:
+            epoch = datetime.datetime.fromisoformat(init["epoch"])
+            r0, v0 = SGP4.from_tle(*init["tle"]).propagate(epoch)
+            att = init["attitude_orc"]
+            q_bi, omega0 = eci_attitude_from_orc(
+                r0,
+                v0,
+                roll=att["roll"],
+                pitch=att["pitch"],
+                yaw=att["yaw"],
+                omega_bo=init["angular_velocity_orc"],
+            )
+            instance.x[_R] = r0
+            instance.x[_V] = v0
+            instance.x[_Q] = q_bi.to_array()
+            instance.x[_W] = omega0
+
+        return instance
 
     def dynamics(self, t: float, x: np.ndarray, u: np.ndarray) -> np.ndarray:
         """Continuous-time rigid body derivative ``x_dot = f(t, x, u)``."""

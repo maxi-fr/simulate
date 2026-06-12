@@ -4,7 +4,7 @@
 This script benchmarks the performance of the rigid body simulation under
 three different scenarios:
 1. Raw Physics: Direct integration of RigidBodyDynamics with a Wrench and ReactionWheel.
-2. Raw Physics with Gravity Gradient: Direct integration including GravityGradient torque.
+2. Raw Physics with Gravity Gradient: Direct integration including EarthGravity (gravity gradient torque).
 3. Orchestrated Simulation: The full OOP simulation loop including reference tracking,
    sensors, estimators, PID controllers, outputs, and logging.
 """
@@ -19,7 +19,7 @@ from typing import Any, Self
 
 import numpy as np
 
-from rigid_body.effector import GravityGradient, ReactionWheelArray, Wrench
+from rigid_body.effector import EarthGravity, ReactionWheelArray, Wrench
 from rigid_body.rigid_body import RigidBodyDynamics
 from simulate.controller import PIDController
 from simulate.dynamics import NoLog
@@ -99,7 +99,7 @@ def run_raw_physics_gg(dt: float, steps: int) -> float:
         dt=dt,
         mass=500.0,
         inertia=[100.0, 200.0, 300.0],
-        effectors=[GravityGradient(mu=3.986e14)],
+        effectors=[EarthGravity(mu=3.986e14)],
     )
     # Set orbit radius and initial attitude tilt to make gravity gradient active
     dynamics.x[0:3] = np.array([7.0e6, 0.0, 0.0])

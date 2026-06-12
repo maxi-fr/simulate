@@ -6,14 +6,16 @@ import pytest
 from rigid_body.disturbances import aerodynamic_drag, solar_radiation_pressure, third_body_forces
 from rigid_body.effector import (
     AerodynamicDrag,
-    GravityGradient,
+    EarthGravity,
     RigidBodyState,
     SolarRadiationPressure,
     ThirdBody,
 )
 from rigid_body.environment import atmosphere_density_msis, is_in_shadow, moon_position, sun_position
 from rigid_body.frames import eci_to_geodedic
+from rigid_body.orbit_dynamics import MU
 from rigid_body.quaternion import Quaternion
+from rigid_body.rigid_body import RigidBodyDynamics
 from rigid_body.surface import Surface
 
 MU_EARTH = 3.986e14
@@ -26,45 +28,45 @@ def _state(r: np.ndarray, q: np.ndarray) -> RigidBodyState:
     )
 
 
-def _bound_gg(inertia: np.ndarray) -> GravityGradient:
-    """A GravityGradient with its inertia bound, as RigidBodyDynamics would."""
-    gg = GravityGradient(mu=MU_EARTH)
-    gg.bind(mass=500.0, inertia=inertia)
-    return gg
+def _bound_eg(inertia: np.ndarray) -> EarthGravity:
+    """An EarthGravity with its mass and inertia bound, as RigidBodyDynamics would."""
+    eg = EarthGravity(mu=MU_EARTH)
+    eg.bind(mass=500.0, inertia=inertia)
+    return eg
 
 
 def test_zero_torque_at_principal_axis_equilibrium() -> None:
     """With a principal axis aligned with nadir, the gravity-gradient torque vanishes."""
     inertia = np.diag([100.0, 200.0, 300.0])
-    gg = _bound_gg(inertia)
+    eg = _bound_eg(inertia)
     r = np.array([7.0e6, 0.0, 0.0])
     q = np.array([0.0, 0.0, 0.0, 1.0])  # identity: nadir = -x = body principal axis
 
-    _, torque, _ = gg.calc_contributions(0.0, _state(r, q), np.zeros(0), np.zeros(0))
+    _, torque, _ = eg.calc_contributions(0.0, _state(r, q), np.zeros(0), np.zeros(0))
     assert np.allclose(torque, 0.0, atol=1e-12)
 
 
 def test_known_torque_value() -> None:
     """Gravity-gradient torque matches the hand-computed analytic value (30 deg about z)."""
     inertia = np.diag([100.0, 200.0, 300.0])
-    gg = _bound_gg(inertia)
+    eg = _bound_eg(inertia)
     r = np.array([7.0e6, 0.0, 0.0])
     half = np.deg2rad(15.0)  # 30 deg rotation about body z
     q = np.array([0.0, 0.0, np.sin(half), np.cos(half)])
 
-    _, torque, _ = gg.calc_contributions(0.0, _state(r, q), np.zeros(0), np.zeros(0))
+    _, torque, _ = eg.calc_contributions(0.0, _state(r, q), np.zeros(0), np.zeros(0))
     assert np.allclose(torque, np.array([0.0, 0.0, -1.5096e-4]), rtol=1e-3, atol=1e-9)
 
 
 def test_torque_scales_as_inverse_r_cubed() -> None:
     """Doubling the orbital radius reduces the torque magnitude by a factor of 8."""
     inertia = np.diag([100.0, 200.0, 300.0])
-    gg = _bound_gg(inertia)
+    eg = _bound_eg(inertia)
     half = np.deg2rad(15.0)
     q = np.array([0.0, 0.0, np.sin(half), np.cos(half)])
 
-    _, torque_near, _ = gg.calc_contributions(0.0, _state(np.array([7.0e6, 0.0, 0.0]), q), np.zeros(0), np.zeros(0))
-    _, torque_far, _ = gg.calc_contributions(0.0, _state(np.array([1.4e7, 0.0, 0.0]), q), np.zeros(0), np.zeros(0))
+    _, torque_near, _ = eg.calc_contributions(0.0, _state(np.array([7.0e6, 0.0, 0.0]), q), np.zeros(0), np.zeros(0))
+    _, torque_far, _ = eg.calc_contributions(0.0, _state(np.array([1.4e7, 0.0, 0.0]), q), np.zeros(0), np.zeros(0))
 
     assert np.isclose(np.linalg.norm(torque_near) / np.linalg.norm(torque_far), 8.0, rtol=1e-9)
 
@@ -153,3 +155,46 @@ def test_aerodynamic_drag_matches_disturbance() -> None:
     assert np.allclose(force, state.q_bi.conjugate().apply(f_exp))
     assert np.allclose(torque, tau_exp)
     assert np.allclose(momentum, 0.0)
+
+
+def test_earth_gravity_points_to_nadir_with_inverse_square_magnitude() -> None:
+    """Central gravity force points at -r and has magnitude mu*m/r^2 (zero torque/momentum)."""
+    mass = 2.304
+    eff = EarthGravity()
+    eff.bind(mass=mass, inertia=np.eye(3))
+    r = np.array([7.0e6, 0.0, 0.0])
+    state = _state(r, np.array([0.0, 0.0, 0.0, 1.0]))
+
+    force, torque, momentum = eff.calc_contributions(0.0, state, np.zeros(0), np.zeros(0))
+
+    r_norm = float(np.linalg.norm(r))
+    assert np.allclose(force, -MU * mass * r / r_norm**3)
+    assert np.isclose(np.linalg.norm(force), MU * mass / r_norm**2)
+    assert np.allclose(force / np.linalg.norm(force), -r / r_norm)
+    assert np.allclose(torque, 0.0)
+    assert np.allclose(momentum, 0.0)
+
+
+def test_earth_gravity_unbound_mass_raises() -> None:
+    """Evaluating EarthGravity before its mass is bound is an error."""
+    eff = EarthGravity()
+    state = _state(np.array([7.0e6, 0.0, 0.0]), np.array([0.0, 0.0, 0.0, 1.0]))
+    with pytest.raises(RuntimeError, match="unbound"):
+        eff.calc_contributions(0.0, state, np.zeros(0), np.zeros(0))
+
+
+def test_earth_gravity_closes_a_circular_orbit() -> None:
+    """Integrated under central gravity a circular state returns near its start after one period."""
+    body = RigidBodyDynamics(dt=1.0, mass=2.304, inertia=np.eye(3), effectors=[EarthGravity()])
+    r0 = np.array([7.0e6, 0.0, 0.0])
+    v_circ = np.sqrt(MU / np.linalg.norm(r0))
+    body.x[0:3] = r0
+    body.x[3:6] = np.array([0.0, v_circ, 0.0])
+
+    period = 2.0 * np.pi * np.sqrt(np.linalg.norm(r0) ** 3 / MU)
+    n_steps = round(period / body.dt)
+    for k in range(n_steps):
+        body.evaluate(k * body.dt, np.zeros(0))
+
+    # Orbit closes to well under 1% of the radius (a straight line would be several radii off).
+    assert np.linalg.norm(body.x[0:3] - r0) < 0.01 * np.linalg.norm(r0)
