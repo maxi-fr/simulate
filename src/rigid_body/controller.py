@@ -375,14 +375,16 @@ class AdaptiveLQRController(Controller[LQRControllerLog]):
 
         # Reference and parameters relative to ORC
         q_oi = orc_from_orbit(r, v)
-        q_ref = q_oi.to_array()
+        q_ref = q_oi.to_array()  # TODO: should be using ref
         omega_ref = orbital_rate(r, v)
 
         # Rotate body-frame B back to ECI for the ECI system-dynamics linearization
         b_body = x[_B]
         b_eci = q_bi.conjugate().apply(b_body)
 
-        self.A, self.B = reduced_model(self.dt, self.inertia, q_ref, omega_ref, b_eci)
+        self.A, self.B = reduced_model(
+            self.dt, self.inertia, q_ref, omega_ref, b_eci
+        )  # TODO: optimize. LQR controller much slower. I think because casadi models build at every turn
         self.K, self.P = (
             _dlqr_gain(self.A, self.B, self.Q, self.R)
             if self.P is None

@@ -1,4 +1,4 @@
-# End-to-end nadir-pointing satellite simulation (Phase 6).
+# End-to-end nadir-pointing satellite simulation (Phase 6) - Short version for profiling.
 #
 # A 3U-class CubeSat holding nadir pointing in LEO with reaction wheels (+ magnetorquer momentum
 # dumping) under real disturbances, a full-state estimator (orbit KF + attitude MEKF + exposed
@@ -9,7 +9,7 @@
 # reference is expressed relative to the orbital (ORC) frame; the controller reconstructs the ORC
 # frame and orbital feedforward from x_hat's r, v (see rigid_body.controller._attitude_error).
 
-t_end: 5673.5  # one orbital period [s]
+t_end: 100.0  # short period for profiling [s]
 
 # Initial orbit + attitude, shared (via the &init anchor) by the dynamics truth and the estimator's
 # initial guess so they start consistent. SGP4 propagates the TLE to the epoch for r/v; the attitude

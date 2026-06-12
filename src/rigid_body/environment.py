@@ -1,18 +1,49 @@
 import datetime
 import functools
-import math
 from collections.abc import Callable
 from typing import Any
 
 import astropy.coordinates as coord
 import numpy as np
-import ppigrf
+import pyIGRF
 import pymap3d
 import pymsis
 from astropy import units as u
 from astropy.time import Time
 
 
+def cache_per_interval(
+    seconds: float,
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Cache the output of a function for a given time interval in seconds."""
+
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        cache: dict[datetime.datetime, Any] = {}
+
+        @functools.wraps(func)
+        def wrapper(dt_utc: datetime.datetime, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+            dt_utc = dt_utc.replace(tzinfo=datetime.UTC) if dt_utc.tzinfo is None else dt_utc.astimezone(datetime.UTC)
+
+            ts = dt_utc.timestamp()
+            bucket_ts = int(ts // seconds) * seconds
+            dt_bucket = datetime.datetime.fromtimestamp(bucket_ts, tz=datetime.UTC)
+
+            if dt_bucket not in cache:
+                cache.clear()
+                cache[dt_bucket] = func(dt_utc, *args, **kwargs)
+
+            val = cache[dt_bucket]
+            if isinstance(val, np.ndarray):
+                return val.copy()
+            return val
+
+        wrapper.cache = cache  # type: ignore  # noqa: PGH003
+        return wrapper
+
+    return decorator
+
+
+@cache_per_interval(1.0)
 def atmosphere_density_msis(  # noqa: PLR0913
     dt_utc: datetime.datetime,
     lat_deg: float,
@@ -68,6 +99,7 @@ def atmosphere_density_msis(  # noqa: PLR0913
     return rho_kg_m3
 
 
+@cache_per_interval(1.0)
 def magnetic_field_vector(dt_utc: datetime.datetime, lat_deg: float, lon_deg: float, alt_m: float) -> np.ndarray:
     """
     Calculate the Earth's magnetic field vector in the ECI frame.
@@ -93,11 +125,7 @@ def magnetic_field_vector(dt_utc: datetime.datetime, lat_deg: float, lon_deg: fl
     np.ndarray, shape (3,)
         The magnetic field vector [Bx, By, Bz] in the ECI frame, in Tesla [T].
     """
-    b_e, b_n, b_u = ppigrf.igrf(lon_deg, lat_deg, alt_m / 1000.0, dt_utc)
-    b_n = b_n.item()
-    b_e = b_e.item()
-    b_v = -b_u.item()
-    b_tot = math.sqrt(b_n**2 + b_e**2 + b_v**2)
+    d_dec, i_inc, h_hor, b_n, b_e, b_v, b_tot = pyIGRF.igrf_value(lat_deg, lon_deg, alt_m / 1000)
 
     b_ecef = pymap3d.ned2ecef(b_n, b_e, b_v, lat_deg, lon_deg, alt_m, pymap3d.Ellipsoid.from_name("wgs84"))
 

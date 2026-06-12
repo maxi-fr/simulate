@@ -12,3 +12,6 @@ build/
 random_stuff.ipynb
 CLAUDE.md
 __marimo__/
+profile*
+*.npz
+results/
