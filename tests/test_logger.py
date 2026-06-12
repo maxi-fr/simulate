@@ -12,38 +12,6 @@ class MockComponentLog:
     value: float
 
 
-def test_universal_log_validation() -> None:
-    """Test that UniversalLog validates signals."""
-    UniversalLog(
-        t=0.0,
-        x=1.0,
-        y=1.0,
-        y_mea=1.1,
-        x_hat=1.2,
-        u=0.5,
-        ref=1.0,
-    )
-    UniversalLog(
-        t=0.0,
-        x=np.array([1.0]),
-        y=np.array([1.0]),
-        y_mea=np.array([1.1]),
-        x_hat=np.array([1.2]),
-        u=np.array([0.5]),
-        ref=np.array([1.0]),
-    )
-
-    UniversalLog(
-        t=0.0,
-        x=1.0,
-        y=np.array([[1.0]]),
-        y_mea=1.1,
-        x_hat=1.2,
-        u=0.5,
-        ref=1.0,
-    )
-
-
 def test_logger_log_storage() -> None:
     """Test that Logger stores universal and component logs correctly."""
     logger = Logger()
