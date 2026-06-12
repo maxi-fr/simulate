@@ -34,6 +34,7 @@ class DCMotorDynamics(Dynamics[NoLog]):
 
         # Initialize state: [omega, i]
         self.x = np.zeros(2)
+        self.n_inputs = 1
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> Self:

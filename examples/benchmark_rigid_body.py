@@ -131,7 +131,7 @@ def run_orchestrated_simulation(dt: float, steps: int) -> float:
         effectors=[Wrench(), rw_array],
     )
 
-    # 9 output channels of size 1 to avoid shape mismatches with ZOH initialization
+    # 9 single-element output channels, one per measured state index.
     outputs: list[Output[Any]] = [StateElementOutput(dt=dt, index=i) for i in range(9)]
     sensors: list[Sensor[Any]] = [GaussianSensor(dt=dt, std_dev=0.01) for _ in range(9)]
     reference = StepReference(dt=dt, step_value=np.ones(9))

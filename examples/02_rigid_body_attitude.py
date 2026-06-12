@@ -109,7 +109,7 @@ def _(dt, dynamics, inertia, np):
 
     rows = []
     for _k in range(n_steps):
-        dynamics.evaluate(_k * dt, cmd)
+        # Record the current state (x_0 on the first iteration) before advancing.
         omega = dynamics.x[10:13]
         # currents: x[13:16], omega_rel: x[16:19]
         h_wheels = 0.05 * (dynamics.x[16:19] + omega)
@@ -126,6 +126,7 @@ def _(dt, dynamics, inertia, np):
                 "H_norm": float(np.linalg.norm(total_h)),
             }
         )
+        dynamics.evaluate(_k * dt, cmd)
     return (rows,)
 
 
@@ -200,8 +201,8 @@ def _(EarthGravity, RigidBodyDynamics, np):
 
     gg_rows = []
     for _k in range(6000):
-        body.evaluate(_k * dt_gg, np.zeros(0))
         gg_rows.append({"t": _k * dt_gg, "wz": body.x[12], "qz": body.x[8]})
+        body.evaluate(_k * dt_gg, np.zeros(0))
     return (gg_rows,)
 
 
@@ -274,7 +275,8 @@ def _(
     meas_rows = []
     for _k in range(500):
         t_m = _k * dt_m
-        x_m, _ = body_m.evaluate(t_m, cmd_m)
+        # Measure the current state (x_0 on the first iteration) before advancing the plant.
+        x_m = body_m.x
 
         wz_true, _ = gyro_out.evaluate(t_m, x_m, cmd_m)
         wz_mea, _ = gyro_sen.evaluate(t_m, wz_true)
@@ -294,6 +296,8 @@ def _(
                 "qz_mea": np.ravel(q_mea)[3],
             }
         )
+
+        body_m.evaluate(t_m, cmd_m)
     return (meas_rows,)
 
 

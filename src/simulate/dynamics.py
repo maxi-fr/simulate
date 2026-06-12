@@ -13,6 +13,7 @@ class Dynamics[L](Component[L], abc.ABC):
     """Abstract base class for system dynamics (state transition)."""
 
     x: np.ndarray
+    n_inputs: int
 
     def __init__(self, dt: float, integrator: Integrator | None = None) -> None:
         """Initialize the dynamics component."""
@@ -72,6 +73,7 @@ class LinearDynamics(Dynamics[NoLog]):
         self.b = np.atleast_2d(b)
 
         self.x = np.zeros(self.a.shape[0], dtype=float)
+        self.n_inputs = self.b.shape[1]
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> Self:
