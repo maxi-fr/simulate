@@ -60,9 +60,8 @@ class MagneticFieldOutput(Output[NoLog]):
         dt_utc = self.epoch + datetime.timedelta(seconds=t)
         r_eci = np.asarray(x[POSITION], dtype=float)  # ty:ignore[not-subscriptable]
         lat_deg, lon_deg, alt_m = eci_to_geodedic(r_eci)
-        # ppigrf compares against naive pandas timestamps, so strip the (UTC) tzinfo.
-        dt_naive = dt_utc.replace(tzinfo=None)
-        b_eci = magnetic_field_vector(dt_naive, float(lat_deg), float(lon_deg), float(alt_m))
+
+        b_eci = magnetic_field_vector(dt_utc, float(lat_deg), float(lon_deg), float(alt_m))
         q_bi = Quaternion.from_array(x[QUATERNION])  # ty:ignore[not-subscriptable]
         return q_bi.apply(b_eci), NoLog()
 

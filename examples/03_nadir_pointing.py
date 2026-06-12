@@ -60,13 +60,42 @@ def _(mo):
 
 
 @app.cell
-def _(Path, Simulation, load_config):
+def _(mo):
+    controller_select = mo.ui.dropdown(
+        options=["Quaternion Feedback", "Adaptive LQR"],
+        value="Quaternion Feedback",
+        label="Controller Type",
+    )
+    controller_select
+    return (controller_select,)
+
+
+@app.cell
+def _(Path, Simulation, controller_select, load_config, np):
     # One orbit (~95 min) is the config default; a few minutes already shows acquisition + hold, and
     # keeps the notebook responsive (the estimator/disturbances evaluate IGRF/ephemeris/MSIS each step).
     config_path = Path(__file__).resolve().parent / "03_nadir_pointing.yaml"
     config = load_config(config_path)
 
-    sim = Simulation.from_config(config)
+    _sim_config = dict(config)
+    if controller_select.value == "Adaptive LQR":
+        _tle = [
+            "1 25544U 98067A   24001.50000000  .00000000  00000-0  00000-0 2    07",
+            "2 25544 097.6000 010.0000 0001000 000.0000 000.0000 15.25000000000009",
+        ]
+        _sim_config["controller"] = {
+            "class_path": "rigid_body.controller.AdaptiveLQRController",
+            "dt": 0.2,
+            "Q": np.diag([5, 5, 5, 2, 2, 2, 700, 700, 700]).tolist(),
+            "R": (1e7 * np.diag([70, 70, 70, 7, 7, 7])).tolist(),
+            "inertia": config["dynamics"]["inertia"],
+            "tle": _tle,
+            "epoch": "2024-01-01T12:00:00",
+            "reaction_wheels": {"axes": [[-1, 0, 0], [0, 1, 0], [0, 0, 1]], "torque_constant": [0.01, 0.01, 0.01]},
+            "magnetorquers": {"axes": [[-1, 0, 0], [0, 1, 0], [0, 0, 1]], "dipole_constant": [0.3, 0.3, 0.2]},
+        }
+
+    sim = Simulation.from_config(_sim_config)
     sim.t_end = 200.0
     sim.run()
     return config, sim
@@ -183,7 +212,7 @@ def _(mo):
 @app.cell
 def _(Quaternion, d, np, plt, sim):
     elog = sim.logger.component_logs["estimator"]
-    bias = np.array([np.asarray(b) for b in elog["gyro_bias"]])
+    bias = np.array([np.asarray(row["gyro_bias"]) for row in elog])
 
     pos_err = np.linalg.norm(d["x_hat"][:, 0:3] - d["x"][:, 0:3], axis=1)
     att_err = np.array(
@@ -233,31 +262,43 @@ def _(mo):
 
 
 @app.cell
-def _(Simulation, config, d, extract, np, plt):
-    tle = (
-        "1 25544U 98067A   24001.50000000  .00000000  00000-0  00000-0 2    07",
-        "2 25544 097.6000 010.0000 0001000 000.0000 000.0000 15.25000000000009",
-    )
-    lqr_config = dict(config)
-    lqr_config["controller"] = {
-        "class_path": "rigid_body.controller.AdaptiveLQRController",
-        "dt": 0.2,
-        "Q": np.diag([10.0, 10.0, 10.0, 1.0, 1.0, 1.0]).tolist(),
-        "R": np.eye(6).tolist(),
-        "inertia": config["dynamics"]["inertia"],
-        "tle": list(tle),
-        "epoch": "2024-01-01T12:00:00",
-        "reaction_wheels": {"axes": [[-1, 0, 0], [0, 1, 0], [0, 0, 1]], "torque_constant": [0.01, 0.01, 0.01]},
-        "magnetorquers": {"axes": [[-1, 0, 0], [0, 1, 0], [0, 0, 1]], "dipole_constant": [0.3, 0.3, 0.2]},
-    }
-    lqr_sim = Simulation.from_config(lqr_config)
-    lqr_sim.t_end = 200.0
-    lqr_sim.run()
-    d_lqr = extract(lqr_sim)
+def _(Simulation, config, controller_select, d, extract, np, plt):
+    if controller_select.value == "Adaptive LQR":
+        _qf_sim = Simulation.from_config(config)
+        _qf_sim.t_end = 200.0
+        _qf_sim.run()
+        _d_qf = extract(_qf_sim)
+
+        _d_lqr_plot = d
+        _d_qf_plot = _d_qf
+    else:
+        _tle = [
+            "1 25544U 98067A   24001.50000000  .00000000  00000-0  00000-0 2    07",
+            "2 25544 097.6000 010.0000 0001000 000.0000 000.0000 15.25000000000009",
+        ]
+        _lqr_config = dict(config)
+        _lqr_config["controller"] = {
+            "class_path": "rigid_body.controller.AdaptiveLQRController",
+            "dt": 0.2,
+            "Q": np.diag([10.0, 10.0, 10.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]).tolist(),
+            "R": np.eye(6).tolist(),
+            "inertia": config["dynamics"]["inertia"],
+            "tle": _tle,
+            "epoch": "2024-01-01T12:00:00",
+            "reaction_wheels": {"axes": [[-1, 0, 0], [0, 1, 0], [0, 0, 1]], "torque_constant": [0.01, 0.01, 0.01]},
+            "magnetorquers": {"axes": [[-1, 0, 0], [0, 1, 0], [0, 0, 1]], "dipole_constant": [0.3, 0.3, 0.2]},
+        }
+        _lqr_sim = Simulation.from_config(_lqr_config)
+        _lqr_sim.t_end = 200.0
+        _lqr_sim.run()
+        _d_lqr = extract(_lqr_sim)
+
+        _d_lqr_plot = _d_lqr
+        _d_qf_plot = d
 
     fig4, ax4 = plt.subplots(figsize=(12, 4))
-    ax4.plot(d_lqr["t"], np.linalg.norm(d["euler_err"], axis=1), label="quaternion feedback")
-    ax4.plot(d_lqr["t"], np.linalg.norm(d_lqr["euler_err"], axis=1), label="LQR")
+    ax4.plot(_d_qf_plot["t"], np.linalg.norm(_d_qf_plot["euler_err"], axis=1), label="quaternion feedback")
+    ax4.plot(_d_lqr_plot["t"], np.linalg.norm(_d_lqr_plot["euler_err"], axis=1), label="LQR")
     ax4.set_xlabel("time (s)")
     ax4.set_ylabel("pointing error norm (deg)")
     ax4.set_title("Controller comparison")

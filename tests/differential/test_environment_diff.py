@@ -34,21 +34,13 @@ def test_moon_position_matches() -> None:
     np.testing.assert_allclose(moon_position(_EPOCH), old.moon_position(_EPOCH), rtol=1e-9, atol=1e-3)
 
 
-def test_magnetic_field_library_swap_changes_value() -> None:
-    """DOCUMENTED DIFFERENCE: the port swapped the IGRF library (old ``pyIGRF`` -> new ``ppigrf``).
-
-    The field direction is preserved (nearly parallel), but the magnitude differs by a few percent
-    because the two libraries use different IGRF coefficient sets. This is an intended dependency
-    change, not a port bug, so the magnetometer truth model is not bit-for-bit identical.
-    """
+def test_magnetic_field_vector_matches() -> None:
+    """The magnetic field vector ECI value agrees at a fixed epoch (both wrap pyIGRF)."""
     old = pytest.importorskip("simulation.environment")
     new_b = magnetic_field_vector(_EPOCH, _LAT, _LON, _ALT)
     old_b = old.magnetic_field_vector(_EPOCH, _LAT, _LON, _ALT)
 
-    assert not np.allclose(new_b, old_b, rtol=1e-3, atol=0.0), "expected the IGRF library swap to change the value"
-    cos = float(np.dot(new_b, old_b) / (np.linalg.norm(new_b) * np.linalg.norm(old_b)))
-    assert cos > 0.999, "field directions should stay nearly parallel across the library swap"
-    np.testing.assert_allclose(np.linalg.norm(new_b), np.linalg.norm(old_b), rtol=0.1)
+    np.testing.assert_allclose(new_b, old_b, rtol=1e-9, atol=1e-12)
 
 
 def test_solar_radiation_pressure_constant_matches(rng: np.random.Generator) -> None:

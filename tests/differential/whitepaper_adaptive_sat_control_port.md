@@ -43,7 +43,7 @@ These are things the old repo lacked or did poorly — the port fixes them rathe
 + **Accelerometer** was only "implied/planned", never implemented. → Out of scope unless asked.
 + **Heavy deps** `control` + `casadi` (for MPC) and manual IGRF coeff download
   (`setup_igrf.py`/`igrf14coeffs.txt`, `pyIGRF`). → Use `scipy` for Riccati and the already-present
-  `ppigrf`; add no MPC deps.
+  `pyIGRF`; add no MPC deps.
 + **Scattered frame conversions** (ORC/SBC/geodetic mixed into kinematics). → Consolidated into one
   `frames.py`.
 + **CSV-only logging, no batch sweeps.** → Already solved by `Logger` + `ExperimentManager`.

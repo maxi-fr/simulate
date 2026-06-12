@@ -1107,19 +1107,6 @@ wheels = [
 ]
 
 [[package]]
-name = "ppigrf"
-version = "2.1.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "numpy" },
-    { name = "pandas" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/6b/b3/89c4f2434e93f60b2efad4d9849e6aae8d93ba0ddcadc7c22f36f8983fc3/ppigrf-2.1.0.tar.gz", hash = "sha256:4e0f7eccaae7c793fce92ab1f953fae15ec02e24fd0af6c2a3f77db08fc0fb3e", size = 32267, upload-time = "2025-03-28T22:04:23.835Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c5/c8/7c561c46a39ac4a21c0cf2c104bf81f76ef2183fa69c0c2bb7c583d52f69/ppigrf-2.1.0-py3-none-any.whl", hash = "sha256:50ff8968380a90c50cc6085122ac4673b0890939e37efa375f24d5bee7b1e1d6", size = 28457, upload-time = "2025-03-28T22:04:22.311Z" },
-]
-
-[[package]]
 name = "pre-commit"
 version = "4.6.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1679,7 +1666,7 @@ diff-test = [
 rigid-body = [
     { name = "astropy" },
     { name = "casadi" },
-    { name = "ppigrf" },
+    { name = "pyigrf" },
     { name = "pymap3d" },
     { name = "pymsis" },
     { name = "scipy" },
@@ -1720,7 +1707,7 @@ diff-test = [
 rigid-body = [
     { name = "astropy", specifier = ">=7.2.0" },
     { name = "casadi", specifier = ">=3.7.2" },
-    { name = "ppigrf", specifier = ">=2.1.0" },
+    { name = "pyigrf", specifier = ">=0.3.3" },
     { name = "pymap3d", specifier = ">=3.2.0" },
     { name = "pymsis", specifier = ">=0.12.0" },
     { name = "scipy", specifier = ">=1.17.1" },
