@@ -141,7 +141,8 @@ class RandomWalkBiasSensor(Sensor[RandomWalkBiasSensorLog]):
             Detailed component logs containing the generated noise and current bias.
         """
         y_arr = np.atleast_1d(y)
-        if self.bias is None:
+        if self.bias is None or self.bias.shape != y_arr.shape:
+            # First (or warm-up) sample: initialise the bias to the measurement width.
             self.bias = np.zeros_like(y_arr, dtype=float)
         else:
             bias_step = self.rng.normal(0, self.std_dev_bias, size=y_arr.shape)

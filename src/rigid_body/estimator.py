@@ -30,8 +30,8 @@ from simulate.estimator import Estimator
 from simulate.integrator import rk4
 
 from .environment import atmosphere_density_msis, is_in_shadow, magnetic_field_vector, sun_position
-from .frames import eci_to_geodedic
-from .orbit_dynamics import MU
+from .frames import eci_attitude_from_orc, eci_to_geodedic
+from .orbit_dynamics import MU, SGP4
 from .quaternion import Quaternion
 
 _EPS = 1e-12
@@ -283,10 +283,30 @@ class FullStateEstimator(Estimator[FullStateEstimatorLog]):
             self.rw_axes = axes / np.linalg.norm(axes, axis=1, keepdims=True)
             self.rw_inertia = np.asarray(rw_inertia, dtype=float)
         self._t_prev: float | None = None
+        self._last_channels: dict[str, np.ndarray] = {}
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> Self:
-        """Instantiate the component from a raw configuration dictionary."""
+        """Instantiate the component from a raw configuration dictionary.
+
+        The initial orbit/attitude guess is resolved from the shared ``initial_state`` block (a TLE
+        plus an ORC-relative attitude, the same anchor the dynamics use) so the estimate starts
+        consistent with the truth; the ``orbit``/``attitude`` blocks then carry only the filter
+        covariances. The epoch used for environment exposure also comes from ``initial_state``.
+        """
+        init = config["initial_state"]
+        epoch = datetime.datetime.fromisoformat(init["epoch"])
+        r0, v0 = SGP4.from_tle(*init["tle"]).propagate(epoch)
+        att = init["attitude_orc"]
+        q_bi, _ = eci_attitude_from_orc(
+            r0,
+            v0,
+            roll=att["roll"],
+            pitch=att["pitch"],
+            yaw=att["yaw"],
+            omega_bo=init["angular_velocity_orc"],
+        )
+
         layout = MeasurementLayout(channels=tuple((name, int(dim)) for name, dim in config["channels"]))
         gps_dim = dict(layout.channels).get("gps", 3)
 
@@ -297,8 +317,8 @@ class FullStateEstimator(Estimator[FullStateEstimatorLog]):
             H = np.zeros((3, _ORBIT_STATE))
             H[:, :3] = np.eye(3)
         orbit = OrbitKalmanFilter(
-            r0=np.asarray(orbit_cfg["r0"], dtype=float),
-            v0=np.asarray(orbit_cfg["v0"], dtype=float),
+            r0=np.asarray(r0, dtype=float),
+            v0=np.asarray(v0, dtype=float),
             P0=_as_matrix(orbit_cfg["P0"], _ORBIT_STATE),
             Q=_as_matrix(orbit_cfg["Q"], _ORBIT_STATE),
             H=H,
@@ -307,7 +327,7 @@ class FullStateEstimator(Estimator[FullStateEstimatorLog]):
 
         att_cfg = config["attitude"]
         attitude = AttitudeMEKF(
-            q0=np.asarray(att_cfg["q0"], dtype=float),
+            q0=q_bi.to_array(),
             P0=_as_matrix(att_cfg["P0"], _ERROR_STATE),
             Qc=_as_matrix(att_cfg["Qc"], _ERROR_STATE),
             R_sun=_as_matrix(att_cfg["R_sun"], 3),
@@ -326,7 +346,7 @@ class FullStateEstimator(Estimator[FullStateEstimatorLog]):
 
         return cls(
             dt=float(config["dt"]),
-            epoch=datetime.datetime.fromisoformat(config["epoch"]),
+            epoch=epoch,
             layout=layout,
             orbit=orbit,
             attitude=attitude,
@@ -342,30 +362,45 @@ class FullStateEstimator(Estimator[FullStateEstimatorLog]):
         u: float | np.ndarray,  # noqa: ARG002
     ) -> tuple[float | np.ndarray, FullStateEstimatorLog]:
         """Run both sub-filters on the split measurements and assemble ``[r, v, q, omega]``."""
-        channels = self.layout.split(np.atleast_1d(y_mea))
+        # The simulation seeds the first measurement from scalar zeros before any Output has produced
+        # real truth, so y_mea is undersized on the warm-up step; skip the updates (predict only) and
+        # emit the current best estimate until a full-width measurement arrives.
+        y = np.atleast_1d(y_mea)
+        channels = self.layout.split(y) if y.size == self.layout.size else {}
         dt = 0.0 if self._t_prev is None else t - self._t_prev
         self._t_prev = t
         dt_utc = self.epoch + datetime.timedelta(seconds=t)
 
+        # Slow sensors are zero-order-hold-held by the simulation between samples, so a held value
+        # is byte-identical to the one already fused; only fuse a channel when it is a fresh sample
+        # (re-fusing a stale measurement would spuriously pin the estimate and shrink the covariance).
+        def fresh(name: str) -> bool:
+            if name not in channels:
+                return False
+            prev = self._last_channels.get(name)
+            return prev is None or not np.array_equal(prev, channels[name])
+
         # Orbit Kalman filter.
         self.orbit.predict(dt)
-        if "gps" in channels:
+        if fresh("gps"):
             self.orbit.update(channels["gps"])
         r_est = self.orbit.x[:3]
         v_est = self.orbit.x[3:]
 
-        # Attitude MEKF.
+        # Attitude MEKF (the gyro drives the prediction at the base rate, so it is always fresh).
         omega_meas = channels.get("gyro", np.zeros(3))
         self.attitude.predict(omega_meas, dt)
-        if "magnetometer" in channels:
+        if fresh("magnetometer"):
             dt_naive = dt_utc.replace(tzinfo=None)
             lat, lon, alt = eci_to_geodedic(r_est)
             b_ref = magnetic_field_vector(dt_naive, float(lat), float(lon), float(alt))
             self.attitude.update_vector(b_ref, channels["magnetometer"], self.attitude.R_mag)
-        if "sun" in channels:
+        if fresh("sun"):
             self.attitude.update_vector(sun_position(dt_utc) - r_est, channels["sun"], self.attitude.R_sun)
-        if "star_tracker" in channels:
+        if fresh("star_tracker"):
             self.attitude.update_attitude(channels["star_tracker"])
+
+        self._last_channels = {name: np.asarray(val).copy() for name, val in channels.items()}
 
         q_est = Quaternion.from_array(self.attitude.q)
         omega_est = omega_meas - self.attitude.b

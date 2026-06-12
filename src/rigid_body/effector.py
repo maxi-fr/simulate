@@ -7,7 +7,7 @@ the derivative of its own internal state. The single interface covers three case
 * **Commanded actuators** (``n_inputs > 0``) driven by the control input ``u`` — e.g.
   :class:`Wrench`, :class:`ReactionWheel`.
 * **Environmental effects** (``n_inputs == 0``) that are autonomous functions of time and
-  the body state — e.g. :class:`GravityGradient`.
+  the body state — e.g. :class:`EarthGravity`.
 
 The distinction is whether the effector consumes a command, not whether it is stateful
 (``n_states`` may be zero or positive in either case). Composing them into one coupled ODE
@@ -31,6 +31,7 @@ from numpy.typing import ArrayLike
 import rigid_body.disturbances as dis
 from rigid_body.environment import atmosphere_density_msis, is_in_shadow, moon_position, sun_position
 from rigid_body.frames import eci_to_geodedic
+from rigid_body.orbit_dynamics import MU
 from rigid_body.quaternion import Quaternion
 from rigid_body.surface import Surface
 
@@ -137,25 +138,30 @@ class Wrench(Effector):
         return cls()
 
 
-class GravityGradient(Effector):
-    """Environmental gravity-gradient torque about a central body.
+class EarthGravity(Effector):
+    """Environmental central two-body gravity force and gravitiy gradient torque.
 
-    ``tau_gg = (3 * mu / R**3) * (o_body x (J @ o_body))`` where ``R = |r|``, the nadir
-    direction in the inertial frame is ``-r / R``, and ``o_body`` is that direction rotated
-    into the body frame. Command-free (``n_inputs = 0``); the inertia ``J`` is supplied by
-    the host body via :meth:`bind`.
+    ``F_I = -mu * m * r_I / |r_I|**3`` (inertial frame).
+    ``tau_B = (3 * mu / |r_I|**3) * (o_B x (J_B @ o_B))`` where ``R = |r|``, the nadir
+    direction in the inertial frame is ``-r / |r|``, and ``o_body`` is that direction rotated
+    into the body frame.
+
+    Command-free (``n_inputs = 0``); the host mass ``m`` and inertia ``J`` are supplied via :meth:`bind`. This is the
+    central-body point-mass force that makes the integrated translational state follow a Keplerian
+    orbit.
     """
 
     n_inputs = 0
     n_states = 0
 
-    def __init__(self, mu: float) -> None:
-        """Initialize with the central body's gravitational parameter ``mu``."""
+    def __init__(self, mu: float = MU) -> None:
+        """Initialize with the central body's gravitational parameter ``mu`` [m**3/s**2]."""
         self.mu = float(mu)
-        self.inertia: np.ndarray | None = None
+        self.mass: float | None = None
 
-    def bind(self, mass: float, inertia: np.ndarray) -> None:  # noqa: ARG002
-        """Capture the host body's inertia tensor."""
+    def bind(self, mass: float, inertia: np.ndarray) -> None:
+        """Capture the host body's mass."""
+        self.mass = float(mass)
         self.inertia = inertia
 
     def calc_contributions(
@@ -165,23 +171,24 @@ class GravityGradient(Effector):
         x_eff: np.ndarray,  # noqa: ARG002
         cmd: np.ndarray,  # noqa: ARG002
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Compute the gravity-gradient torque from position and attitude."""
-        if self.inertia is None:
-            msg = "GravityGradient inertia is unbound; compose it into a RigidBodyDynamics."
+        """Compute the inertial-frame central-gravity force from position."""
+        if self.mass is None:
+            msg = "EarthGravity mass or inertia is unbound; compose it into a RigidBodyDynamics."
             raise RuntimeError(msg)
+        r_norm = np.linalg.norm(state.r_eci)
+        r_norm_3 = r_norm**3
 
-        torque = dis.gravity_gradient(state.r_eci, state.q_bi, self.inertia)
+        force = -self.mu * self.mass * state.r_eci / r_norm_3
 
-        return (
-            np.zeros(3, dtype=float),
-            torque,
-            np.zeros(3, dtype=float),
-        )
+        o_body = state.q_bi.apply(-state.r_eci / r_norm)
+        torque = (3.0 * self.mu / r_norm_3) * np.cross(o_body, self.inertia @ o_body)
+
+        return force, torque, np.zeros(3, dtype=float)
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> Self:
         """Instantiate the component from a raw configuration dictionary."""
-        return cls(mu=float(config["mu"]))
+        return cls(mu=float(config.get("mu", MU)))
 
 
 def _to_array(val: ArrayLike, n: int, name: str) -> np.ndarray:

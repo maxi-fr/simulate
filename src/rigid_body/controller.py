@@ -53,6 +53,37 @@ def _gain_matrix(value: ArrayLike) -> np.ndarray:
     return arr.reshape(3, 3)
 
 
+def _attitude_error(ref: np.ndarray, x_hat: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Attitude and rate error of the body relative to the nadir (orbital/ORC) frame.
+
+    The reference ``[q_bo(4), omega_bo(3)]`` is expressed **relative to the orbital frame**: ``q_bo``
+    is the desired ORC->body rotation (identity for nadir pointing) and ``omega_bo`` the desired rate
+    *relative to* ORC (zero for nadir). The orbital frame is reconstructed from the estimated orbit
+    ``r, v`` carried in ``x_hat`` (the controller never sees the inertial reference directly):
+
+    * the body's actual ORC->body rotation is ``q_bo_act = q_bi (x) q_oi^-1`` with
+      ``q_oi = orc_from_orbit(r, v)`` (inertial->ORC), so the body-frame attitude error is
+      ``q_err = q_bo^-1 (x) q_bo_act`` (identity when the body is at the reference attitude),
+    * the orbital feedforward body rate is ``omega_des = q_bo_act.apply(orbital_rate(r, v)) + omega_bo``
+      (the ORC frame's rate rotated into the body frame, plus the reference's ORC-relative rate).
+
+    Returns ``(q_err_vec(3), delta_omega(3))`` where ``q_err`` is the small-angle attitude error and
+    ``delta_omega = omega - omega_des`` the body-rate error, both in the body frame.
+    """
+    r = x_hat[0:3]
+    v = x_hat[3:6]
+    q_bi = Quaternion.from_array(x_hat[_Q])
+    omega = x_hat[_W]
+
+    q_oi = orc_from_orbit(r, v)
+    q_bo_act = q_bi * q_oi.conjugate()
+    q_bo_des = Quaternion.from_array(ref[0:4])
+    q_err = q_bo_act.error_to(q_bo_des).vec
+
+    omega_des = q_bo_act.apply(orbital_rate(r, v)) + ref[4:7]
+    return q_err, omega - omega_des
+
+
 def allocation_matrix(axes: ArrayLike, constants: ArrayLike) -> np.ndarray:
     """Actuator allocation matrix ``Alpha`` with ``Alpha[:, k] = constant_k * axis_k`` (shape (3, N)).
 
@@ -180,19 +211,13 @@ class QuaternionFeedbackController(Controller[QuaternionFeedbackControllerLog]):
         x_hat: float | np.ndarray,
     ) -> tuple[float | np.ndarray, QuaternionFeedbackControllerLog]:
         """Compute the quaternion-feedback control current commands."""
-        x = np.atleast_1d(x_hat)
-        r = np.atleast_1d(ref)
+        x = np.asarray(x_hat)
 
-        q = Quaternion.from_array(x[_Q])
-        omega = x[_W]
         b_body = x[_B]
         h_wheel = x[_H]
 
-        q_des = Quaternion.from_array(r[0:4])
-        omega_des = r[4:7]
-
-        q_err = q.error_to(q_des).vec
-        tau_rw = -self.kp @ q_err - self.kd @ (omega - omega_des)
+        q_err, delta_omega = _attitude_error(np.asarray(ref), x)
+        tau_rw = -self.kp @ q_err - self.kd @ delta_omega
         tau_mtq = -self.k_m * h_wheel
 
         u = to_current_commands(tau_rw, tau_mtq, b_body, self.alpha_rw, self.alpha_mtq)
@@ -353,9 +378,9 @@ class LQRController(Controller[LQRControllerLog]):
         )
 
     def _error(self, ref: np.ndarray, x: np.ndarray) -> np.ndarray:
-        """Reduced error state ``[delta_theta, delta_omega]`` from ``ref`` and ``x_hat``."""
-        q_err = Quaternion.from_array(x[_Q]).error_to(Quaternion.from_array(ref[0:4])).vec
-        return np.concatenate([q_err, x[_W] - ref[4:7]])
+        """Reduced error state ``[delta_theta, delta_omega]`` (relative to the nadir/ORC frame)."""
+        q_err, delta_omega = _attitude_error(ref, x)
+        return np.concatenate([q_err, delta_omega])  # TODO: LQR feedback also on wheel momentum
 
     def _allocate(self, control: np.ndarray) -> np.ndarray:
         """Allocate the model input ``[m, tau_rw]`` to ``[i_mtq, i_rw]`` current commands."""

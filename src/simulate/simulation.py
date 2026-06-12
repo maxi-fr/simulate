@@ -140,7 +140,19 @@ class Simulation:
         step_count: int = 0
 
         u_k: float | np.ndarray = 0.0
-        y_list: list[float | np.ndarray] = [0.0] * len(self.outputs)
+
+        # Seed the measurement truth from the initial state so every sensor sees its true measurement
+        # width from the first step (a scalar-zero seed makes multi-element, multi-rate channels vary
+        # in length and breaks fixed-width logging). ``update`` is called directly so the outputs'
+        # zero-order-hold schedule is untouched; outputs needing a sized control input (which is not
+        # yet known) fall back to a scalar seed.
+        def _seed_truth(out: Output) -> float | np.ndarray:
+            try:
+                return out.update(0.0, self.dynamics.x, u_k)[0]
+            except ValueError:
+                return 0.0
+
+        y_list: list[float | np.ndarray] = [_seed_truth(out) for out in self.outputs]
 
         total_steps = round(self.t_end / self.dt) + 1
         buffer_size = chunk_size if (chunk_size is not None and output_dir is not None) else total_steps
@@ -164,6 +176,7 @@ class Simulation:
                 # Outputs run at the base dt: always-fresh truth for the next step's sensors.
                 output_results = [out.evaluate(t, x_k, u_k) for out in self.outputs]
                 y_list = [res for res, _ in output_results]
+                # TODO: i think "output" should be the first component thats run and x_k is initialized with some value x_0
 
                 if len(self.outputs) == 1:
                     y_val = y_list[0]

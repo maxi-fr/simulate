@@ -1,7 +1,11 @@
+import datetime
+
 import numpy as np
 
-from rigid_body.effector import GravityGradient, ReactionWheelArray, Wrench
-from rigid_body.quaternion import QuaternionRK4
+from rigid_body.effector import EarthGravity, ReactionWheelArray, Wrench
+from rigid_body.frames import eci_attitude_from_orc, orc_from_orbit
+from rigid_body.orbit_dynamics import SGP4
+from rigid_body.quaternion import Quaternion, QuaternionRK4
 from rigid_body.rigid_body import RigidBodyDynamics
 
 
@@ -116,6 +120,41 @@ def test_from_config_round_trip() -> None:
     assert dynamics.x.shape == (19,)
 
 
+def test_from_config_initial_state_from_tle_and_orc_attitude() -> None:
+    """An ``initial_state`` block seeds r/v from SGP4 and q/omega from the ORC-relative attitude."""
+    tle = (
+        "1 25544U 98067A   24001.50000000  .00000000  00000-0  00000-0 2    07",
+        "2 25544 097.6000 010.0000 0001000 000.0000 000.0000 15.25000000000009",
+    )
+    epoch = "2024-01-01T12:00:00"
+    config = {
+        "dt": 0.2,
+        "mass": 2.0,
+        "inertia": [1.0, 1.0, 1.0],
+        "initial_state": {
+            "epoch": epoch,
+            "tle": list(tle),
+            "attitude_orc": {"roll": 0.0, "pitch": 0.0, "yaw": -15.0},
+            "angular_velocity_orc": [0.0, 0.0, 0.0],
+        },
+    }
+
+    dynamics = RigidBodyDynamics.from_config(config)
+
+    r0, v0 = SGP4.from_tle(*tle).propagate(datetime.datetime.fromisoformat(epoch))
+    q_bi, omega0 = eci_attitude_from_orc(r0, v0, roll=0.0, pitch=0.0, yaw=-15.0, omega_bo=np.zeros(3))
+    np.testing.assert_allclose(dynamics.x[0:3], r0)
+    np.testing.assert_allclose(dynamics.x[3:6], v0)
+    np.testing.assert_allclose(dynamics.x[6:10], q_bi.to_array())
+    np.testing.assert_allclose(np.linalg.norm(dynamics.x[6:10]), 1.0)
+    np.testing.assert_allclose(dynamics.x[10:13], omega0)
+
+    # The seeded attitude is 15 deg off nadir (a pure yaw about the ORC frame).
+    q_bo = Quaternion.from_array(dynamics.x[6:10]) * orc_from_orbit(r0, v0).conjugate()
+    nadir_angle = 2.0 * np.arctan2(np.linalg.norm(q_bo.vec), abs(q_bo.scalar))
+    np.testing.assert_allclose(np.degrees(nadir_angle), 15.0, atol=1e-6)
+
+
 def test_gravity_gradient_torque_acts_through_ode() -> None:
     """A gravity-gradient-only body released off-equilibrium develops angular velocity."""
     dt = 0.5
@@ -124,7 +163,7 @@ def test_gravity_gradient_torque_acts_through_ode() -> None:
         dt=dt,
         mass=500.0,
         inertia=inertia,
-        effectors=[GravityGradient(mu=3.986e14)],
+        effectors=[EarthGravity(mu=3.986e14)],
     )
     # Orbital radius along inertial x, tilted attitude so the torque is nonzero.
     body.x[0:3] = np.array([7.0e6, 0.0, 0.0])
