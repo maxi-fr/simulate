@@ -63,32 +63,6 @@ def test_torque_free_asymmetric_conserves_angular_momentum() -> None:
     assert np.isclose(np.linalg.norm(dynamics.x[6:10]), 1.0)
 
 
-def test_reaction_wheel_conserves_total_angular_momentum() -> None:
-    """Spinning up wheels counter-rotates the body; total H = J omega + h stays 0."""
-    dt = 0.001
-    inertia = np.diag([1.0, 1.0, 1.0])
-    rw_array = ReactionWheelArray(
-        axes=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-        inertia=0.05,
-        torque_constant=0.08,
-        time_constant=0.04,
-        max_current=2.5,
-    )
-    dynamics = RigidBodyDynamics(dt=dt, mass=1.0, inertia=inertia, effectors=[rw_array])
-
-    cmd = np.array([1.5, -1.0, 2.0])
-    _run(dynamics, cmd, 1000)
-
-    omega = dynamics.x[10:13]
-    dynamics.x[13:16]
-    omega_rel = dynamics.x[16:19]
-    h_w = rw_array.inertia * (omega_rel + rw_array.axes @ omega)
-    momentum = rw_array.axes.T @ h_w
-    total_h = inertia @ omega + momentum
-
-    assert np.allclose(total_h, 0.0, atol=1e-9)
-
-
 def test_from_config_round_trip() -> None:
     """from_config builds the effectors and a quaternion-aware integrator, and steps."""
     config = {

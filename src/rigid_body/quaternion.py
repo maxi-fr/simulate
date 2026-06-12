@@ -17,6 +17,7 @@ Mat3x3 = Annotated[FloatArray, Literal[3]]
 Mat4x3 = Annotated[FloatArray, Literal[4, 3]]
 
 
+# TODO: remove scalar_first option, its not used. Or fix bug: xi depends on if its scalar_first or not
 @dataclass(frozen=True)
 class Quaternion:
     """A unit quaternion representing 3D rotations, following the JPL convention."""
