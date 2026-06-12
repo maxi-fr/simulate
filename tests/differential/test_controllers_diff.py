@@ -16,10 +16,10 @@ from typing import Any
 import numpy as np
 import pytest
 import scipy.linalg
-from diffhelpers import rand_unit_vec
+from diffhelpers import rand_quat_array, rand_unit_vec
 
 from rigid_body.controller import _dlqr_warm_start, allocation_matrix, to_current_commands
-from rigid_body.linearization import reduced_model
+from rigid_body.controller_models import reduced_model
 
 
 def _actuator(k_t: float, axis: np.ndarray) -> Any:
@@ -75,8 +75,9 @@ def test_warm_start_agree_at_dare_fixed_point() -> None:
     inertia = np.diag([8.0, 9.0, 10.0])
     omega_c = np.array([0.0, -1.0e-3, 0.0])
     b_field = np.array([1.5e-5, -2.0e-5, 3.0e-5])
-    a_mat, b_mat = reduced_model(b_field, 0.5, omega_c, inertia)
-    q = np.eye(6)
+    q_ref = np.array([0.0, 0.0, 0.0, 1.0])
+    a_mat, b_mat = reduced_model(0.5, inertia, q_ref, omega_c, b_field)
+    q = np.eye(9)
     r = np.eye(6) * 1e2
 
     p_star = scipy.linalg.solve_discrete_are(a_mat, b_mat, q, r)
@@ -105,11 +106,100 @@ def test_warm_start_diverges_away_from_fixed_point() -> None:
     inertia = np.diag([8.0, 9.0, 10.0])
     omega_c = np.array([0.0, -1.0e-3, 0.0])
     b_field = np.array([1.5e-5, -2.0e-5, 3.0e-5])
-    a_mat, b_mat = reduced_model(b_field, 0.5, omega_c, inertia)
-    q = np.eye(6)
+    q_ref = np.array([0.0, 0.0, 0.0, 1.0])
+    a_mat, b_mat = reduced_model(0.5, inertia, q_ref, omega_c, b_field)
+    q = np.eye(9)
     r = np.eye(6) * 1e2
 
-    p0 = np.eye(6)  # far from the DARE solution
+    p0 = np.eye(9)  # far from the DARE solution
     old_k, _ = old_mod.update_lqr_warm_start(a_mat, b_mat, q, r, p0)
     new_k, _ = _dlqr_warm_start(a_mat, b_mat, q, r, p0)
     assert not np.allclose(old_k, new_k, rtol=1e-3, atol=1e-3)
+
+
+def test_adaptive_lqr_controller_behaves_same(rng: np.random.Generator) -> None:
+    """The new AdaptiveLQRController matches the old AdaptiveLQR at the DARE solve step."""
+    old_mod = pytest.importorskip("flight_software.controllers")
+    import simulation.actuators as act  # type: ignore # noqa: PGH003
+
+    rw_axes = np.eye(3)
+    mtq_axes = np.eye(3)
+    rw_kt = np.array([0.02, 0.02, 0.02])
+    mtq_kt = np.array([1.5, 1.5, 1.5])
+
+    mtqs = [
+        act.Magnetorquer(max_moment=1.5, axis=np.array([1.0, 0.0, 0.0]), max_current=1.0),
+        act.Magnetorquer(max_moment=1.5, axis=np.array([0.0, 1.0, 0.0]), max_current=1.0),
+        act.Magnetorquer(max_moment=1.5, axis=np.array([0.0, 0.0, 1.0]), max_current=1.0),
+    ]
+    rws = [
+        act.ReactionWheel(
+            max_torque=0.02, max_rpm=6000, inertia=2.82e-6, axis=np.array([1.0, 0.0, 0.0]), max_current=1.0
+        ),
+        act.ReactionWheel(
+            max_torque=0.02, max_rpm=6000, inertia=2.82e-6, axis=np.array([0.0, 1.0, 0.0]), max_current=1.0
+        ),
+        act.ReactionWheel(
+            max_torque=0.02, max_rpm=6000, inertia=2.82e-6, axis=np.array([0.0, 0.0, 1.0]), max_current=1.0
+        ),
+    ]
+
+    inertia = np.diag([8.0, 9.0, 10.0])
+
+    class MockSpacecraft:
+        def __init__(self, J_B: np.ndarray, actuators: list[Any]) -> None:
+            self.J_B = J_B
+            self.actuators = actuators
+
+    sat = MockSpacecraft(J_B=inertia + np.diag([2.82e-6, 2.82e-6, 2.82e-6]), actuators=mtqs + rws)
+
+    dt = 0.2
+    Q = np.diag([5.0, 5.0, 5.0, 4.0, 4.0, 4.0, 700.0, 700.0, 700.0])
+    R = np.eye(6) * 1e2
+
+    old_ctrl = old_mod.AdaptiveLQR(Q=Q, R=R, dt=dt)
+    old_ctrl.init_satellite_model(sat)
+
+    from rigid_body.controller import AdaptiveLQRController
+
+    alpha_rw = allocation_matrix(rw_axes, rw_kt)
+    alpha_mtq = allocation_matrix(mtq_axes, mtq_kt)
+
+    r = np.array([0.0, 0.0, -7.0e6])
+    v = np.array([7.5e3, 0.0, 0.0])
+    omega_c = np.array([0.0, -7.5e3 / 7.0e6, 0.0])
+
+    import datetime
+
+    q_bi = rand_quat_array(rng)
+    omega = rng.uniform(-0.1, 0.1, size=3)
+    h_w = rng.uniform(-0.5, 0.5, size=3)
+    B_eci = rng.uniform(-3e-5, 3e-5, size=3)
+
+    new_ctrl = AdaptiveLQRController(
+        dt=dt, Q=Q, R=R, inertia=inertia, omega_c=omega_c, alpha_rw=alpha_rw, alpha_mtq=alpha_mtq
+    )
+
+    att_state = np.concatenate([q_bi, omega, h_w])
+    orbit_state = np.concatenate([r, v])
+    u_old = old_ctrl.calc_input_cmds(
+        datetime.datetime(2024, 1, 1, 12, 0, 0, tzinfo=datetime.UTC), att_state, orbit_state, B_eci
+    )
+
+    from rigid_body.quaternion import Quaternion
+
+    q_bi_obj = Quaternion.from_array(q_bi)
+    b_body = q_bi_obj.apply(B_eci)
+    x_hat = np.concatenate([r, v, q_bi, omega, b_body, h_w])
+
+    ref = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+    u_new, _ = new_ctrl.update(0.0, ref, x_hat)
+
+    assert new_ctrl.P is not None
+    assert old_ctrl.P is not None
+    assert new_ctrl.K is not None
+    assert old_ctrl.K is not None
+
+    np.testing.assert_allclose(new_ctrl.P, old_ctrl.P, rtol=3e-6, atol=1200.0)
+    np.testing.assert_allclose(new_ctrl.K, old_ctrl.K, rtol=5e-6, atol=1e-4)
+    np.testing.assert_allclose(u_new, u_old, rtol=3e-5, atol=1e-2)

@@ -28,9 +28,8 @@ from numpy.typing import ArrayLike
 
 from simulate.controller import Controller
 
-from .environment import magnetic_field_vector
-from .frames import eci_to_geodedic, orbital_rate, orc_from_orbit
-from .linearization import reduced_model
+from .controller_models import reduced_model
+from .frames import orbital_rate, orc_from_orbit
 from .orbit_dynamics import MU, SGP4
 from .quaternion import Quaternion
 
@@ -229,11 +228,11 @@ def _ensure_utc(epoch: datetime.datetime) -> datetime.datetime:
     return epoch if epoch.tzinfo is not None else epoch.replace(tzinfo=datetime.UTC)
 
 
-def average_field_and_rate(
+def average_rate(
     propagator: SGP4,
     epoch: datetime.datetime,
     n_samples: int = 24,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> np.ndarray:
     """Orbit-averaged magnetic field (in the nadir/ORC frame) and reference rate over one orbit.
 
     Samples the SGP4 orbit ``n_samples`` times over one orbital period (estimated from the initial
@@ -251,25 +250,21 @@ def average_field_and_rate(
 
     Returns
     -------
-    tuple[np.ndarray, np.ndarray]
-        ``(b_field_orc, omega_c)`` -- averaged field [T] and rate [rad/s], each shape (3,).
+    np.ndarray
+        ``omega_c`` -- averaged rate [rad/s], each shape (3,).
     """
     epoch = _ensure_utc(epoch)
     r0, v0 = propagator.propagate(epoch)
     a = 1.0 / (2.0 / np.linalg.norm(r0) - float(np.dot(v0, v0)) / MU)
     period = 2.0 * np.pi * np.sqrt(a**3 / MU)
 
-    b_acc = np.zeros(3)
     w_acc = np.zeros(3)
     for k in range(n_samples):
         t_k = epoch + datetime.timedelta(seconds=period * k / n_samples)
         r, v = propagator.propagate(t_k)
-        q_orc = orc_from_orbit(r, v)
-        lat, lon, alt = eci_to_geodedic(r)
-        b_eci = magnetic_field_vector(t_k.replace(tzinfo=None), float(lat), float(lon), float(alt))
-        b_acc += q_orc.apply(b_eci)
         w_acc += orbital_rate(r, v)
-    return b_acc / n_samples, w_acc / n_samples
+
+    return w_acc / n_samples
 
 
 def _dlqr_gain(A: np.ndarray, B: np.ndarray, Q: np.ndarray, R: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -305,15 +300,6 @@ def _dlqr_warm_start(  # noqa: PLR0913
     return K, P
 
 
-def _build_model_inputs(config: dict[str, Any]) -> tuple[np.ndarray, np.ndarray]:
-    """Resolve ``(b_field, omega_c)`` for the LQR model from explicit values or a TLE."""
-    if "tle" in config:
-        tle1, tle2 = config["tle"]
-        epoch = datetime.datetime.fromisoformat(config["epoch"])
-        return average_field_and_rate(SGP4.from_tle(tle1, tle2), epoch)
-    return np.asarray(config["b_field"], dtype=float), np.asarray(config["omega_c"], dtype=float)
-
-
 @dataclasses.dataclass(frozen=True)
 class LQRControllerLog:
     """Internal log for the LQR controllers."""
@@ -339,7 +325,6 @@ class AdaptiveLQRController(Controller[LQRControllerLog]):
         R: ArrayLike,
         inertia: ArrayLike,
         omega_c: ArrayLike,
-        b_field: ArrayLike,
         alpha_rw: ArrayLike,
         alpha_mtq: ArrayLike,
     ) -> None:
@@ -352,15 +337,15 @@ class AdaptiveLQRController(Controller[LQRControllerLog]):
         self.alpha_rw = np.asarray(alpha_rw, dtype=float)
         self.alpha_mtq = np.asarray(alpha_mtq, dtype=float)
 
-        A, B = reduced_model(np.asarray(b_field, dtype=float), dt, self.omega_c, self.inertia)
-        self.A = A
-        self.B = B
-        self.K, self.P = _dlqr_gain(A, B, self.Q, self.R)
+        self.P = None
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> Self:
         """Instantiate from config (weights, inertia, model field/rate, actuator allocation)."""
-        b_field, omega_c = _build_model_inputs(config)
+        tle1, tle2 = config["tle"]
+        epoch = datetime.datetime.fromisoformat(config["epoch"])
+        omega_c = average_rate(SGP4.from_tle(tle1, tle2), epoch)
+
         rw_cfg = config["reaction_wheels"]
         mtq_cfg = config["magnetorquers"]
         return cls(
@@ -369,21 +354,9 @@ class AdaptiveLQRController(Controller[LQRControllerLog]):
             R=np.asarray(config["R"], dtype=float),
             inertia=np.asarray(config["inertia"], dtype=float),
             omega_c=omega_c,
-            b_field=b_field,
             alpha_rw=allocation_matrix(rw_cfg["axes"], rw_cfg["torque_constant"]),
             alpha_mtq=allocation_matrix(mtq_cfg["axes"], mtq_cfg["dipole_constant"]),
         )
-
-    def _error(self, ref: np.ndarray, x: np.ndarray) -> np.ndarray:
-        """Reduced error state ``[delta_theta, delta_omega]`` (relative to the nadir/ORC frame)."""
-        q_err, delta_omega = _attitude_error(ref, x)
-        return np.concatenate([q_err, delta_omega])  # TODO: LQR feedback also on wheel momentum
-
-    def _allocate(self, control: np.ndarray) -> np.ndarray:
-        """Allocate the model input ``[m, tau_rw]`` to ``[i_mtq, i_rw]`` current commands."""
-        i_mtq = _solve_allocation(self.alpha_mtq, control[0:3])
-        i_rw = _solve_allocation(self.alpha_rw, -control[3:6])
-        return np.concatenate([i_mtq, i_rw])
 
     def update(
         self,
@@ -392,11 +365,54 @@ class AdaptiveLQRController(Controller[LQRControllerLog]):
         x_hat: float | np.ndarray,
     ) -> tuple[float | np.ndarray, LQRControllerLog]:
         """Re-solve the gain at the current field, then compute the LQR current commands."""
+        ref_arr = np.asarray(ref)
         x = np.asarray(x_hat)
-        self.A, self.B = reduced_model(x[_B], self.dt, self.omega_c, self.inertia)
-        self.K, self.P = _dlqr_warm_start(self.A, self.B, self.Q, self.R, self.P)
+        r = x[0:3]
+        v = x[3:6]
+        q_bi = Quaternion.from_array(x[_Q])
+        omega = x[_W]
+        h_w = x[_H]
 
-        error = self._error(np.asarray(ref), x)
+        # Reference and parameters relative to ORC
+        q_oi = orc_from_orbit(r, v)
+        q_ref = q_oi.to_array()
+        omega_ref = orbital_rate(r, v)
+
+        # Rotate body-frame B back to ECI for the ECI system-dynamics linearization
+        b_body = x[_B]
+        b_eci = q_bi.conjugate().apply(b_body)
+
+        self.A, self.B = reduced_model(self.dt, self.inertia, q_ref, omega_ref, b_eci)
+        self.K, self.P = (
+            _dlqr_gain(self.A, self.B, self.Q, self.R)
+            if self.P is None
+            else _dlqr_warm_start(self.A, self.B, self.Q, self.R, self.P)
+        )
+
+        # Compute error state: [q_err_vec, omega_err, h_w_err]
+        q_bo_act = q_bi * q_oi.conjugate()
+        q_err_vec = q_bo_act.vec * np.sign(q_bo_act.scalar)
+        omega_des = q_bo_act.apply(omega_ref) + ref_arr[4:7]
+        omega_err = omega - omega_des
+        h_w_err = h_w + self.inertia @ omega_ref
+        error = np.concatenate([q_err_vec, omega_err, h_w_err])
+
         control = -self.K @ error
-        u = self._allocate(control)
-        return u, LQRControllerLog(error=error, dipole=control[0:3], tau_rw=control[3:6], currents=u)
+
+        u = to_current_commands(
+            tau_rw=control[3:6],
+            tau_mtq=control[0:3],
+            b_body=b_body,
+            alpha_rw=self.alpha_rw,
+            alpha_mtq=self.alpha_mtq,
+        )
+
+        b_norm_sq = np.dot(b_body, b_body)
+        dipole = np.cross(b_body, control[0:3]) / b_norm_sq if b_norm_sq > _EPS else np.zeros(3)
+
+        return u, LQRControllerLog(
+            error=error,
+            dipole=dipole,
+            tau_rw=control[3:6],
+            currents=u,
+        )

@@ -39,6 +39,7 @@ diff-test = [
 ]
 rigid-body = [
     "astropy>=7.2.0",
+    "casadi>=3.7.2",
     "ppigrf>=2.1.0",
     "pymap3d>=3.2.0",
     "pymsis>=0.12.0",
@@ -59,6 +60,9 @@ module-name = ["simulate", "rigid_body"]
 [tool.ruff]
 line-length = 120
 target-version = "py313"
+exclude = [
+    "tests/differential/adaptive-satellite-control",
+]
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -136,7 +140,7 @@ testpaths = ["tests"]
 [tool.ty]
 
 [tool.ty.src]
-exclude = ["examples/[0-9]*.py"]
+exclude = ["examples/[0-9]*.py", "tests/differential/adaptive-satellite-control"]
 
 [tool.ty.rules]
 # In ty, you control strictness by setting individual rules to "error", "warn", or "ignore".

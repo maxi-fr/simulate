@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 from diffhelpers import rand_inertia, rand_quat_array, rand_unit_vec
 
-from rigid_body.linearization import reduced_model
+from rigid_body.controller_models import reduced_model
 from rigid_body.quaternion import Quaternion
 
 
@@ -77,25 +77,27 @@ def test_symbolic_kinematics_matches(rng: np.random.Generator) -> None:
         np.testing.assert_allclose(_val(cm.kinematics(ca.DM(q), ca.DM(w))), expected, rtol=1e-12, atol=1e-13)
 
 
-def test_reduced_model_was_restructured(rng: np.random.Generator) -> None:
-    """DOCUMENTED DIFFERENCE: the reduced LQR error model dropped the wheel-momentum state.
-
-    Old ``build_reduced_error_dynamics`` keeps ``h_w`` so its reduced state is 9-dimensional; the new
-    ``reduced_model`` omits it, giving a 6-dimensional state. The matrices therefore have different
-    shapes and are not value-comparable -- this is an intended redesign, not a port bug.
-    """
+def test_reduced_model_matches(rng: np.random.Generator) -> None:
+    """The new CasADi-based reduced_model matches the old build_reduced_system_dynamics."""
     pytest.importorskip("casadi")
     cm = pytest.importorskip("flight_software.controller_models")
 
     inertia = rand_inertia(rng)
-    omega_c = np.array([0.0, -1.0e-3, 0.0])
-    b_field = rand_unit_vec(rng) * 3e-5
+    dt = 0.5
+    omega_ref = np.array([0.0, -1.0e-3, 0.0])
+    q_ref = rand_quat_array(rng)
+    b_eci = rng.standard_normal(3) * 3e-5
 
-    _, a_func, _ = cm.build_reduced_error_dynamics(0.5, omega_c, inertia)
-    x_star = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-    old_a = np.array(a_func(x_star, np.zeros(6), b_field))
+    _, a_func, b_func = cm.build_reduced_system_dynamics(dt, inertia)
+    x_star = np.concatenate([q_ref, omega_ref, np.zeros(3)])
+    u_star = np.zeros(6)
+    expected_a = np.array(a_func(x_star, u_star, b_eci))
+    expected_b = np.array(b_func(x_star, u_star, b_eci))
 
-    new_a, _ = reduced_model(b_field, 0.5, omega_c, inertia)
+    new_a, new_b = reduced_model(dt, inertia, q_ref, omega_ref, b_eci)
 
-    assert old_a.shape == (9, 9)
-    assert new_a.shape == (6, 6)
+    assert new_a.shape == (9, 9)
+    assert new_b.shape == (9, 6)
+    # Both repositories now use RK2 integration under the hood, matching exactly.
+    np.testing.assert_allclose(new_a, expected_a, rtol=1e-10, atol=1e-12)
+    np.testing.assert_allclose(new_b, expected_b, rtol=1e-10, atol=1e-12)

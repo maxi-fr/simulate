@@ -1678,6 +1678,7 @@ diff-test = [
 ]
 rigid-body = [
     { name = "astropy" },
+    { name = "casadi" },
     { name = "ppigrf" },
     { name = "pymap3d" },
     { name = "pymsis" },
@@ -1718,6 +1719,7 @@ diff-test = [
 ]
 rigid-body = [
     { name = "astropy", specifier = ">=7.2.0" },
+    { name = "casadi", specifier = ">=3.7.2" },
     { name = "ppigrf", specifier = ">=2.1.0" },
     { name = "pymap3d", specifier = ">=3.2.0" },
     { name = "pymsis", specifier = ">=0.12.0" },
