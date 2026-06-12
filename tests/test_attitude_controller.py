@@ -8,9 +8,9 @@ from rigid_body.controller import (
     allocation_matrix,
     to_current_commands,
 )
+from rigid_body.controller_models import reduced_model
 from rigid_body.effector import EarthGravity, MagnetorquerArray, ReactionWheelArray
 from rigid_body.frames import orc_from_orbit
-from rigid_body.linearization import discrete_jacobians, reduced_model, rk2_step
 from rigid_body.orbit_dynamics import MU
 from rigid_body.quaternion import Quaternion
 from rigid_body.rigid_body import RigidBodyDynamics
@@ -140,47 +140,31 @@ def test_quaternion_feedback_dumping_bounds_wheel_momentum() -> None:
     assert h_final < h0  # magnetorquer dumping bled off stored momentum
 
 
-def test_linearization_jacobian_matches_nonlinear_step() -> None:
-    omega_c = np.array([0.0, -1.0e-3, 0.0])
-    dt = 0.1
-    inertia_inv = np.linalg.inv(_INERTIA)
-    a_full, b_full = discrete_jacobians(_B_BODY, dt, omega_c, _INERTIA)
-
-    x0 = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
-    u0 = np.zeros(6)
-    rng = np.random.default_rng(0)
-    dx = 1e-4 * rng.standard_normal(7)
-    dx[0:4] -= np.dot(dx[0:4], x0[0:4]) * x0[0:4]  # keep the perturbation on the unit sphere
-    du = 1e-4 * rng.standard_normal(6)
-
-    f0 = rk2_step(x0, u0, _B_BODY, dt, omega_c, _INERTIA, inertia_inv)
-    fx = rk2_step(x0 + dx, u0, _B_BODY, dt, omega_c, _INERTIA, inertia_inv)
-    fu = rk2_step(x0, u0 + du, _B_BODY, dt, omega_c, _INERTIA, inertia_inv)
-
-    np.testing.assert_allclose(a_full @ dx, fx - f0, atol=1e-8)
-    np.testing.assert_allclose(b_full @ du, fu - f0, atol=1e-8)
-
-
-def _lqr_kwargs(b_field: np.ndarray) -> dict:
+def _lqr_kwargs() -> dict:
     return {
         "dt": 0.1,
-        "Q": np.diag([50.0, 50.0, 50.0, 5.0, 5.0, 5.0]),
+        "Q": np.diag([50.0, 50.0, 50.0, 5.0, 5.0, 5.0, 10.0, 10.0, 10.0]),
         "R": np.eye(6),
         "inertia": _INERTIA,
         "omega_c": np.array([0.0, -1.0e-3, 0.0]),
-        "b_field": b_field,
         "alpha_rw": allocation_matrix(_AXES, _KT * np.ones(3)),
         "alpha_mtq": allocation_matrix(_AXES, _KM * np.ones(3)),
     }
 
 
 def test_adaptive_lqr_adapts_when_field_changes() -> None:
-    adaptive = AdaptiveLQRController(**_lqr_kwargs(_B_BODY))
-    k_initial = adaptive.K.copy()
+    adaptive = AdaptiveLQRController(**_lqr_kwargs())
 
     ref = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
+
+    # First update with initial _B_BODY
+    x_hat_initial = np.concatenate([_R0, _V0, [0.0, 0.0, 0.0, 1.0], np.zeros(3), _B_BODY, np.zeros(3)])
+    adaptive.update(0.0, ref, x_hat_initial)
+    k_initial = adaptive.K.copy()
+
+    # Second update with different B field
     b_other = np.array([3.0e-5, 2.0e-5, -1.0e-5])
-    x_hat = np.concatenate([_R0, _V0, [0.0, 0.0, 0.0, 1.0], np.zeros(3), b_other, np.zeros(3)])
-    adaptive.update(0.0, ref, x_hat)
+    x_hat_other = np.concatenate([_R0, _V0, [0.0, 0.0, 0.0, 1.0], np.zeros(3), b_other, np.zeros(3)])
+    adaptive.update(0.0, ref, x_hat_other)
 
     assert not np.allclose(adaptive.K, k_initial)

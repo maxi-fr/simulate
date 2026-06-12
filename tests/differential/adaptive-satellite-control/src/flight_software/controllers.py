@@ -15,9 +15,7 @@ from simulation.kinematics import eci_to_geodedic, orc_to_eci, orc_to_sbc
 from simulation.satellite import Spacecraft
 from utils import Logger, Quaternion
 
-from .AL_iLQR_solver import AL_iLQR
-from .controller_models import (
-    build_reduced_error_dynamics,
+from flight_software.controller_models import (
     build_reduced_system_dynamics,
     integrator,
     quaternion_rotation,

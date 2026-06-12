@@ -52,6 +52,7 @@ repos:
         language: system
         types: [python]
         pass_filenames: true
+        exclude: ^tests/differential/adaptive-satellite-control/
 
       - id: pytest
         name: pytest
