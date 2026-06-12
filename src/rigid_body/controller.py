@@ -324,27 +324,24 @@ class LQRControllerLog:
     currents: np.ndarray
 
 
-class LQRController(Controller[LQRControllerLog]):
-    """Discrete-time LQR attitude controller on the reduced field-averaged error model.
+class AdaptiveLQRController(Controller[LQRControllerLog]):
+    """LQR that re-solves its gain each step to deal with the model changing.
 
-    The gain is solved once at construction from the reduced model
-    (:func:`rigid_body.linearization.reduced_model`) via the discrete algebraic Riccati equation.
-    The control ``[m, tau_rw] = -K [delta_theta, delta_omega]`` is allocated to actuator currents
-    (magnetorquer dipole ``m`` and reaction-wheel torque ``tau_rw``). Momentum dumping is left to
-    :class:`QuaternionFeedbackController`, since a fixed-field model cannot control the
-    momentum component along ``B``.
+    The reduced model is rebuilt with the magnetic field carried in ``x_hat`` and the Riccati
+    equation re-solved with a Newton-Kleinman warm start from the previous solution, so the gain
+    adapts as ``B`` changes around the orbit.
     """
 
     def __init__(  # noqa: PLR0913
         self,
         dt: float,
-        Q: np.ndarray,
-        R: np.ndarray,
-        inertia: np.ndarray,
-        omega_c: np.ndarray,
-        b_field: np.ndarray,
-        alpha_rw: np.ndarray,
-        alpha_mtq: np.ndarray,
+        Q: ArrayLike,
+        R: ArrayLike,
+        inertia: ArrayLike,
+        omega_c: ArrayLike,
+        b_field: ArrayLike,
+        alpha_rw: ArrayLike,
+        alpha_mtq: ArrayLike,
     ) -> None:
         """Initialize and solve the LQR gain for the given weights and (averaged) model."""
         super().__init__(dt)
@@ -387,27 +384,6 @@ class LQRController(Controller[LQRControllerLog]):
         i_mtq = _solve_allocation(self.alpha_mtq, control[0:3])
         i_rw = _solve_allocation(self.alpha_rw, -control[3:6])
         return np.concatenate([i_mtq, i_rw])
-
-    def update(
-        self,
-        t: float,  # noqa: ARG002
-        ref: float | np.ndarray,
-        x_hat: float | np.ndarray,
-    ) -> tuple[float | np.ndarray, LQRControllerLog]:
-        """Compute the LQR current commands."""
-        error = self._error(np.asarray(ref), np.asarray(x_hat))
-        control = -self.K @ error
-        u = self._allocate(control)
-        return u, LQRControllerLog(error=error, dipole=control[0:3], tau_rw=control[3:6], currents=u)
-
-
-class AdaptiveLQRController(LQRController):
-    """LQR that re-solves its gain each step on the model evaluated at the current field ``b_body``.
-
-    The reduced model is rebuilt with the magnetic field carried in ``x_hat`` and the Riccati
-    equation re-solved with a Newton-Kleinman warm start from the previous solution, so the gain
-    adapts as ``B`` changes around the orbit.
-    """
 
     def update(
         self,
