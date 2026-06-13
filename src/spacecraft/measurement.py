@@ -21,7 +21,7 @@ import numpy as np
 from .environment import is_in_shadow, magnetic_field_vector, sun_position
 from .frames import eci_to_geodedic
 from .quaternion import Quaternion
-from .rigid_body import POSITION, QUATERNION, VELOCITY
+from .signals import BASE_STATES, STATE
 
 
 def _ensure_utc(epoch: datetime.datetime) -> datetime.datetime:
@@ -52,11 +52,11 @@ class MagneticFieldMeasurement:
     ) -> np.ndarray:
         """Compute the body-frame IGRF magnetic field from position and attitude."""
         dt_utc = self.epoch + datetime.timedelta(seconds=t)
-        r_eci = np.asarray(x[POSITION], dtype=float)  # ty:ignore[not-subscriptable]
+        r_eci = np.asarray(x[STATE.r], dtype=float)  # ty:ignore[not-subscriptable]
         lat_deg, lon_deg, alt_m = eci_to_geodedic(r_eci)
 
         b_eci = magnetic_field_vector(dt_utc, float(lat_deg), float(lon_deg), float(alt_m))
-        q_bi = Quaternion.from_array(x[QUATERNION])  # ty:ignore[not-subscriptable]
+        q_bi = Quaternion.from_array(x[STATE.q])  # ty:ignore[not-subscriptable]
         return q_bi.apply(b_eci)
 
 
@@ -83,7 +83,7 @@ class SunDirectionMeasurement:
     ) -> np.ndarray:
         """Compute the body-frame unit sun direction, or zeros when in eclipse."""
         dt_utc = self.epoch + datetime.timedelta(seconds=t)
-        r_eci = np.asarray(x[POSITION], dtype=float)  # ty:ignore[not-subscriptable]
+        r_eci = np.asarray(x[STATE.r], dtype=float)  # ty:ignore[not-subscriptable]
         sun_pos = sun_position(dt_utc)
 
         if is_in_shadow(r_eci, sun_pos):
@@ -91,7 +91,7 @@ class SunDirectionMeasurement:
 
         sc_to_sun = sun_pos - r_eci
         sun_dir_eci = sc_to_sun / np.linalg.norm(sc_to_sun)
-        q_bi = Quaternion.from_array(x[QUATERNION])  # ty:ignore[not-subscriptable]
+        q_bi = Quaternion.from_array(x[STATE.q])  # ty:ignore[not-subscriptable]
         return q_bi.apply(sun_dir_eci)
 
 
@@ -114,5 +114,49 @@ class GpsMeasurement:
     ) -> np.ndarray:
         """Select the inertial position (and optionally velocity) from the state."""
         if self.include_velocity:
-            return np.concatenate([x[POSITION], x[VELOCITY]])  # ty:ignore[not-subscriptable]
-        return x[POSITION]  # ty:ignore[not-subscriptable]
+            return np.concatenate([x[STATE.r], x[STATE.v]])  # ty:ignore[not-subscriptable]
+        return x[STATE.r]  # ty:ignore[not-subscriptable]
+
+
+def rigid_body_attitude(_t: float, x: float | np.ndarray, _u: float | np.ndarray) -> np.ndarray:
+    """Attitude measurement: the body->inertial unit quaternion ``q`` ``(4, 1)``.
+
+    Pair with a :class:`~simulate.sensor.GaussianSensor` to model a star tracker. Note that
+    additive noise on ``q`` yields a non-unit quaternion; consumers must renormalize.
+
+    Returns
+    -------
+    np.ndarray
+        The body->inertial unit quaternion ``q``, shape ``(4,)``.
+    """
+    return x[STATE.q]  # ty:ignore[not-subscriptable]
+
+
+def rigid_body_rate(_t: float, x: float | np.ndarray, _u: float | np.ndarray) -> np.ndarray:
+    """Angular-rate measurement: the body-frame angular velocity ``omega`` ``(3, 1)``.
+
+    Pair with a :class:`~simulate.sensor.GaussianSensor` to model a rate gyro.
+
+    Returns
+    -------
+    np.ndarray
+        The body-frame angular velocity ``omega``, shape ``(3,)``.
+    """
+    return x[STATE.omega]  # ty:ignore[not-subscriptable]
+
+
+class ReactionWheelTelemetry:
+    """Effector telemetry: a single effector internal state (e.g. a wheel's momentum ``h_w``).
+
+    ``index`` is the absolute position of the effector state in the rigid body state vector;
+    effector states begin at :data:`BASE_STATES` in composition order, so the first effector's
+    first state is ``BASE_STATES``.
+    """
+
+    def __init__(self, index: int = BASE_STATES) -> None:
+        """Initialize with the absolute state-vector index of the effector state to report."""
+        self.index = index
+
+    def __call__(self, _t: float, x: float | np.ndarray, _u: float | np.ndarray) -> np.ndarray:
+        """Select the effector internal state at ``index`` from the full rigid body state."""
+        return x[self.index : self.index + 1]  # ty:ignore[not-subscriptable]

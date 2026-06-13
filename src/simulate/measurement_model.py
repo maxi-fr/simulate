@@ -13,10 +13,10 @@ type MeasurementModel = Callable[[float, float | np.ndarray, float | np.ndarray]
 class LinearMeasurement:
     """Generic linear measurement model using state space matrices C and D (``y = C x + D u``)."""
 
-    def __init__(self, c: ArrayLike, d: ArrayLike) -> None:
+    def __init__(self, C: ArrayLike, D: ArrayLike) -> None:  # noqa: N803
         """Initialize the linear measurement with the output matrices C and D."""
-        self.c = np.atleast_2d(c)
-        self.d = np.atleast_2d(d)
+        self.c = np.atleast_2d(C)
+        self.d = np.atleast_2d(D)
 
     def __call__(
         self,

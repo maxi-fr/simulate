@@ -4,7 +4,7 @@ from typing import Any, Self
 
 import numpy as np
 
-from simulate.component import Component
+from .component import Component
 
 
 class Reference[L](Component[L], abc.ABC):

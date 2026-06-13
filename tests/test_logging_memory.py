@@ -19,9 +19,9 @@ from simulate.simulation import Simulation
 
 def _create_simulation(steps: int) -> Simulation:
     """Helper to create a standard simulation instance for testing."""
-    dynamics = LinearDynamics(dt=0.01, a=[[0.9]], b=[[1.0]])
+    dynamics = LinearDynamics(dt=0.01, A=[[0.9]], B=[[1.0]])
     reference = StepReference(dt=0.01)
-    sensor = GaussianSensor(dt=0.01, measurement=LinearMeasurement(c=[[1.0]], d=[[0.0]]), std_dev=0.1)
+    sensor = GaussianSensor(dt=0.01, measurement=LinearMeasurement(C=[[1.0]], D=[[0.0]]), std_dev=0.1)
     estimator = IdentityEstimator(dt=0.01)
     controller = PIDController(dt=0.01, kp=[[0.5]], ki=[[0.1]], kd=[[0.05]])
 

@@ -6,18 +6,18 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from tqdm import tqdm
 
-from simulate.config import build_component, load_config
-from simulate.logger import Logger, UniversalLog
+from .config import build_component, load_config
+from .logger import Logger, UniversalLog
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from simulate.component import Component
-    from simulate.controller import Controller
-    from simulate.dynamics import Dynamics
-    from simulate.estimator import Estimator
-    from simulate.reference import Reference
-    from simulate.sensor import Sensor
+    from .component import Component
+    from .controller import Controller
+    from .dynamics import Dynamics
+    from .estimator import Estimator
+    from .reference import Reference
+    from .sensor import Sensor
 
 
 class Simulation:

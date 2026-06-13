@@ -4,9 +4,9 @@ from typing import Any, Self
 
 import numpy as np
 
-from simulate.component import Component
-from simulate.config import build_measurement
-from simulate.measurement_model import MeasurementModel
+from .component import Component
+from .config import build_measurement
+from .measurement_model import MeasurementModel
 
 
 class Sensor[L](Component[L], abc.ABC):

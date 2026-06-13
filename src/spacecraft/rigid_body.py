@@ -41,13 +41,6 @@ from .orbit_dynamics import SGP4
 from .quaternion import Quaternion, QuaternionRK4
 from .signals import BASE_STATES, STATE
 
-# Public state-vector layout aliases for external consumers (per-part measurement Outputs,
-# tests); the canonical layout lives in :data:`spacecraft.signals.STATE`.
-POSITION = STATE.r
-VELOCITY = STATE.v
-QUATERNION = STATE.q
-ANGULAR_VELOCITY = STATE.omega
-
 
 def _load_class(class_path: str) -> type:
     """Resolve a dotted ``module.Class`` path to the class object."""
@@ -199,52 +192,3 @@ class RigidBodyDynamics(Dynamics[NoLog]):
     def _make_log(self) -> NoLog:
         """Build a snapshot log of the current state."""
         return NoLog()
-
-
-def rigid_body_pose(_t: float, x: float | np.ndarray, _u: float | np.ndarray) -> np.ndarray:
-    """Minimal pose measurement: extract ``[r(3), q(4)]`` from the full rigid body state."""
-    return np.concatenate([x[STATE.r], x[STATE.q]])  # ty:ignore[not-subscriptable]
-
-
-def rigid_body_attitude(_t: float, x: float | np.ndarray, _u: float | np.ndarray) -> np.ndarray:
-    """Attitude measurement: the body->inertial unit quaternion ``q`` ``(4, 1)``.
-
-    Pair with a :class:`~simulate.sensor.GaussianSensor` to model a star tracker. Note that
-    additive noise on ``q`` yields a non-unit quaternion; consumers must renormalize.
-
-    Returns
-    -------
-    np.ndarray
-        The body->inertial unit quaternion ``q``, shape ``(4,)``.
-    """
-    return x[STATE.q]  # ty:ignore[not-subscriptable]
-
-
-def rigid_body_rate(_t: float, x: float | np.ndarray, _u: float | np.ndarray) -> np.ndarray:
-    """Angular-rate measurement: the body-frame angular velocity ``omega`` ``(3, 1)``.
-
-    Pair with a :class:`~simulate.sensor.GaussianSensor` to model a rate gyro.
-
-    Returns
-    -------
-    np.ndarray
-        The body-frame angular velocity ``omega``, shape ``(3,)``.
-    """
-    return x[STATE.omega]  # ty:ignore[not-subscriptable]
-
-
-class ReactionWheelTelemetry:
-    """Effector telemetry: a single effector internal state (e.g. a wheel's momentum ``h_w``).
-
-    ``index`` is the absolute position of the effector state in the rigid body state vector;
-    effector states begin at :data:`BASE_STATES` in composition order, so the first effector's
-    first state is ``BASE_STATES``.
-    """
-
-    def __init__(self, index: int = BASE_STATES) -> None:
-        """Initialize with the absolute state-vector index of the effector state to report."""
-        self.index = index
-
-    def __call__(self, _t: float, x: float | np.ndarray, _u: float | np.ndarray) -> np.ndarray:
-        """Select the effector internal state at ``index`` from the full rigid body state."""
-        return x[self.index : self.index + 1]  # ty:ignore[not-subscriptable]

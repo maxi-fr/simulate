@@ -1,3 +1,4 @@
+# ruff: noqa: N806
 import math
 
 import numpy as np
@@ -46,14 +47,14 @@ def test_rk4_accuracy() -> None:
 
 def test_linear_dynamics_continuous() -> None:
     """Test LinearPlant with continuous-time dynamics using RK4."""
-    a = [[-1.0]]
-    b = [[1.0]]
-    c = [[1.0]]
-    d = [[0.0]]
+    A = [[-1.0]]
+    B = [[1.0]]
+    C = [[1.0]]
+    D = [[0.0]]
     dt = 0.1
 
-    dynamics = LinearDynamics(dt=dt, a=a, b=b, integrator=rk4)
-    measurement = LinearMeasurement(c=c, d=d)
+    dynamics = LinearDynamics(dt, A, B, integrator=rk4)
+    measurement = LinearMeasurement(C, D)
 
     x, _log = dynamics.evaluate(0.0, 1.0)
     y = measurement(0.0, x, 1.0)
@@ -63,14 +64,14 @@ def test_linear_dynamics_continuous() -> None:
 
 def test_linear_dynamics_discrete_fallback() -> None:
     """Test LinearPlant fallback to discrete-time dynamics when no integrator is provided."""
-    a = [[0.5]]
-    b = [[1.0]]
-    c = [[1.0]]
-    d = [[0.0]]
+    A = [[0.5]]
+    B = [[1.0]]
+    C = [[1.0]]
+    D = [[0.0]]
     dt = 0.1
 
-    dynamics = LinearDynamics(dt=dt, a=a, b=b)
-    measurement = LinearMeasurement(c=c, d=d)
+    dynamics = LinearDynamics(dt, A, B)
+    measurement = LinearMeasurement(C, D)
 
     x, _log = dynamics.evaluate(0.0, 1.0)
     y = measurement(0.0, x, 1.0)
@@ -82,11 +83,11 @@ def test_linear_dynamics_from_config_dynamic_integrator() -> None:
     """Test dynamic loading of integrator via from_config."""
     config = {
         "dt": 0.1,
-        "a": [[-1.0]],
-        "b": [[1.0]],
+        "A": [[-1.0]],
+        "B": [[1.0]],
         "integrator": "simulate.integrator.rk4",
     }
-    measurement = LinearMeasurement(c=[[1.0]], d=[[0.0]])
+    measurement = LinearMeasurement(C=[[1.0]], D=[[0.0]])
     dynamics = LinearDynamics.from_config(config)
     assert dynamics.integrator == rk4
 

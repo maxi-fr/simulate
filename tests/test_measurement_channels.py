@@ -12,10 +12,10 @@ from simulate.simulation import Simulation
 def _two_channel_sim(t_end: float, sensor1_dt: float) -> Simulation:
     """A 2-state plant measured by two channels: one at base dt, one at sensor1_dt."""
     base = 0.01
-    dynamics = LinearDynamics(dt=base, a=[[1.0, 0.0], [0.0, 1.0]], b=[[1.0, 0.0], [0.0, 1.0]])
+    dynamics = LinearDynamics(dt=base, A=[[1.0, 0.0], [0.0, 1.0]], B=[[1.0, 0.0], [0.0, 1.0]])
     # Each sensor owns a measurement model selecting one state component.
-    sen0 = GaussianSensor(dt=base, measurement=LinearMeasurement(c=[[1.0, 0.0]], d=[[0.0, 0.0]]), std_dev=0.0)
-    sen1 = GaussianSensor(dt=sensor1_dt, measurement=LinearMeasurement(c=[[0.0, 1.0]], d=[[0.0, 0.0]]), std_dev=0.0)
+    sen0 = GaussianSensor(dt=base, measurement=LinearMeasurement(C=[[1.0, 0.0]], D=[[0.0, 0.0]]), std_dev=0.0)
+    sen1 = GaussianSensor(dt=sensor1_dt, measurement=LinearMeasurement(C=[[0.0, 1.0]], D=[[0.0, 0.0]]), std_dev=0.0)
     reference = StepReference(dt=base, step_value=np.array([1.0, 2.0]))
     estimator = IdentityEstimator(dt=base)
     controller = PIDController(

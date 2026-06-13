@@ -3,7 +3,7 @@ from typing import Any, Self
 
 import numpy as np
 
-from simulate.component import Component, NoLog
+from .component import Component, NoLog
 
 
 class Estimator[L](Component[L], abc.ABC):

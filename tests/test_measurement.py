@@ -5,9 +5,15 @@ import numpy as np
 from simulate.sensor import GaussianSensor, RandomWalkBiasSensor
 from spacecraft.environment import magnetic_field_vector, sun_position
 from spacecraft.frames import eci_to_geodedic, quaternion_from_euler
-from spacecraft.measurement import GpsMeasurement, MagneticFieldMeasurement, SunDirectionMeasurement
+from spacecraft.measurement import (
+    GpsMeasurement,
+    MagneticFieldMeasurement,
+    ReactionWheelTelemetry,
+    SunDirectionMeasurement,
+    rigid_body_rate,
+)
 from spacecraft.quaternion import Quaternion
-from spacecraft.rigid_body import ANGULAR_VELOCITY, BASE_STATES, ReactionWheelTelemetry, rigid_body_rate
+from spacecraft.signals import BASE_STATES, STATE
 
 _EPOCH = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
 _RADIUS = 7.0e6  # m, low Earth orbit
@@ -88,7 +94,7 @@ def test_gyro_pairing_adds_bias_and_noise() -> None:
     # Rate gyro = rigid_body_rate truth + RandomWalkBiasSensor noise/bias.
     omega = np.array([0.01, -0.02, 0.03])
     x = np.zeros(BASE_STATES)
-    x[ANGULAR_VELOCITY] = omega
+    x[STATE.omega] = omega
 
     truth = rigid_body_rate(0.0, x, 0.0)
     np.testing.assert_array_equal(np.asarray(truth), omega)
