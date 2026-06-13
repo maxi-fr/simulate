@@ -77,10 +77,11 @@ def _attitude_error(ref: np.ndarray, x_hat: np.ndarray) -> tuple[np.ndarray, np.
     q_oi = orc_from_orbit(r, v)
     q_bo_act = q_bi * q_oi.conjugate()
     q_bo_des = Quaternion.from_array(ref[0:4])
-    q_err = q_bo_act.error_to(q_bo_des).vec
+    q_err = q_bo_act.error_to(q_bo_des)
+    q_err_vec = q_err.vec * np.sign(q_err.scalar)  # take the short rotation path
 
     omega_des = q_bo_act.apply(orbital_rate(r, v)) + ref[4:7]
-    return q_err, omega - omega_des
+    return q_err_vec, omega - omega_des
 
 
 def allocation_matrix(axes: ArrayLike, constants: ArrayLike) -> np.ndarray:
