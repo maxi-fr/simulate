@@ -1,13 +1,13 @@
 import numpy as np
 
-from rigid_body.frames import (
+from spacecraft.frames import (
     eci_attitude_from_orc,
     euler_from_quaternion,
     orbital_rate,
     orc_from_orbit,
     quaternion_from_euler,
 )
-from rigid_body.quaternion import Quaternion
+from spacecraft.quaternion import Quaternion
 
 # A simple circular equatorial orbit: position on +x, velocity on +y.
 _RADIUS = 7.0e6  # m

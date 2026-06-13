@@ -35,9 +35,8 @@ dev = [
 diff-test = [
     "casadi>=3.7.2",
     "control>=0.10.2",
-    "pyigrf==0.3.3",
 ]
-rigid-body = [
+spacecraft = [
     "astropy>=7.2.0",
     "casadi>=3.7.2",
     "pyigrf>=0.3.3",
@@ -55,7 +54,7 @@ build-backend = "uv_build"
 default-groups = ["dev"]
 
 [tool.uv.build-backend]
-module-name = ["simulate", "rigid_body"]
+module-name = ["simulate", "spacecraft"]
 
 [tool.ruff]
 line-length = 120
@@ -78,7 +77,7 @@ ignore = [
 
 [tool.ruff.lint.isort]
 # Ensures imports are grouped logically
-known-first-party = ["simulate", "rigid_body"]
+known-first-party = ["simulate", "spacecraft"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
@@ -134,7 +133,7 @@ line-ending = "auto"
 [tool.pytest.ini_options]
 minversion = "6.0"
 # Added -v for more detail and --cov to integrate coverage
-addopts = "-ra -q -v --cov=simulate --cov=rigid_body"
+addopts = "-ra -q -v --cov=simulate --cov=spacecraft"
 testpaths = ["tests"]
 
 [tool.ty]

@@ -2,7 +2,7 @@
 
 The legacy free function ``simulation.dynamics.attitude_dynamics`` was folded into
 ``RigidBodyDynamics.dynamics`` (the ``omega_dot`` block). We drive the new class with a
-:class:`~rigid_body.effector.Wrench` (supplying the control+disturbance torque) and a tiny constant
+:class:`~spacecraft.effector.Wrench` (supplying the control+disturbance torque) and a tiny constant
 momentum effector (supplying the reaction-wheel momentum ``h``) and compare the resolved angular
 acceleration against the old function.
 
@@ -16,9 +16,9 @@ import numpy as np
 import pytest
 from diffhelpers import rand_inertia, rand_quat_array
 
-from rigid_body.effector import Effector, RigidBodyState, Wrench
-from rigid_body.quaternion import Quaternion
-from rigid_body.rigid_body import ANGULAR_VELOCITY, QUATERNION, RigidBodyDynamics
+from spacecraft.effector import Effector, RigidBodyState, Wrench
+from spacecraft.quaternion import Quaternion
+from spacecraft.rigid_body import ANGULAR_VELOCITY, QUATERNION, RigidBodyDynamics
 
 
 class _ConstMomentum(Effector):

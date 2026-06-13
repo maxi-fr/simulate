@@ -19,8 +19,6 @@ from typing import Any, Self
 
 import numpy as np
 
-from rigid_body.effector import EarthGravity, ReactionWheelArray, Wrench
-from rigid_body.rigid_body import RigidBodyDynamics
 from simulate.controller import PIDController
 from simulate.dynamics import NoLog
 from simulate.estimator import IdentityEstimator
@@ -28,6 +26,8 @@ from simulate.output import Output
 from simulate.reference import StepReference
 from simulate.sensor import GaussianSensor, Sensor
 from simulate.simulation import Simulation
+from spacecraft.effector import EarthGravity, ReactionWheelArray, Wrench
+from spacecraft.rigid_body import RigidBodyDynamics
 
 
 class StateElementOutput(Output[NoLog]):

@@ -4,9 +4,9 @@ from pathlib import Path
 
 import numpy as np
 
-from rigid_body.frames import orc_from_orbit
-from rigid_body.quaternion import Quaternion
 from simulate.simulation import Simulation
+from spacecraft.frames import orc_from_orbit
+from spacecraft.quaternion import Quaternion
 
 _CONFIG = Path(__file__).resolve().parents[1] / "examples" / "03_nadir_pointing.yaml"
 

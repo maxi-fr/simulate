@@ -14,8 +14,8 @@ import numpy as np
 import pytest
 from diffhelpers import leo_rv, rand_quat_array
 
-from rigid_body.frames import euler_from_quaternion, orc_from_orbit, quaternion_from_euler
-from rigid_body.quaternion import Quaternion
+from spacecraft.frames import euler_from_quaternion, orc_from_orbit, quaternion_from_euler
+from spacecraft.quaternion import Quaternion
 
 
 def test_orc_to_eci_is_inverse_of_orc_from_orbit(rng: np.random.Generator) -> None:

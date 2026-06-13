@@ -2,12 +2,12 @@ import datetime
 
 import numpy as np
 
-from rigid_body.environment import magnetic_field_vector, sun_position
-from rigid_body.frames import eci_to_geodedic, quaternion_from_euler
-from rigid_body.measurement import GpsOutput, MagneticFieldOutput, SunDirectionOutput
-from rigid_body.quaternion import Quaternion
-from rigid_body.rigid_body import ANGULAR_VELOCITY, BASE_STATES, ReactionWheelTelemetryOutput, RigidBodyRateOutput
 from simulate.sensor import GaussianSensor, RandomWalkBiasSensor
+from spacecraft.environment import magnetic_field_vector, sun_position
+from spacecraft.frames import eci_to_geodedic, quaternion_from_euler
+from spacecraft.measurement import GpsOutput, MagneticFieldOutput, SunDirectionOutput
+from spacecraft.quaternion import Quaternion
+from spacecraft.rigid_body import ANGULAR_VELOCITY, BASE_STATES, ReactionWheelTelemetryOutput, RigidBodyRateOutput
 
 _EPOCH = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
 _RADIUS = 7.0e6  # m, low Earth orbit

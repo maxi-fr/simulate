@@ -1661,9 +1661,8 @@ dev = [
 diff-test = [
     { name = "casadi" },
     { name = "control" },
-    { name = "pyigrf" },
 ]
-rigid-body = [
+spacecraft = [
     { name = "astropy" },
     { name = "casadi" },
     { name = "pyigrf" },
@@ -1702,9 +1701,8 @@ dev = [
 diff-test = [
     { name = "casadi", specifier = ">=3.7.2" },
     { name = "control", specifier = ">=0.10.2" },
-    { name = "pyigrf", specifier = "==0.3.3" },
 ]
-rigid-body = [
+spacecraft = [
     { name = "astropy", specifier = ">=7.2.0" },
     { name = "casadi", specifier = ">=3.7.2" },
     { name = "pyigrf", specifier = ">=0.3.3" },

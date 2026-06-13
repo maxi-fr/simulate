@@ -2,11 +2,11 @@ import datetime
 
 import numpy as np
 
-from rigid_body.effector import EarthGravity, ReactionWheelArray, Wrench
-from rigid_body.frames import eci_attitude_from_orc, orc_from_orbit
-from rigid_body.orbit_dynamics import SGP4
-from rigid_body.quaternion import Quaternion, QuaternionRK4
-from rigid_body.rigid_body import RigidBodyDynamics
+from spacecraft.effector import EarthGravity, ReactionWheelArray, Wrench
+from spacecraft.frames import eci_attitude_from_orc, orc_from_orbit
+from spacecraft.orbit_dynamics import SGP4
+from spacecraft.quaternion import Quaternion, QuaternionRK4
+from spacecraft.rigid_body import RigidBodyDynamics
 
 
 def _run(dynamics: RigidBodyDynamics, cmd: np.ndarray, n_steps: int) -> None:
@@ -70,9 +70,9 @@ def test_from_config_round_trip() -> None:
         "mass": 3.0,
         "inertia": [1.0, 2.0, 3.0],
         "effectors": [
-            {"class_path": "rigid_body.effector.Wrench"},
+            {"class_path": "spacecraft.effector.Wrench"},
             {
-                "class_path": "rigid_body.effector.ReactionWheelArray",
+                "class_path": "spacecraft.effector.ReactionWheelArray",
                 "axes": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
                 "inertia": 0.05,
                 "torque_constant": 0.08,

@@ -18,8 +18,8 @@ import pytest
 import scipy.linalg
 from diffhelpers import rand_quat_array, rand_unit_vec
 
-from rigid_body.controller import _dlqr_warm_start, allocation_matrix, to_current_commands
-from rigid_body.controller_models import build_reduced_system_dynamics
+from spacecraft.controller import _dlqr_warm_start, allocation_matrix, to_current_commands
+from spacecraft.controller_models import build_reduced_system_dynamics
 
 
 def _reduced_ab(
@@ -174,7 +174,7 @@ def test_adaptive_lqr_controller_behaves_same(rng: np.random.Generator) -> None:
     old_ctrl = old_mod.AdaptiveLQR(Q=Q, R=R, dt=dt)
     old_ctrl.init_satellite_model(sat)
 
-    from rigid_body.controller import AdaptiveLQR
+    from spacecraft.controller import AdaptiveLQR
 
     alpha_rw = allocation_matrix(rw_axes, rw_kt)
     alpha_mtq = allocation_matrix(mtq_axes, mtq_kt)
@@ -198,7 +198,7 @@ def test_adaptive_lqr_controller_behaves_same(rng: np.random.Generator) -> None:
         datetime.datetime(2024, 1, 1, 12, 0, 0, tzinfo=datetime.UTC), att_state, orbit_state, B_eci
     )
 
-    from rigid_body.quaternion import Quaternion
+    from spacecraft.quaternion import Quaternion
 
     q_bi_obj = Quaternion.from_array(q_bi)
     b_body = q_bi_obj.apply(B_eci)

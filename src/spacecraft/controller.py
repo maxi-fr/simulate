@@ -3,12 +3,12 @@
 
 These controllers consume the estimator's ``x_hat`` and the nadir reference and return the control
 input ``u`` that the simulation feeds straight to the actuator effectors. Because
-:class:`~rigid_body.effector.ReactionWheelArray` and :class:`~rigid_body.effector.MagnetorquerArray`
+:class:`~spacecraft.effector.ReactionWheelArray` and :class:`~spacecraft.effector.MagnetorquerArray`
 interpret their command slice as **current commands** (amperes), the feedback law's desired control
 *torque* is converted to currents with :func:`to_current_commands` before being returned -- mirroring
 the legacy ``PI.calc_input_cmds`` flow.
 
-``x_hat`` layout (see :mod:`rigid_body.estimator`)::
+``x_hat`` layout (see :mod:`spacecraft.estimator`)::
 
     [ r(3), v(3), q(4), omega(3), b_body(3), h_wheel(3) ]   # length 19
       0:3   3:6   6:10  10:13     13:16      16:19

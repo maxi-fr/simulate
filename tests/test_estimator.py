@@ -2,15 +2,15 @@ import datetime
 
 import numpy as np
 
-from rigid_body.estimator import (
+from simulate.integrator import rk4
+from spacecraft.estimator import (
     AttitudeMEKF,
     FullStateEstimator,
     MeasurementLayout,
     OrbitKalmanFilter,
 )
-from rigid_body.frames import eci_to_geodedic
-from rigid_body.quaternion import Quaternion
-from simulate.integrator import rk4
+from spacecraft.frames import eci_to_geodedic
+from spacecraft.quaternion import Quaternion
 
 _EPOCH = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
 _R0 = np.array([7.0e6, 0.0, 0.0])

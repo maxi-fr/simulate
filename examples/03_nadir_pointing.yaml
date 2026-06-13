@@ -24,7 +24,7 @@ initial_state: &init
   angular_velocity_orc: [0.0, 0.0, 0.0]              # body rate wrt ORC [deg/s]
 
 dynamics:
-  class_path: rigid_body.rigid_body.RigidBodyDynamics
+  class_path: spacecraft.rigid_body.RigidBodyDynamics
   dt: 0.2
   mass: 2.304
   inertia:
@@ -34,13 +34,13 @@ dynamics:
   initial_state: *init
   effectors:
     # Actuators first, in the [i_mtq, i_rw] command order the controllers allocate to.
-    - class_path: rigid_body.effector.MagnetorquerArray
+    - class_path: spacecraft.effector.MagnetorquerArray
       axes: [[-1, 0, 0], [0, 1, 0], [0, 0, 1]]
       dipole_constant: [0.3, 0.3, 0.2]
       time_constant: 0.5  # >= ~2*dt so the explicit current-loop integration stays stable
       max_current: 1.0
       b_field_model: [1.8e-5, -1.2e-5, 3.0e-5]  # representative constant LEO field [T]
-    - class_path: rigid_body.effector.ReactionWheelArray
+    - class_path: spacecraft.effector.ReactionWheelArray
       axes: [[-1, 0, 0], [0, 1, 0], [0, 0, 1]]
       inertia: 2.82e-6
       torque_constant: 0.01
@@ -48,11 +48,11 @@ dynamics:
       max_current: 0.2
       max_rpm: 6000
     # Environmental effectors (command-free).
-    - class_path: rigid_body.effector.EarthGravity
+    - class_path: spacecraft.effector.EarthGravity
       mu: 3.986004418e14
-    - class_path: rigid_body.effector.ThirdBody
+    - class_path: spacecraft.effector.ThirdBody
       epoch: "2024-01-01T12:00:00"
-    - class_path: rigid_body.effector.SolarRadiationPressure
+    - class_path: spacecraft.effector.SolarRadiationPressure
       epoch: "2024-01-01T12:00:00"
       surfaces: &surfaces
         Panel -X: {DimX: 0.246, DimY: 0.1, Origin: [-0.05, 0.05, 0.126], "Rotation (Surface frame to Body)": [[0.0, 0.0, -1.0], [0.0, -1.0, 0.0], [-1.0, 0.0, 0.0]]}
@@ -61,7 +61,7 @@ dynamics:
         Panel +Y: {DimX: 0.246, DimY: 0.1, Origin: [0.05, 0.05, 0.126], "Rotation (Surface frame to Body)": [[0.0, -1.0, 0.0], [0.0, 0.0, 1.0], [-1.0, 0.0, 0.0]]}
         Panel -Z: {DimX: 0.1, DimY: 0.1, Origin: [0.05, -0.05, -0.12], "Rotation (Surface frame to Body)": [[-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, -1.0]]}
         Panel +Z: {DimX: 0.1, DimY: 0.1, Origin: [0.05, 0.05, 0.126], "Rotation (Surface frame to Body)": [[-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, 1.0]]}
-    - class_path: rigid_body.effector.AerodynamicDrag
+    - class_path: spacecraft.effector.AerodynamicDrag
       epoch: "2024-01-01T12:00:00"
       surfaces: *surfaces
 
@@ -70,13 +70,13 @@ dynamics:
 # Outputs produce always-fresh truth at the base dt; the paired sensors below subsample at the real
 # (slower) measurement rates. (A slow Output would feed the sensor a multi-step-stale value.)
 outputs:
-  - {class_path: rigid_body.measurement.GpsOutput, dt: 0.2, include_velocity: false}
-  - {class_path: rigid_body.rigid_body.RigidBodyRateOutput, dt: 0.2}
-  - {class_path: rigid_body.measurement.MagneticFieldOutput, dt: 0.2, epoch: "2024-01-01T12:00:00"}
-  - {class_path: rigid_body.measurement.SunDirectionOutput, dt: 0.2, epoch: "2024-01-01T12:00:00"}
-  - {class_path: rigid_body.rigid_body.ReactionWheelTelemetryOutput, dt: 0.2, index: 19}
-  - {class_path: rigid_body.rigid_body.ReactionWheelTelemetryOutput, dt: 0.2, index: 20}
-  - {class_path: rigid_body.rigid_body.ReactionWheelTelemetryOutput, dt: 0.2, index: 21}
+  - {class_path: spacecraft.measurement.GpsOutput, dt: 0.2, include_velocity: false}
+  - {class_path: spacecraft.rigid_body.RigidBodyRateOutput, dt: 0.2}
+  - {class_path: spacecraft.measurement.MagneticFieldOutput, dt: 0.2, epoch: "2024-01-01T12:00:00"}
+  - {class_path: spacecraft.measurement.SunDirectionOutput, dt: 0.2, epoch: "2024-01-01T12:00:00"}
+  - {class_path: spacecraft.rigid_body.ReactionWheelTelemetryOutput, dt: 0.2, index: 19}
+  - {class_path: spacecraft.rigid_body.ReactionWheelTelemetryOutput, dt: 0.2, index: 20}
+  - {class_path: spacecraft.rigid_body.ReactionWheelTelemetryOutput, dt: 0.2, index: 21}
 
 sensors:
   - {class_path: simulate.sensor.GaussianSensor, dt: 5.0, std_dev: 3.0}            # GPS position [m]
@@ -88,11 +88,11 @@ sensors:
   - {class_path: simulate.sensor.GaussianSensor, dt: 0.2, std_dev: 1.0e-3}
 
 reference:
-  class_path: rigid_body.reference.OrbitReference
+  class_path: spacecraft.reference.OrbitReference
   dt: 0.2
 
 estimator:
-  class_path: rigid_body.estimator.FullStateEstimator
+  class_path: spacecraft.estimator.FullStateEstimator
   dt: 0.2
   # Epoch and the initial orbit/attitude guess come from the shared anchor (same as the truth).
   initial_state: *init
@@ -116,7 +116,7 @@ estimator:
     tach_channel: tachometer
 
 controller:
-  class_path: rigid_body.controller.QuaternionFeedbackController
+  class_path: spacecraft.controller.QuaternionFeedbackController
   dt: 0.2
   kp: [0.02, 0.02, 0.01]
   kd: [0.15, 0.15, 0.08]

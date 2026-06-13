@@ -2,17 +2,17 @@
 
 import numpy as np
 
-from rigid_body.controller import (
+from spacecraft.controller import (
     AdaptiveLQR,
     QuaternionFeedbackController,
     allocation_matrix,
     to_current_commands,
 )
-from rigid_body.effector import EarthGravity, MagnetorquerArray, ReactionWheelArray
-from rigid_body.frames import orc_from_orbit
-from rigid_body.orbit_dynamics import MU
-from rigid_body.quaternion import Quaternion
-from rigid_body.rigid_body import RigidBodyDynamics
+from spacecraft.effector import EarthGravity, MagnetorquerArray, ReactionWheelArray
+from spacecraft.frames import orc_from_orbit
+from spacecraft.orbit_dynamics import MU
+from spacecraft.quaternion import Quaternion
+from spacecraft.rigid_body import RigidBodyDynamics
 
 _AXES = np.eye(3)
 _KT = 0.02  # reaction-wheel torque constant

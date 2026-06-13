@@ -6,7 +6,7 @@ RigidBodyState layout (single shared column vector)::
 
 with position ``r`` and velocity ``v`` in the inertial frame, attitude quaternion ``q``
 (scalar-last, inertial->body, unit norm), and angular velocity ``omega`` in the body
-frame. See :mod:`rigid_body.quaternion` and :mod:`rigid_body.effector` for conventions.
+frame. See :mod:`spacecraft.quaternion` and :mod:`spacecraft.effector` for conventions.
 
 Equations of motion (``dynamics`` returns the continuous-time derivative)::
 
@@ -124,7 +124,7 @@ class RigidBodyDynamics(Dynamics[NoLog]):
               attitude_orc: {roll: ..., pitch: ..., yaw: ...}   # body wrt ORC [deg]
               angular_velocity_orc: [..., ..., ...]             # body rate wrt ORC [deg/s]
 
-        SGP4 propagates the TLE to the epoch for ``r``/``v``; :func:`~rigid_body.frames.eci_attitude_from_orc`
+        SGP4 propagates the TLE to the epoch for ``r``/``v``; :func:`~spacecraft.frames.eci_attitude_from_orc`
         turns the ORC-relative attitude into the inertial ``q``/``omega``. When ``initial_state`` is
         omitted the state keeps its defaults (zeros, identity quaternion).
         """

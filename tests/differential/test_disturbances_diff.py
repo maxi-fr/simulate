@@ -16,8 +16,8 @@ import pytest
 from diffhelpers import leo_rv, rand_inertia, rand_quat_array
 from scipy.spatial.transform import Rotation
 
-from rigid_body.effector import EarthGravity, RigidBodyState
-from rigid_body.quaternion import Quaternion
+from spacecraft.effector import EarthGravity, RigidBodyState
+from spacecraft.quaternion import Quaternion
 
 
 def test_gravity_gradient_matches_after_frame_transform(rng: np.random.Generator) -> None:

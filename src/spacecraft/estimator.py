@@ -414,7 +414,7 @@ class FullStateEstimator(Estimator[FullStateEstimatorLog]):
         """Body-frame reaction-wheel angular momentum from the tachometer channel (zero if absent).
 
         The tachometer reports relative wheel speeds ``omega_rel``; the stored momentum mirrors the
-        :class:`~rigid_body.effector.ReactionWheelArray` contribution
+        :class:`~spacecraft.effector.ReactionWheelArray` contribution
         ``axes^T @ (J_w * (omega_rel + axes @ omega_body))``.
         """
         if self.rw_axes is None or self.rw_inertia is None or self.tach_channel not in channels:
