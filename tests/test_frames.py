@@ -101,3 +101,23 @@ def test_error_to_small_rotation_axis() -> None:
     # Vector part is ~ (angle / 2) along the rotation axis (+x).
     np.testing.assert_allclose(q_err.vec, np.array([angle / 2, 0.0, 0.0]), atol=1e-6)
     assert q_err.scalar > 0
+
+
+def test_error_to_left_perturbation_nonidentity_reference() -> None:
+    # With a non-identity reference the multiplication order matters. The body-frame error
+    # is the LEFT perturbation `dq` in `current = dq (x) reference`, so
+    # `current.error_to(reference) == dq == current (x) reference^-1`.
+    reference = quaternion_from_euler(np.array([0.2, 0.5, -0.3]))
+    angle = 0.1
+    dq = Quaternion(np.array([0.0, 0.0, np.sin(angle / 2)]), np.cos(angle / 2))
+    current = dq * reference
+
+    q_err = current.error_to(reference)
+
+    # Recovers the left perturbation: vector part ~ (angle / 2) about +z.
+    np.testing.assert_allclose(q_err.vec, dq.vec, atol=1e-12)
+    np.testing.assert_allclose(q_err.vec, np.array([0.0, 0.0, np.sin(angle / 2)]), atol=1e-12)
+
+    # The reversed ordering (q_ref^-1 (x) q) gives a genuinely different error here.
+    reversed_err = reference.conjugate() * current
+    assert not np.allclose(reversed_err.vec, q_err.vec, atol=1e-6)

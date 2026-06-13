@@ -125,7 +125,7 @@ def magnetic_field_vector(dt_utc: datetime.datetime, lat_deg: float, lon_deg: fl
     np.ndarray, shape (3,)
         The magnetic field vector [Bx, By, Bz] in the ECI frame, in Tesla [T].
     """
-    d_dec, i_inc, h_hor, b_n, b_e, b_v, b_tot = pyIGRF.igrf_value(lat_deg, lon_deg, alt_m / 1000)
+    _d_dec, _i_inc, _h_hor, b_n, b_e, b_v, b_tot = pyIGRF.igrf_value(lat_deg, lon_deg, alt_m / 1000)
 
     b_ecef = pymap3d.ned2ecef(b_n, b_e, b_v, lat_deg, lon_deg, alt_m, pymap3d.Ellipsoid.from_name("wgs84"))
 

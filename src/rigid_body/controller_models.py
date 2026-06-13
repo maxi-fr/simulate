@@ -299,38 +299,3 @@ def build_reduced_system_dynamics(
     )
 
     return F, A_func, B_func
-
-
-def reduced_model(
-    dt: float,
-    inertia: np.ndarray,
-    q_ref: np.ndarray,
-    omega_ref: np.ndarray,
-    b_eci: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Reduced discrete model ``(A_tilde, B_tilde)`` (9x9, 9x6) via symbolic autodiff.
-
-    Parameters
-    ----------
-    dt : float
-        Discretization step [s].
-    inertia : np.ndarray
-        Spacecraft inertia, shape (3, 3).
-    q_ref : np.ndarray
-        Reference quaternion (ECI->ORC), shape (4,).
-    omega_ref : np.ndarray
-        Reference angular velocity (ORC-relative in SBC frame, or orbital rate in ORC), shape (3,).
-    b_eci : np.ndarray
-        Magnetic field vector in ECI frame [T], shape (3,).
-
-    Returns
-    -------
-    tuple[np.ndarray, np.ndarray]
-        The reduced ``(A_tilde, B_tilde)`` matrices of shapes (9, 9) and (9, 6).
-    """
-    _, a_func, b_func = build_reduced_system_dynamics(dt, inertia)
-    x_star = np.concatenate([q_ref, omega_ref, np.zeros(3)])
-    u_star = np.zeros(6)
-    a_tilde = np.array(a_func(x_star, u_star, b_eci))
-    b_tilde = np.array(b_func(x_star, u_star, b_eci))
-    return a_tilde, b_tilde

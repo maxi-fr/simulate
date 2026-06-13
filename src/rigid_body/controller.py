@@ -28,7 +28,7 @@ from numpy.typing import ArrayLike
 
 from simulate.controller import Controller
 
-from .controller_models import reduced_model
+from .controller_models import build_reduced_system_dynamics
 from .frames import orbital_rate, orc_from_orbit
 from .orbit_dynamics import MU, SGP4
 from .quaternion import Quaternion
@@ -62,7 +62,7 @@ def _attitude_error(ref: np.ndarray, x_hat: np.ndarray) -> tuple[np.ndarray, np.
 
     * the body's actual ORC->body rotation is ``q_bo_act = q_bi (x) q_oi^-1`` with
       ``q_oi = orc_from_orbit(r, v)`` (inertial->ORC), so the body-frame attitude error is
-      ``q_err = q_bo^-1 (x) q_bo_act`` (identity when the body is at the reference attitude),
+      ``q_err = q_bo_act (x) q_bo^-1`` (identity when the body is at the reference attitude),
     * the orbital feedforward body rate is ``omega_des = q_bo_act.apply(orbital_rate(r, v)) + omega_bo``
       (the ORC frame's rate rotated into the body frame, plus the reference's ORC-relative rate).
 
@@ -301,7 +301,7 @@ def _dlqr_warm_start(  # noqa: PLR0913
 
 
 @dataclasses.dataclass(frozen=True)
-class LQRControllerLog:
+class AdaptiveLQRLog:
     """Internal log for the LQR controllers."""
 
     error: np.ndarray
@@ -310,7 +310,7 @@ class LQRControllerLog:
     currents: np.ndarray
 
 
-class AdaptiveLQRController(Controller[LQRControllerLog]):
+class AdaptiveLQR(Controller[AdaptiveLQRLog]):
     """LQR that re-solves its gain each step to deal with the model changing.
 
     The reduced model is rebuilt with the magnetic field carried in ``x_hat`` and the Riccati
@@ -336,8 +336,11 @@ class AdaptiveLQRController(Controller[LQRControllerLog]):
         self.omega_c = np.asarray(omega_c, dtype=float)
         self.alpha_rw = np.asarray(alpha_rw, dtype=float)
         self.alpha_mtq = np.asarray(alpha_mtq, dtype=float)
+        self.n_inputs = self.alpha_mtq.shape[0] + self.alpha_rw.shape[0]
 
         self.P = None
+
+        _, self.A_func, self.B_func = build_reduced_system_dynamics(dt, self.inertia)
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> Self:
@@ -363,7 +366,7 @@ class AdaptiveLQRController(Controller[LQRControllerLog]):
         t: float,  # noqa: ARG002
         ref: float | np.ndarray,
         x_hat: float | np.ndarray,
-    ) -> tuple[float | np.ndarray, LQRControllerLog]:
+    ) -> tuple[float | np.ndarray, AdaptiveLQRLog]:
         """Re-solve the gain at the current field, then compute the LQR current commands."""
         ref_arr = np.asarray(ref)
         x = np.asarray(x_hat)
@@ -373,30 +376,31 @@ class AdaptiveLQRController(Controller[LQRControllerLog]):
         omega = x[_W]
         h_w = x[_H]
 
-        # Reference and parameters relative to ORC
         q_oi = orc_from_orbit(r, v)
-        q_ref = q_oi.to_array()  # TODO: should be using ref
-        omega_ref = orbital_rate(r, v)
+        q_bo_act = q_bi * q_oi.conjugate()
 
-        # Rotate body-frame B back to ECI for the ECI system-dynamics linearization
         b_body = x[_B]
         b_eci = q_bi.conjugate().apply(b_body)
 
-        self.A, self.B = reduced_model(
-            self.dt, self.inertia, q_ref, omega_ref, b_eci
-        )  # TODO: optimize. LQR controller much slower. I think because casadi models build at every turn
+        q_bo_ref = Quaternion.from_array(ref_arr[0:4])
+        q_bi_ref = (q_bo_ref * q_oi).to_array()
+        omega_ref = q_bo_act.apply(orbital_rate(r, v)) + ref_arr[4:7]
+        h_w_ref = -self.inertia @ omega_ref
+
+        x_ref = np.concatenate((q_bi_ref, omega_ref, h_w_ref))
+        u_ref = np.zeros(self.n_inputs)
+
+        A = np.array(self.A_func(x_ref, u_ref, b_eci))
+        B = np.array(self.B_func(x_ref, u_ref, b_eci))
+
         self.K, self.P = (
-            _dlqr_gain(self.A, self.B, self.Q, self.R)
-            if self.P is None
-            else _dlqr_warm_start(self.A, self.B, self.Q, self.R, self.P)
+            _dlqr_gain(A, B, self.Q, self.R) if self.P is None else _dlqr_warm_start(A, B, self.Q, self.R, self.P)
         )
 
-        # Compute error state: [q_err_vec, omega_err, h_w_err]
-        q_bo_act = q_bi * q_oi.conjugate()
-        q_err_vec = q_bo_act.vec * np.sign(q_bo_act.scalar)
-        omega_des = q_bo_act.apply(omega_ref) + ref_arr[4:7]
-        omega_err = omega - omega_des
-        h_w_err = h_w + self.inertia @ omega_ref
+        q_err = q_bo_act.error_to(q_bo_ref)
+        q_err_vec = q_err.vec * np.sign(q_err.scalar)
+        omega_err = omega - omega_ref
+        h_w_err = h_w - h_w_ref
         error = np.concatenate([q_err_vec, omega_err, h_w_err])
 
         control = -self.K @ error
@@ -412,7 +416,7 @@ class AdaptiveLQRController(Controller[LQRControllerLog]):
         b_norm_sq = np.dot(b_body, b_body)
         dipole = np.cross(b_body, control[0:3]) / b_norm_sq if b_norm_sq > _EPS else np.zeros(3)
 
-        return u, LQRControllerLog(
+        return u, AdaptiveLQRLog(
             error=error,
             dipole=dipole,
             tau_rw=control[3:6],

@@ -8,11 +8,11 @@ from simulate.component import NoLog
 from simulate.reference import Reference
 
 
-class NadirPointingReference(Reference[NoLog]):
-    """Nadir-pointing attitude reference, expressed **relative to the orbital (ORC) frame**.
+class OrbitReference(Reference[NoLog]):
+    """Attitude reference, expressed **relative to the orbital (ORC) frame**.
 
     The emitted 7-vector is ``[q_bo(4), omega_bo(3)]`` (quaternion scalar-last): ``q_bo`` is the
-    desired ORC->body rotation and ``omega_bo`` the desired body rate *relative to* the ORC frame.
+    desired ORC->body rotation and ``omega_bo`` the desired body rate *relative to* the ORC frame of the reference.
     For nadir pointing the body coincides with the ORC frame, so this is constant ``[0, 0, 0, 1]``
     (identity) and ``[0, 0, 0]``.
 

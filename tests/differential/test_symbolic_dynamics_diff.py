@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 from diffhelpers import rand_inertia, rand_quat_array, rand_unit_vec
 
-from rigid_body.controller_models import reduced_model
+from rigid_body.controller_models import build_reduced_system_dynamics
 from rigid_body.quaternion import Quaternion
 
 
@@ -94,7 +94,9 @@ def test_reduced_model_matches(rng: np.random.Generator) -> None:
     expected_a = np.array(a_func(x_star, u_star, b_eci))
     expected_b = np.array(b_func(x_star, u_star, b_eci))
 
-    new_a, new_b = reduced_model(dt, inertia, q_ref, omega_ref, b_eci)
+    _, new_a_func, new_b_func = build_reduced_system_dynamics(dt, inertia)
+    new_a = np.array(new_a_func(x_star, u_star, b_eci))
+    new_b = np.array(new_b_func(x_star, u_star, b_eci))
 
     assert new_a.shape == (9, 9)
     assert new_b.shape == (9, 6)

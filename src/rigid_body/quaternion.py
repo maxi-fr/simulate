@@ -219,10 +219,15 @@ class Quaternion:
         r"""
         Attitude error of this quaternion relative to a reference.
 
-        Returns the error quaternion :math:`q_{err} = q_{ref}^{-1} \otimes q`. For
+        Returns the error quaternion :math:`q_{err} = q \otimes q_{ref}^{-1}`. For
         ``self == reference`` the result is the identity quaternion ``([0, 0, 0], 1)``;
         for a small rotation the vector part is approximately half the rotation vector
         that takes ``reference`` onto ``self``.
+
+        This ordering is the one consistent with the ``q_dot = 0.5 * Xi(q) @ omega``
+        kinematics (:meth:`kinematics`): that derivative corresponds to a body-frame
+        left perturbation ``q+ = dq (x) q``, so the body-frame error is
+        ``dq = q (x) q_ref^-1``.
 
         Parameters
         ----------
@@ -234,7 +239,7 @@ class Quaternion:
         Quaternion
             The error quaternion.
         """
-        return reference.conjugate() * self
+        return self * reference.conjugate()
 
     def apply(self, v: ArrayLike) -> Vec3:
         """

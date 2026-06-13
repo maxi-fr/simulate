@@ -81,9 +81,11 @@ Foundation for the reference, MEKF and controllers.
 + **Step 1.2 — Euler conversions.** Add `euler_from_quaternion`/`quaternion_from_euler` (intrinsic Y-X-Z,
   matching old repo) to `frames.py` for references/analysis. *Verify:* round-trip euler↔quaternion to tolerance.
 + **Step 1.3 — Attitude-error helpers.** Add `conjugate`/`inverse` and `error_to(other)` (small-angle error
-  quaternion `q_err = q_ref^-1 ⊗ q`) to [quaternion.py](src/rigid_body/quaternion.py) only if missing; reuse
-  existing `__mul__`, `apply`, `to_rot_mat`. *Verify:* identity error for equal quaternions; error vector
-  sign matches a known small rotation.
+  quaternion `q_err = q ⊗ q_ref^-1`) to [quaternion.py](src/rigid_body/quaternion.py) only if missing; reuse
+  existing `__mul__`, `apply`, `to_rot_mat`. This ordering (not `q_ref^-1 ⊗ q`) is the one consistent with the
+  `q_dot = ½ Ξ(q) ω` kinematics and the LQR reduced-error chart `E = diag(Ξ(q_ref), I₆)`, so `q_err.vec` is the
+  body-frame attitude error fed to the gain. *Verify:* identity error for equal quaternions; error vector
+  sign matches a known small rotation about a **non-identity** reference.
 
 ## Phase 2 — Environment-coupled measurement Outputs
 
@@ -186,7 +188,7 @@ command nadir tracking; the LQR reduced model's `omega_c` is the same orbital ra
   allocated to currents. Magnetic momentum dumping is left to `QuaternionFeedbackController` (the LQR
   model has no momentum state). *Verify:* stabilizes the linearized system (closed-loop eigenvalues
   inside unit circle) and drives the nonlinear plant error to tolerance.
-+ **Step 5.4 — `AdaptiveLQRController`.** Re-solve on the updated/averaged model with Newton-Kleinman warm
++ **Step 5.4 — `AdaptiveLQR`.** Re-solve on the updated/averaged model with Newton-Kleinman warm
   start. *Verify:* matches `LQRController` on a static model; adapts (gain changes) when the model is varied.
 
 ## Phase 6 — End-to-end nadir-pointing example, config & analysis (implemented)

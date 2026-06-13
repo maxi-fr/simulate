@@ -19,7 +19,21 @@ import scipy.linalg
 from diffhelpers import rand_quat_array, rand_unit_vec
 
 from rigid_body.controller import _dlqr_warm_start, allocation_matrix, to_current_commands
-from rigid_body.controller_models import reduced_model
+from rigid_body.controller_models import build_reduced_system_dynamics
+
+
+def _reduced_ab(
+    dt: float,
+    inertia: np.ndarray,
+    q_ref: np.ndarray,
+    omega_ref: np.ndarray,
+    b_eci: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Evaluate the reduced discrete model ``(A_tilde, B_tilde)`` at the reference point."""
+    _, a_func, b_func = build_reduced_system_dynamics(dt, inertia)
+    x_star = np.concatenate([q_ref, omega_ref, np.zeros(3)])
+    u_star = np.zeros(6)
+    return np.array(a_func(x_star, u_star, b_eci)), np.array(b_func(x_star, u_star, b_eci))
 
 
 def _actuator(k_t: float, axis: np.ndarray) -> Any:
@@ -76,7 +90,7 @@ def test_warm_start_agree_at_dare_fixed_point() -> None:
     omega_c = np.array([0.0, -1.0e-3, 0.0])
     b_field = np.array([1.5e-5, -2.0e-5, 3.0e-5])
     q_ref = np.array([0.0, 0.0, 0.0, 1.0])
-    a_mat, b_mat = reduced_model(0.5, inertia, q_ref, omega_c, b_field)
+    a_mat, b_mat = _reduced_ab(0.5, inertia, q_ref, omega_c, b_field)
     q = np.eye(9)
     r = np.eye(6) * 1e2
 
@@ -107,7 +121,7 @@ def test_warm_start_diverges_away_from_fixed_point() -> None:
     omega_c = np.array([0.0, -1.0e-3, 0.0])
     b_field = np.array([1.5e-5, -2.0e-5, 3.0e-5])
     q_ref = np.array([0.0, 0.0, 0.0, 1.0])
-    a_mat, b_mat = reduced_model(0.5, inertia, q_ref, omega_c, b_field)
+    a_mat, b_mat = _reduced_ab(0.5, inertia, q_ref, omega_c, b_field)
     q = np.eye(9)
     r = np.eye(6) * 1e2
 
@@ -118,7 +132,7 @@ def test_warm_start_diverges_away_from_fixed_point() -> None:
 
 
 def test_adaptive_lqr_controller_behaves_same(rng: np.random.Generator) -> None:
-    """The new AdaptiveLQRController matches the old AdaptiveLQR at the DARE solve step."""
+    """The new AdaptiveLQR matches the old AdaptiveLQR at the DARE solve step."""
     old_mod = pytest.importorskip("flight_software.controllers")
     import simulation.actuators as act  # type: ignore # noqa: PGH003
 
@@ -160,7 +174,7 @@ def test_adaptive_lqr_controller_behaves_same(rng: np.random.Generator) -> None:
     old_ctrl = old_mod.AdaptiveLQR(Q=Q, R=R, dt=dt)
     old_ctrl.init_satellite_model(sat)
 
-    from rigid_body.controller import AdaptiveLQRController
+    from rigid_body.controller import AdaptiveLQR
 
     alpha_rw = allocation_matrix(rw_axes, rw_kt)
     alpha_mtq = allocation_matrix(mtq_axes, mtq_kt)
@@ -176,9 +190,7 @@ def test_adaptive_lqr_controller_behaves_same(rng: np.random.Generator) -> None:
     h_w = rng.uniform(-0.5, 0.5, size=3)
     B_eci = rng.uniform(-3e-5, 3e-5, size=3)
 
-    new_ctrl = AdaptiveLQRController(
-        dt=dt, Q=Q, R=R, inertia=inertia, omega_c=omega_c, alpha_rw=alpha_rw, alpha_mtq=alpha_mtq
-    )
+    new_ctrl = AdaptiveLQR(dt=dt, Q=Q, R=R, inertia=inertia, omega_c=omega_c, alpha_rw=alpha_rw, alpha_mtq=alpha_mtq)
 
     att_state = np.concatenate([q_bi, omega, h_w])
     orbit_state = np.concatenate([r, v])
