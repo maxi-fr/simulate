@@ -33,7 +33,7 @@ from spacecraft.environment import atmosphere_density_msis, is_in_shadow, moon_p
 from spacecraft.frames import eci_to_geodedic
 from spacecraft.orbit_dynamics import MU
 from spacecraft.quaternion import Quaternion
-from spacecraft.surface import Surface
+from spacecraft.surface import Surface, VectorizedSurfaces
 
 
 @dataclasses.dataclass(frozen=True)
@@ -545,6 +545,7 @@ class SolarRadiationPressure(Effector):
         """Initialize with the body surfaces and the simulation epoch (``t = 0``)."""
         self.surfaces = surfaces
         self.epoch = _ensure_utc(epoch)
+        self.vectorized_surfaces = VectorizedSurfaces(surfaces)
 
     def calc_contributions(
         self,
@@ -558,7 +559,9 @@ class SolarRadiationPressure(Effector):
         sun_pos = sun_position(dt_utc)
         in_shadow = is_in_shadow(state.r_eci, sun_pos)
 
-        force, torque = dis.solar_radiation_pressure(state.r_eci, sun_pos, in_shadow, state.q_bi, self.surfaces)
+        force, torque = dis.solar_radiation_pressure(
+            state.r_eci, sun_pos, in_shadow, state.q_bi, self.vectorized_surfaces
+        )
 
         return state.q_bi.conjugate().apply(force), torque, np.zeros(3, dtype=float)
 
@@ -587,6 +590,7 @@ class AerodynamicDrag(Effector):
         """Initialize with the body surfaces and the simulation epoch (``t = 0``)."""
         self.surfaces = surfaces
         self.epoch = _ensure_utc(epoch)
+        self.vectorized_surfaces = VectorizedSurfaces(surfaces)
 
     def calc_contributions(
         self,
@@ -600,7 +604,7 @@ class AerodynamicDrag(Effector):
         lat_deg, lon_deg, alt_m = eci_to_geodedic(state.r_eci)
         rho = atmosphere_density_msis(dt_utc, float(lat_deg), float(lon_deg), float(alt_m))
 
-        force, torque = dis.aerodynamic_drag(state.r_eci, state.v_eci, state.q_bi, self.surfaces, rho)
+        force, torque = dis.aerodynamic_drag(state.r_eci, state.v_eci, state.q_bi, self.vectorized_surfaces, rho)
 
         return state.q_bi.conjugate().apply(force), torque, np.zeros(3, dtype=float)
 

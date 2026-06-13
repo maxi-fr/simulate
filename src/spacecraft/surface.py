@@ -175,3 +175,28 @@ class Surface:
         """
         p = self.pos
         return np.array([p, p + self.x_axis, p + self.x_axis + self.y_axis, p + self.y_axis])
+
+
+class VectorizedSurfaces:
+    """Pre-stacked vector arrays of multiple Surface objects for vectorized calculations."""
+
+    normals: np.ndarray
+    centers: np.ndarray
+    areas: np.ndarray
+    sigma_t: np.ndarray
+    sigma_n: np.ndarray
+    S: np.ndarray
+    rho_s: np.ndarray
+    rho_d: np.ndarray
+    rho_t: np.ndarray
+
+    def __init__(self, surfaces: list[Surface]) -> None:
+        self.normals = np.array([s.normal for s in surfaces])
+        self.centers = np.array([s.center for s in surfaces])
+        self.areas = np.array([s.area for s in surfaces])
+        self.sigma_t = np.array([s.sigma_t for s in surfaces])
+        self.sigma_n = np.array([s.sigma_n for s in surfaces])
+        self.S = np.array([s.S for s in surfaces])
+        self.rho_s = np.array([s.rho_s for s in surfaces])
+        self.rho_d = np.array([s.rho_d for s in surfaces])
+        self.rho_t = np.array([s.rho_t for s in surfaces])

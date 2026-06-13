@@ -3,7 +3,7 @@ import numpy as np
 
 from .environment import solar_radiation_pressure_constant
 from .quaternion import Quaternion
-from .surface import Surface
+from .surface import Surface, VectorizedSurfaces
 
 # Earth constants
 R_EARTH = 6.378137e6  # Earth's equatorial radius in meters
@@ -102,13 +102,16 @@ OMEGA_E = np.array([0, 0, 0.000_072_921_158_553])
 
 
 def aerodynamic_drag(
-    r_eci: np.ndarray, v_eci: np.ndarray, R_BI: Quaternion, surfaces: list[Surface], rho: float
+    r_eci: np.ndarray,
+    v_eci: np.ndarray,
+    R_BI: Quaternion,
+    surfaces: list[Surface] | VectorizedSurfaces,
+    rho: float,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Calculate the aerodynamic drag force and torque on the satellite.
 
-    This function iterates through the satellite's surfaces to compute the total
-    aerodynamic force and torque based on a simplified impact model.
+    This function computes the total aerodynamic force and torque using a vectorized model.
 
     Parameters
     ----------
@@ -118,8 +121,8 @@ def aerodynamic_drag(
         Velocity of the satellite in the ECI frame [m/s].
     R_BI : Quaternion
         Rotation from the inertial frame (I) to the body frame (B).
-    surfaces : List[Surface]
-        A list of Surface objects representing the satellite's geometry.
+    surfaces : List[Surface] or VectorizedSurfaces
+        The satellite's surfaces.
     rho : float
         Atmospheric density at the satellite's position [kg/m^3].
 
@@ -135,24 +138,43 @@ def aerodynamic_drag(
     v_rel_B_norm = np.linalg.norm(v_rel_B)
     v_rel_B_unit = v_rel_B / v_rel_B_norm
 
-    F = np.zeros(3)
-    tau = np.zeros(3)
+    if isinstance(surfaces, VectorizedSurfaces):
+        normals = surfaces.normals
+        centers = surfaces.centers
+        areas = surfaces.areas
+        sigma_t = surfaces.sigma_t
+        sigma_n = surfaces.sigma_n
+        S = surfaces.S
+    else:
+        # Convert list of Surface objects on the fly
+        normals = np.array([s.normal for s in surfaces])
+        centers = np.array([s.center for s in surfaces])
+        areas = np.array([s.area for s in surfaces])
+        sigma_t = np.array([s.sigma_t for s in surfaces])
+        sigma_n = np.array([s.sigma_n for s in surfaces])
+        S = np.array([s.S for s in surfaces])
 
-    for s in surfaces:
-        cos_theta_i = np.dot(v_rel_B_unit, s.normal)
+    cos_thetas = normals @ v_rel_B_unit
+    mask = cos_thetas >= 0.0
+    if not np.any(mask):
+        return np.zeros(3), np.zeros(3)
 
-        if cos_theta_i < 0:
-            continue
+    normals_active = normals[mask]
+    centers_active = centers[mask]
+    areas_active = areas[mask]
+    sigma_t_active = sigma_t[mask]
+    sigma_n_active = sigma_n[mask]
+    S_active = S[mask]
+    cos_thetas_active = cos_thetas[mask]
 
-        F_i = (
-            -rho
-            * v_rel_B_norm**2
-            * s.area
-            * cos_theta_i
-            * (s.sigma_t * v_rel_B_unit + (s.sigma_n * s.S + (2 - s.sigma_n - s.sigma_t) * cos_theta_i) * s.normal)
-        )
-        tau += np.cross(s.center, F_i)
-        F += F_i
+    coeffs = -rho * (v_rel_B_norm**2) * areas_active * cos_thetas_active
+    term1 = sigma_t_active[:, np.newaxis] * v_rel_B_unit[np.newaxis, :]
+    term2_scalar = sigma_n_active * S_active + (2.0 - sigma_n_active - sigma_t_active) * cos_thetas_active
+    term2 = term2_scalar[:, np.newaxis] * normals_active
+    F_active = coeffs[:, np.newaxis] * (term1 + term2)
+
+    F = np.sum(F_active, axis=0)
+    tau = np.sum(np.cross(centers_active, F_active), axis=0)
 
     return F, tau
 
@@ -162,7 +184,7 @@ def solar_radiation_pressure(
     sun_pos_eci: np.ndarray,
     in_shadow: bool,  # noqa: FBT001
     R_BI: Quaternion,
-    surfaces: list[Surface],
+    surfaces: list[Surface] | VectorizedSurfaces,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Calculate the solar radiation pressure force and torque on the satellite.
@@ -177,8 +199,8 @@ def solar_radiation_pressure(
         Flag indicating if the satellite is in Earth's shadow.
     R_BI : Quaternion
         Rotation from the inertial frame (I) to the body frame (B).
-    surfaces : List[Surface]
-        A list of Surface objects representing the satellite's geometry.
+    surfaces : List[Surface] or VectorizedSurfaces
+        The satellite's surfaces.
 
     Returns
     -------
@@ -193,23 +215,42 @@ def solar_radiation_pressure(
 
     sun_dir = R_BI.apply(sc_to_sun / np.linalg.norm(sc_to_sun))
 
-    F = np.zeros(3)
-    tau = np.zeros(3)
+    if isinstance(surfaces, VectorizedSurfaces):
+        normals = surfaces.normals
+        centers = surfaces.centers
+        areas = surfaces.areas
+        rho_s = surfaces.rho_s
+        rho_t = surfaces.rho_t
+        rho_d = surfaces.rho_d
+    else:
+        # Convert list of Surface objects on the fly
+        normals = np.array([s.normal for s in surfaces])
+        centers = np.array([s.center for s in surfaces])
+        areas = np.array([s.area for s in surfaces])
+        rho_s = np.array([s.rho_s for s in surfaces])
+        rho_t = np.array([s.rho_t for s in surfaces])
+        rho_d = np.array([s.rho_d for s in surfaces])
 
-    for s in surfaces:
-        cos_theta_i = np.dot(sun_dir, s.normal)
+    cos_thetas = normals @ sun_dir
+    mask = cos_thetas >= 0.0
+    if not np.any(mask):
+        return np.zeros(3), np.zeros(3)
 
-        if cos_theta_i < 0:
-            continue
+    normals_active = normals[mask]
+    centers_active = centers[mask]
+    areas_active = areas[mask]
+    rho_s_active = rho_s[mask]
+    rho_t_active = rho_t[mask]
+    rho_d_active = rho_d[mask]
+    cos_thetas_active = cos_thetas[mask]
 
-        F_i = (
-            -P
-            * s.area
-            * cos_theta_i
-            * ((1 - s.rho_s - s.rho_t) * sun_dir + (2 * s.rho_s * cos_theta_i + 2 / 3 * s.rho_d) * s.normal)
-        )
+    coeffs = -P * areas_active * cos_thetas_active
+    term1 = (1.0 - rho_s_active - rho_t_active)[:, np.newaxis] * sun_dir[np.newaxis, :]
+    term2_scalar = 2.0 * rho_s_active * cos_thetas_active + (2.0 / 3.0) * rho_d_active
+    term2 = term2_scalar[:, np.newaxis] * normals_active
+    F_active = coeffs[:, np.newaxis] * (term1 + term2)
 
-        tau += np.cross(s.center, F_i)
-        F += F_i
+    F = np.sum(F_active, axis=0)
+    tau = np.sum(np.cross(centers_active, F_active), axis=0)
 
     return F, tau
