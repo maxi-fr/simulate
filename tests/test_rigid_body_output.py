@@ -1,6 +1,6 @@
 import numpy as np
 
-from rigid_body.rigid_body import (
+from spacecraft.rigid_body import (
     ANGULAR_VELOCITY,
     BASE_STATES,
     QUATERNION,

@@ -1,14 +1,14 @@
 """Environment-coupled measurement Outputs for the rigid body.
 
 These Outputs read the orbit state (and, where needed, the environment evaluated at
-``epoch + t``) and return truth measurements in the body frame, to be paired with a
+`epoch + t`) and return truth measurements in the body frame, to be paired with a
 :class:`~simulate.sensor.Sensor` that adds noise. They mirror the epoch and coordinate
-handling used by the environmental effectors in :mod:`rigid_body.effector`.
+handling used by the environmental effectors in :mod:`spacecraft.effector`.
 
 The dynamics-only sensors (rate gyro, star tracker, reaction-wheel tachometer) already have
-Outputs in :mod:`rigid_body.rigid_body` (:class:`~rigid_body.rigid_body.RigidBodyRateOutput`,
-:class:`~rigid_body.rigid_body.RigidBodyAttitudeOutput`,
-:class:`~rigid_body.rigid_body.ReactionWheelTelemetryOutput`); pair those directly with a
+Outputs in :mod:`spacecraft.rigid_body` (:class:`~spacecraft.rigid_body.RigidBodyRateOutput`,
+:class:`~spacecraft.rigid_body.RigidBodyAttitudeOutput`,
+:class:`~spacecraft.rigid_body.ReactionWheelTelemetryOutput`); pair those directly with a
 sensor. This module adds the Outputs that need the environment models.
 """
 

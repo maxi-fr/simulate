@@ -5,7 +5,7 @@
 The old repo [`maxi-fr/adaptive-satellite-control`](https://github.com/maxi-fr/adaptive-satellite-control)
 is a working-but-sloppy satellite ADCS simulation (≈67% notebooks, 2 test files). We are
 re-implementing it cleanly inside this repo's block-based framework (`src/simulate`) + aerospace
-package (`src/rigid_body`), using the old repo only as a behavioural outline. MPC and its
+package (`src/spacecraft`), using the old repo only as a behavioural outline. MPC and its
 AL-iLQR/CasADi solver are explicitly **out of scope**.
 
 Goal: the repo can simulate a satellite holding **nadir pointing** in LEO under real disturbances,
@@ -21,14 +21,14 @@ check. Steps within a phase are mostly sequential; phases are strictly ordered b
 
 ## Already ported (no work needed)
 
-+ 6-DOF dynamics + quaternion kinematics — [rigid_body.py](src/rigid_body/rigid_body.py), [quaternion.py](src/rigid_body/quaternion.py)
++ 6-DOF dynamics + quaternion kinematics — [rigid_body.py](src/spacecraft/rigid_body.py), [quaternion.py](src/spacecraft/quaternion.py)
 
-+ Actuators as `Effector`s: `ReactionWheelArray`, `MagnetorquerArray`, `Wrench` — [effector.py](src/rigid_body/effector.py)
-+ Disturbances: gravity gradient, third-body, SRP, drag — [effector.py](src/rigid_body/effector.py), [disturbances.py](src/rigid_body/disturbances.py)
-+ Environment: IGRF B-field, MSIS density, sun/moon ephemeris (cached), eclipse — [environment.py](src/rigid_body/environment.py)
-+ Surfaces, SGP4 orbit propagation — [surface.py](src/rigid_body/surface.py), [orbit_dynamics.py](src/rigid_body/orbit_dynamics.py)
++ Actuators as `Effector`s: `ReactionWheelArray`, `MagnetorquerArray`, `Wrench` — [effector.py](src/spacecraft/effector.py)
++ Disturbances: gravity gradient, third-body, SRP, drag — [effector.py](src/spacecraft/effector.py), [disturbances.py](src/spacecraft/disturbances.py)
++ Environment: IGRF B-field, MSIS density, sun/moon ephemeris (cached), eclipse — [environment.py](src/spacecraft/environment.py)
++ Surfaces, SGP4 orbit propagation — [surface.py](src/spacecraft/surface.py), [orbit_dynamics.py](src/spacecraft/orbit_dynamics.py)
 + Multi-rate sim loop, logging, batch runner, generic Gaussian/random-walk sensors — `src/simulate/*`
-+ Existing Outputs: pose, attitude (`q`), rate (`omega`), RW telemetry — [rigid_body.py](src/rigid_body/rigid_body.py)
++ Existing Outputs: pose, attitude (`q`), rate (`omega`), RW telemetry — [rigid_body.py](src/spacecraft/rigid_body.py)
 
 ## Gaps in the old repo (deficiencies we deliberately improve on)
 
@@ -58,7 +58,7 @@ These are things the old repo lacked or did poorly — the port fixes them rathe
   magnetic field, sun direction, atmospheric density, smoothed orbit position/velocity.
 + Sensors to port: **magnetometer, sun sensor, GPS, gyro, RW tachometer**.
 + Target scenario: **nadir pointing** hold (start near-pointed) with reaction wheels under disturbances.
-+ All new satellite-specific classes live in `src/rigid_body` (keep `src/simulate` generic).
++ All new satellite-specific classes live in `src/spacecraft` (keep `src/simulate` generic).
 + Use `scipy.linalg.solve_discrete_are` for Riccati; **do not** add `control` or `casadi`.
 + `x_hat` layout exposed to the controller = `[r(3), v(3), q(4), omega(3), b_body(3), h_wheel(3)]`
   (length 19). The first 13 are the orbit/attitude state; the trailing **estimated body-frame
@@ -66,7 +66,7 @@ These are things the old repo lacked or did poorly — the port fixes them rathe
   the controllers (magnetorquer allocation + momentum dumping) only receive `x_hat`, never the
   estimator log. Gyro bias and the remaining environment variables still ride in the estimator's
   **log dataclass**. (Implemented divergence from the original "first 13 only" decision — see
-  [estimator.py](src/rigid_body/estimator.py).)
+  [estimator.py](src/spacecraft/estimator.py).)
 
 ---
 
@@ -74,14 +74,14 @@ These are things the old repo lacked or did poorly — the port fixes them rathe
 
 Foundation for the reference, MEKF and controllers.
 
-+ **Step 1.1 — ORC orbital frame.** `src/rigid_body/frames.py`: `orc_from_orbit(r_eci, v_eci) -> Quaternion`
++ **Step 1.1 — ORC orbital frame.** `src/spacecraft/frames.py`: `orc_from_orbit(r_eci, v_eci) -> Quaternion`
   building the local orbital frame (nadir / along-track / orbit-normal) and inertial→ORC rotation;
-  `orbital_rate(r_eci, v_eci) -> omega` for reference feedforward. Reuse [quaternion.py](src/rigid_body/quaternion.py).
+  `orbital_rate(r_eci, v_eci) -> omega` for reference feedforward. Reuse [quaternion.py](src/spacecraft/quaternion.py).
   *Verify:* test that nadir axis equals `-r̂` and the frame is orthonormal; rate ≈ mean motion on a circular orbit.
 + **Step 1.2 — Euler conversions.** Add `euler_from_quaternion`/`quaternion_from_euler` (intrinsic Y-X-Z,
   matching old repo) to `frames.py` for references/analysis. *Verify:* round-trip euler↔quaternion to tolerance.
 + **Step 1.3 — Attitude-error helpers.** Add `conjugate`/`inverse` and `error_to(other)` (small-angle error
-  quaternion `q_err = q ⊗ q_ref^-1`) to [quaternion.py](src/rigid_body/quaternion.py) only if missing; reuse
+  quaternion `q_err = q ⊗ q_ref^-1`) to [quaternion.py](src/spacecraft/quaternion.py) only if missing; reuse
   existing `__mul__`, `apply`, `to_rot_mat`. This ordering (not `q_ref^-1 ⊗ q`) is the one consistent with the
   `q_dot = ½ Ξ(q) ω` kinematics and the LQR reduced-error chart `E = diag(Ξ(q_ref), I₆)`, so `q_err.vec` is the
   body-frame attitude error fed to the gain. *Verify:* identity error for equal quaternions; error vector
@@ -90,8 +90,8 @@ Foundation for the reference, MEKF and controllers.
 ## Phase 2 — Environment-coupled measurement Outputs
 
 New satellite sensor Outputs reading orbit state + environment at `epoch + t`. Follow the existing epoch
-pattern in `AerodynamicDrag`/`ThirdBody` ([effector.py:198-200, 587-590](src/rigid_body/effector.py)):
-`_ensure_utc`, `dt_utc = epoch + timedelta(seconds=t)`, `pymap3d.eci2ecef`. All in `src/rigid_body/measurement.py`.
+pattern in `AerodynamicDrag`/`ThirdBody` ([effector.py:198-200, 587-590](src/spacecraft/effector.py)):
+`_ensure_utc`, `dt_utc = epoch + timedelta(seconds=t)`, `pymap3d.eci2ecef`. All in `src/spacecraft/measurement.py`.
 
 + **Step 2.1 — `MagneticFieldOutput(epoch)`.** ECI→ECEF→geodetic, `environment.magnetic_field_vector`,
   rotate into body frame via `Quaternion.apply`. *Verify:* magnitude matches `environment` truth; vector
@@ -112,7 +112,7 @@ SGP4-driven plan):** the reference is expressed **relative to the orbital (ORC) 
 simply the constant identity. The orbital frame and feedforward rate are reconstructed *inside the
 controller* from the estimated orbit `r, v` in `x_hat`, so the reference needs no propagator of its own.
 
-+ **Step 3.1 — `NadirPointingReference(Reference)`.** [src/rigid_body/reference.py](src/rigid_body/reference.py):
++ **Step 3.1 — `NadirPointingReference(Reference)`.** [src/spacecraft/reference.py](src/spacecraft/reference.py):
   emits the constant 7-vector `ref = [q_bo(4), omega_bo(3)] = [0,0,0,1, 0,0,0]`, where `q_bo` is the
   desired **ORC→body** rotation (identity = nadir) and `omega_bo` the desired rate *relative to* ORC
   (zero). `from_config` takes only `dt`. The controller (Phase 5) composes this with
@@ -125,7 +125,7 @@ The estimator receives the concatenated `y_mea` (attitude, rate, magnetometer, s
 and `u`, and returns `x_hat = [r, v, q, omega, b_body, h_wheel]` (length 19,
 [simulation.py:154-160](src/simulate/simulation.py#L154-L160)). The trailing `b_body`/`h_wheel` feed
 the controllers (see the Phase-5 note); the first 13 are the orbit/attitude state.
-Build incrementally; each sub-filter is independently testable. All in `src/rigid_body/estimator.py`,
+Build incrementally; each sub-filter is independently testable. All in `src/spacecraft/estimator.py`,
 subclassing [`Estimator`](src/simulate/estimator.py). A frozen log dataclass carries gyro bias, the
 exposed environment variables, and the body-frame wheel momentum.
 
@@ -133,7 +133,7 @@ exposed environment variables, and the body-frame wheel momentum.
   channels (must mirror the `outputs`/`sensors` ordering in the config). *Verify:* slicing round-trips a
   synthetic concatenated vector.
 + **Step 4.2 — Orbit Kalman filter.** Linear KF over `[r, v]`: two-body predict (reuse
-  [orbit_dynamics.py](src/rigid_body/orbit_dynamics.py)), GPS position/velocity update, process/measurement
+  [orbit_dynamics.py](src/spacecraft/orbit_dynamics.py)), GPS position/velocity update, process/measurement
   covariances from config. *Verify:* on a noisy GPS feed from a known orbit, estimated `r/v` error is below
   the raw measurement noise (smoothing demonstrably helps).
 + **Step 4.3 — Attitude MEKF.** Port the old `AttitudeEKF`: state = error-quaternion + gyro bias + rate;
@@ -143,7 +143,7 @@ exposed environment variables, and the body-frame wheel momentum.
 + **Step 4.4 — Environment-variable exposure.** From the estimated orbit (`r/v` + `epoch+t`) compute and
   log: magnetic field (`environment.magnetic_field_vector`), sun direction + eclipse, atmospheric density
   (`environment.atmosphere_density_msis`), and smoothed geodetic lat/lon/alt. Reuse
-  [environment.py](src/rigid_body/environment.py). *Verify:* exposed env vars match the truth-at-estimated-orbit
+  [environment.py](src/spacecraft/environment.py). *Verify:* exposed env vars match the truth-at-estimated-orbit
   within tolerance; logged via the estimator dataclass.
 + **Step 4.5 — Assemble `FullStateEstimator`.** Compose 4.2–4.4 into one `Estimator` producing
   `x_hat = [r, v, q, omega, b_body, h_wheel]` (length 19) and the rich log; `from_config` wires noise
@@ -158,7 +158,7 @@ current commands** (not torque). Because the `ReactionWheelArray`/`MagnetorquerA
 interpret their command slice as currents, each controller computes a desired torque and then
 allocates it to currents with `to_current_commands` before returning `u` — porting the legacy
 `PI.calc_input_cmds` flow. Output order is `[i_mtq, i_rw]`, so the dynamics config must list the
-magnetorquer array before the reaction-wheel array. New classes in `src/rigid_body/controller.py`,
+magnetorquer array before the reaction-wheel array. New classes in `src/spacecraft/controller.py`,
 mirroring `PIDController` ([controller.py](src/simulate/controller.py)).
 
 **Orbit-frame reference handling (implemented).** Because the reference is orbit-relative (Phase 3),
@@ -174,7 +174,7 @@ command nadir tracking; the LQR reduced model's `omega_c` is the same orbital ra
   Port old `ClassicalQuatFeedback`; uses Phase-1 error helpers. *Verify:* closed-loop on real
   `RigidBodyDynamics` drives a small initial error below tolerance within N steps; wheel momentum
   bounded with dumping on.
-+ **Step 5.2 — Linearization helpers.** `src/rigid_body/linearization.py`: port the error/attitude
++ **Step 5.2 — Linearization helpers.** `src/spacecraft/linearization.py`: port the error/attitude
   jacobian + RK2-normalized error dynamics → reduced discrete `(A, B)` from old `controller_models.py`,
   reimplemented in **NumPy** (CasADi is out of scope) via central finite differences. The reduced state
   is the 6-vector `[delta_theta, delta_omega]` with input `[m, tau_rw]` (magnetorquer dipole +
@@ -208,7 +208,7 @@ command nadir tracking; the LQR reduced model's `omega_c` is the same orbital ra
 
 ### New component and enabling changes introduced in Phase 6
 
-+ **`EarthGravity` effector** ([effector.py](src/rigid_body/effector.py)) — central two-body gravity
++ **`EarthGravity` effector** ([effector.py](src/spacecraft/effector.py)) — central two-body gravity
   force `F = -mu*m*r/|r|^3`. The rigid-body translational equation applies effector forces only (no
   built-in gravity), so this is what makes the integrated orbit Keplerian and consistent with the orbit
   KF's two-body prediction. Also calculates gravity gradient torque
@@ -217,11 +217,11 @@ command nadir tracking; the LQR reduced model's `omega_c` is the same orbital ra
   (`epoch`, `tle`, `attitude_orc` roll/pitch/yaw [deg], `angular_velocity_orc` [deg/s]), written once in
   the YAML and shared via a `&init`/`*init` anchor so the truth and the estimator's guess start
   consistent. SGP4 propagates the TLE to the epoch for `r/v`; the new helper
-  [`frames.eci_attitude_from_orc`](src/rigid_body/frames.py) converts the ORC-relative attitude/rate into
+  [`frames.eci_attitude_from_orc`](src/spacecraft/frames.py) converts the ORC-relative attitude/rate into
   the inertial `q`/`omega` (the inverse of the controller's `_attitude_error`). This replaces the legacy
   raw `r0/v0/q0/omega0` keys, matching how the old `Simulation.from_json` was configured. When
   `initial_state` is omitted `RigidBodyDynamics` keeps its zeros/identity defaults.
-+ **Estimator robustness** ([estimator.py](src/rigid_body/estimator.py)): the simulation feeds the
++ **Estimator robustness** ([estimator.py](src/spacecraft/estimator.py)): the simulation feeds the
   concatenated `y_mea` every base step with slow channels **zero-order-hold-held**, so `FullStateEstimator`
   now fuses each channel only on a *fresh* sample (re-fusing a held GPS would pin the orbit estimate).
   Note also that `update_vector` normalizes its inputs, so `R_mag` is the **unit-vector** noise variance
@@ -246,20 +246,20 @@ command nadir tracking; the LQR reduced model's `omega_c` is the same orbital ra
 
 ## Critical files
 
-+ New: `src/rigid_body/frames.py`, `measurement.py`, `reference.py`, `estimator.py`, `controller.py`, `linearization.py`
++ New: `src/spacecraft/frames.py`, `measurement.py`, `reference.py`, `estimator.py`, `controller.py`, `linearization.py`
 
-+ Edit (small helpers only): [src/rigid_body/quaternion.py](src/rigid_body/quaternion.py)
++ Edit (small helpers only): [src/spacecraft/quaternion.py](src/spacecraft/quaternion.py)
 + New tests: `tests/test_frames.py`, `test_measurement.py`, `test_reference.py`, `test_estimator.py`, `test_attitude_controller.py`
 + New example + config: `examples/03_nadir_pointing.py`, satellite YAML config
 + Docs: [whitepaper.md](whitepaper.md)
 
 ## Reuse (do not re-implement)
 
-+ Epoch + `eci2ecef` pattern: [effector.py:198-200, 587-590](src/rigid_body/effector.py)
++ Epoch + `eci2ecef` pattern: [effector.py:198-200, 587-590](src/spacecraft/effector.py)
 
-+ Environment models: `magnetic_field_vector`, `sun_position`, `is_in_shadow`, `atmosphere_density_msis` — [environment.py](src/rigid_body/environment.py)
-+ Orbit propagation: [`SGP4`](src/rigid_body/orbit_dynamics.py); two-body accel: [orbit_dynamics.py](src/rigid_body/orbit_dynamics.py)
-+ Outputs to pair with generic sensors: `RigidBodyAttitudeOutput`, `RigidBodyRateOutput`, `ReactionWheelTelemetryOutput` — [rigid_body.py](src/rigid_body/rigid_body.py)
++ Environment models: `magnetic_field_vector`, `sun_position`, `is_in_shadow`, `atmosphere_density_msis` — [environment.py](src/spacecraft/environment.py)
++ Orbit propagation: [`SGP4`](src/spacecraft/orbit_dynamics.py); two-body accel: [orbit_dynamics.py](src/spacecraft/orbit_dynamics.py)
++ Outputs to pair with generic sensors: `RigidBodyAttitudeOutput`, `RigidBodyRateOutput`, `ReactionWheelTelemetryOutput` — [rigid_body.py](src/spacecraft/rigid_body.py)
 + Measurement/estimator data flow: [simulation.py:151-166](src/simulate/simulation.py#L151-L166)
 + Component/`from_config` conventions: [component.py](src/simulate/component.py), [controller.py](src/simulate/controller.py)
 

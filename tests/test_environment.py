@@ -3,10 +3,10 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from rigid_body.environment import moon_position, sun_position
+from spacecraft.environment import moon_position, sun_position
 
 
-@patch("rigid_body.environment.coord.get_sun")
+@patch("spacecraft.environment.coord.get_sun")
 def test_sun_position_caching(mock_get_sun: MagicMock) -> None:
     """Verify that sun_position caches results within the same minute and clears for a new minute."""
     # Setup mock return value
@@ -37,7 +37,7 @@ def test_sun_position_caching(mock_get_sun: MagicMock) -> None:
     assert np.allclose(r1, r3)
 
 
-@patch("rigid_body.environment.coord.get_body")
+@patch("spacecraft.environment.coord.get_body")
 def test_moon_position_caching(mock_get_body: MagicMock) -> None:
     """Verify that moon_position caches results within the same minute and clears for a new minute."""
     # Setup mock return value

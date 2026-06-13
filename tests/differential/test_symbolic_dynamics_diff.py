@@ -1,7 +1,7 @@
 """Differential tests for the CasADi symbolic kernels ported to plain NumPy.
 
 The quaternion primitives in the old ``flight_software.controller_models`` (CasADi ``SX``) and the new
-:class:`~rigid_body.quaternion.Quaternion` (NumPy) are independent implementations of the same JPL
+:class:`~spacecraft.quaternion.Quaternion` (NumPy) are independent implementations of the same JPL
 algebra; we evaluate the symbolic versions numerically and compare.
 
 The reduced LQR *model*, by contrast, was deliberately re-derived rather than ported one-to-one: the
@@ -14,8 +14,8 @@ import numpy as np
 import pytest
 from diffhelpers import rand_inertia, rand_quat_array, rand_unit_vec
 
-from rigid_body.controller_models import build_reduced_system_dynamics
-from rigid_body.quaternion import Quaternion
+from spacecraft.controller_models import build_reduced_system_dynamics
+from spacecraft.quaternion import Quaternion
 
 
 def _val(expr: object) -> np.ndarray:

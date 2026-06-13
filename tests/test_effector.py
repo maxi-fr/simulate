@@ -3,20 +3,20 @@ import datetime
 import numpy as np
 import pytest
 
-from rigid_body.disturbances import aerodynamic_drag, solar_radiation_pressure, third_body_forces
-from rigid_body.effector import (
+from spacecraft.disturbances import aerodynamic_drag, solar_radiation_pressure, third_body_forces
+from spacecraft.effector import (
     AerodynamicDrag,
     EarthGravity,
     RigidBodyState,
     SolarRadiationPressure,
     ThirdBody,
 )
-from rigid_body.environment import atmosphere_density_msis, is_in_shadow, moon_position, sun_position
-from rigid_body.frames import eci_to_geodedic
-from rigid_body.orbit_dynamics import MU
-from rigid_body.quaternion import Quaternion
-from rigid_body.rigid_body import RigidBodyDynamics
-from rigid_body.surface import Surface
+from spacecraft.environment import atmosphere_density_msis, is_in_shadow, moon_position, sun_position
+from spacecraft.frames import eci_to_geodedic
+from spacecraft.orbit_dynamics import MU
+from spacecraft.quaternion import Quaternion
+from spacecraft.rigid_body import RigidBodyDynamics
+from spacecraft.surface import Surface
 
 MU_EARTH = 3.986e14
 

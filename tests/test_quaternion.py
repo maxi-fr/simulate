@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from scipy.spatial.transform import Rotation
 
-from rigid_body.quaternion import Quaternion
+from spacecraft.quaternion import Quaternion
 
 
 def test_init_and_properties() -> None:

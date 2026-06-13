@@ -13,14 +13,14 @@ def _():
     import numpy as np
     import polars as pl
 
-    from rigid_body.effector import EarthGravity, ReactionWheelArray, Wrench
-    from rigid_body.rigid_body import (
+    from simulate.sensor import GaussianSensor
+    from spacecraft.effector import EarthGravity, ReactionWheelArray, Wrench
+    from spacecraft.rigid_body import (
         ReactionWheelTelemetryOutput,
         RigidBodyAttitudeOutput,
         RigidBodyDynamics,
         RigidBodyRateOutput,
     )
-    from simulate.sensor import GaussianSensor
 
     return (
         EarthGravity,

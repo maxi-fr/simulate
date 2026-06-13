@@ -1,4 +1,4 @@
-"""Modular effectors composed into :class:`~simulate.rigid_body.RigidBodyDynamics`.
+"""Modular effectors composed into :class:`~spacecraft.rigid_body.RigidBodyDynamics`.
 
 An effector contributes an inertial-frame force, a body-frame torque applied to the body
 (including any reaction torque), an internal angular momentum it carries (body frame), and
@@ -14,7 +14,7 @@ The distinction is whether the effector consumes a command, not whether it is st
 over ``[body state | effector states]`` keeps state-dependent environmental forces evaluated
 at every integrator substage with the intermediate state.
 
-Conventions match :mod:`rigid_body.quaternion`: forces are inertial-frame, and torques/momenta are
+Conventions match :mod:`spacecraft.quaternion`: forces are inertial-frame, and torques/momenta are
 body-frame ``(3, 1)`` column vectors.
 """
 
@@ -28,12 +28,12 @@ from typing import Any, Self, cast
 import numpy as np
 from numpy.typing import ArrayLike
 
-import rigid_body.disturbances as dis
-from rigid_body.environment import atmosphere_density_msis, is_in_shadow, moon_position, sun_position
-from rigid_body.frames import eci_to_geodedic
-from rigid_body.orbit_dynamics import MU
-from rigid_body.quaternion import Quaternion
-from rigid_body.surface import Surface
+import spacecraft.disturbances as dis
+from spacecraft.environment import atmosphere_density_msis, is_in_shadow, moon_position, sun_position
+from spacecraft.frames import eci_to_geodedic
+from spacecraft.orbit_dynamics import MU
+from spacecraft.quaternion import Quaternion
+from spacecraft.surface import Surface
 
 
 @dataclasses.dataclass(frozen=True)

@@ -1,8 +1,8 @@
 import numpy as np
 
-from rigid_body.effector import MagnetorquerArray, ReactionWheelArray, RigidBodyState
-from rigid_body.quaternion import Quaternion
-from rigid_body.rigid_body import RigidBodyDynamics
+from spacecraft.effector import MagnetorquerArray, ReactionWheelArray, RigidBodyState
+from spacecraft.quaternion import Quaternion
+from spacecraft.rigid_body import RigidBodyDynamics
 
 
 def test_reaction_wheel_array_momentum_conservation() -> None:
@@ -136,7 +136,7 @@ def test_from_config_loading() -> None:
         "inertia": [1.0, 1.0, 1.0],
         "effectors": [
             {
-                "class_path": "rigid_body.effector.ReactionWheelArray",
+                "class_path": "spacecraft.effector.ReactionWheelArray",
                 "axes": [[1, 0, 0], [0, 1, 0]],
                 "inertia": 0.01,
                 "torque_constant": 0.05,
@@ -145,7 +145,7 @@ def test_from_config_loading() -> None:
                 "initial_omega": [10.0, -10.0],
             },
             {
-                "class_path": "rigid_body.effector.MagnetorquerArray",
+                "class_path": "spacecraft.effector.MagnetorquerArray",
                 "axes": [[0, 0, 1]],
                 "dipole_constant": 1.5,
                 "time_constant": 0.05,

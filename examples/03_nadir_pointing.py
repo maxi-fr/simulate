@@ -14,10 +14,10 @@ def _():
     import matplotlib.pyplot as plt
     import numpy as np
 
-    from rigid_body.frames import euler_from_quaternion, orbital_rate, orc_from_orbit
-    from rigid_body.quaternion import Quaternion
     from simulate.config import load_config
     from simulate.simulation import Simulation
+    from spacecraft.frames import euler_from_quaternion, orbital_rate, orc_from_orbit
+    from spacecraft.quaternion import Quaternion
 
     return (
         Path,
@@ -84,7 +84,7 @@ def _(Path, Simulation, controller_select, load_config, np):
             "2 25544 097.6000 010.0000 0001000 000.0000 000.0000 15.25000000000009",
         ]
         _sim_config["controller"] = {
-            "class_path": "rigid_body.controller.AdaptiveLQR",
+            "class_path": "spacecraft.controller.AdaptiveLQR",
             "dt": 0.2,
             "Q": np.diag([5, 5, 5, 2, 2, 2, 700, 700, 700]).tolist(),
             "R": (1e7 * np.diag([70, 70, 70, 7, 7, 7])).tolist(),
@@ -278,7 +278,7 @@ def _(Simulation, config, controller_select, d, extract, np, plt):
         ]
         _lqr_config = dict(config)
         _lqr_config["controller"] = {
-            "class_path": "rigid_body.controller.AdaptiveLQR",
+            "class_path": "spacecraft.controller.AdaptiveLQR",
             "dt": 0.2,
             "Q": np.diag([10.0, 10.0, 10.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]).tolist(),
             "R": np.eye(6).tolist(),

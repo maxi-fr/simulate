@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 from diffhelpers import rand_unit_vec
 
-from rigid_body.environment import (
+from spacecraft.environment import (
     is_in_shadow,
     magnetic_field_vector,
     moon_position,

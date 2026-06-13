@@ -1,6 +1,6 @@
 """Shared setup for the differential port tests.
 
-These tests import BOTH the ported package (``rigid_body``) and the original, temporarily-stored
+These tests import BOTH the ported package (``spacecraft``) and the original, temporarily-stored
 repo (``adaptive-satellite-control``) in the same process and compare corresponding functions on
 identical inputs. The old repo is a plain ``sys.path`` source tree (hatchling layout) exposing the
 top-level modules ``utils``, ``simulation`` and ``flight_software``.

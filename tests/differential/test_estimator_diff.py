@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 from diffhelpers import rand_quat_array, rand_unit_vec
 
-from rigid_body.estimator import AttitudeMEKF, _skew
+from spacecraft.estimator import AttitudeMEKF, _skew
 
 
 def _filters(q0: np.ndarray) -> tuple[Any, AttitudeMEKF]:
