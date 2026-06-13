@@ -11,7 +11,7 @@ from simulate.controller import PIDController
 from simulate.dynamics import LinearDynamics
 from simulate.estimator import IdentityEstimator
 from simulate.logger import Logger, UniversalLog
-from simulate.output import LinearOutput
+from simulate.measurement_model import LinearMeasurement
 from simulate.reference import StepReference
 from simulate.sensor import GaussianSensor
 from simulate.simulation import Simulation
@@ -20,9 +20,8 @@ from simulate.simulation import Simulation
 def _create_simulation(steps: int) -> Simulation:
     """Helper to create a standard simulation instance for testing."""
     dynamics = LinearDynamics(dt=0.01, a=[[0.9]], b=[[1.0]])
-    output = LinearOutput(dt=0.01, c=[[1.0]], d=[[0.0]])
     reference = StepReference(dt=0.01)
-    sensor = GaussianSensor(dt=0.01, std_dev=0.1)
+    sensor = GaussianSensor(dt=0.01, measurement=LinearMeasurement(c=[[1.0]], d=[[0.0]]), std_dev=0.1)
     estimator = IdentityEstimator(dt=0.01)
     controller = PIDController(dt=0.01, kp=[[0.5]], ki=[[0.1]], kd=[[0.05]])
 
@@ -30,7 +29,6 @@ def _create_simulation(steps: int) -> Simulation:
     return Simulation(
         t_end=t_end,
         dynamics=dynamics,
-        outputs=[output],
         reference=reference,
         sensors=[sensor],
         estimator=estimator,
@@ -146,7 +144,6 @@ def test_merge_chunks_memory_peak(tmp_path: Path) -> None:
             universal = UniversalLog(
                 t=t,
                 x=np.array([1.0, 2.0]),
-                y=np.array([1.0, 2.0]),
                 y_mea=np.array([1.1, 2.1]),
                 x_hat=np.array([1.2, 2.2]),
                 u=np.array([0.5]),

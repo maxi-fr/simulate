@@ -1,4 +1,4 @@
-"""DC Motor dynamics and output components for the example notebook."""
+"""DC Motor dynamics and measurement model for the example notebook."""
 
 import importlib
 from typing import Any, Self
@@ -7,7 +7,6 @@ import numpy as np
 
 from simulate.component import NoLog
 from simulate.dynamics import Dynamics
-from simulate.output import Output
 
 
 class DCMotorDynamics(Dynamics[NoLog]):
@@ -71,19 +70,6 @@ class DCMotorDynamics(Dynamics[NoLog]):
         return NoLog()
 
 
-class DCMotorOutput(Output[NoLog]):
-    """Custom DC Motor output implementation."""
-
-    @classmethod
-    def from_config(cls, config: dict[str, Any]) -> Self:
-        """Instantiate the component from a raw configuration dictionary."""
-        return cls(dt=float(config["dt"]))
-
-    def update(
-        self,
-        t: float,  # noqa: ARG002
-        x: float | np.ndarray,
-        u: float | np.ndarray,  # noqa: ARG002
-    ) -> tuple[float | np.ndarray, NoLog]:
-        """Compute output from current state and input."""
-        return x, NoLog()
+def dc_motor_measurement(_t: float, x: float | np.ndarray, _u: float | np.ndarray) -> float | np.ndarray:
+    """DC motor measurement model: the full state ``[omega, i]`` is observed directly."""
+    return x

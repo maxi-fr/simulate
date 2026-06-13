@@ -4,7 +4,7 @@ import numpy as np
 
 from simulate.dynamics import LinearDynamics
 from simulate.integrator import euler, midpoint, rk4
-from simulate.output import LinearOutput
+from simulate.measurement_model import LinearMeasurement
 from spacecraft.quaternion import QuaternionRK4
 
 
@@ -53,10 +53,10 @@ def test_linear_dynamics_continuous() -> None:
     dt = 0.1
 
     dynamics = LinearDynamics(dt=dt, a=a, b=b, integrator=rk4)
-    output = LinearOutput(dt=dt, c=c, d=d)
+    measurement = LinearMeasurement(c=c, d=d)
 
     x, _log = dynamics.evaluate(0.0, 1.0)
-    y, _ = output.evaluate(0.0, x, 1.0)
+    y = measurement(0.0, x, 1.0)
     assert math.isclose(float(np.asarray(y).item()), 1 - math.exp(-0.1), rel_tol=1e-5)
     assert math.isclose(float(np.asarray(x).item()), 1 - math.exp(-0.1), rel_tol=1e-5)
 
@@ -70,10 +70,10 @@ def test_linear_dynamics_discrete_fallback() -> None:
     dt = 0.1
 
     dynamics = LinearDynamics(dt=dt, a=a, b=b)
-    output = LinearOutput(dt=dt, c=c, d=d)
+    measurement = LinearMeasurement(c=c, d=d)
 
     x, _log = dynamics.evaluate(0.0, 1.0)
-    y, _ = output.evaluate(0.0, x, 1.0)
+    y = measurement(0.0, x, 1.0)
     assert float(np.asarray(y).item()) == 1.0
     assert float(np.asarray(x).item()) == 1.0
 
@@ -86,17 +86,12 @@ def test_linear_dynamics_from_config_dynamic_integrator() -> None:
         "b": [[1.0]],
         "integrator": "simulate.integrator.rk4",
     }
-    output_config = {
-        "dt": 0.1,
-        "c": [[1.0]],
-        "d": [[0.0]],
-    }
-    output = LinearOutput.from_config(output_config)
+    measurement = LinearMeasurement(c=[[1.0]], d=[[0.0]])
     dynamics = LinearDynamics.from_config(config)
     assert dynamics.integrator == rk4
 
     x, _ = dynamics.evaluate(0.0, 1.0)
-    y, _ = output.evaluate(0.0, x, 1.0)
+    y = measurement(0.0, x, 1.0)
     assert math.isclose(float(np.asarray(y).item()), 1 - math.exp(-0.1), rel_tol=1e-5)
 
 

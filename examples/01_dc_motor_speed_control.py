@@ -81,10 +81,6 @@ def _(kd, ki, kp, start_time, step_value):
             "b": 0.001,
             "integrator": "simulate.integrator.rk4",
         },
-        "outputs": {
-            "class_path": "dc_motor.DCMotorOutput",
-            "dt": 0.001,
-        },
         "reference": {
             "class_path": "simulate.reference.StepReference",
             "dt": 0.001,
@@ -95,6 +91,7 @@ def _(kd, ki, kp, start_time, step_value):
             "class_path": "simulate.sensor.GaussianSensor",
             "dt": 0.001,
             "std_dev": 0.1,
+            "measurement": {"class_path": "dc_motor.dc_motor_measurement"},
         },
         "estimator": {
             "class_path": "simulate.estimator.IdentityEstimator",
@@ -138,15 +135,15 @@ def _(mo):
 def _(pl, plt, sim):
     data = pl.DataFrame(sim.logger.universal_logs)
     dynamics_data = pl.DataFrame(sim.logger.component_logs["dynamics"])
-    # Per-channel measurements: output_0 = true speed, sensor_0 = noisy measured speed.
-    output_data = pl.DataFrame(sim.logger.component_logs["output_0"])
+    # The single channel logs the true speed (sensor_0 `truth`); the universal log carries the
+    # noisy measurement (`y_mea`).
     sensor_data = pl.DataFrame(sim.logger.component_logs["sensor_0"])
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 10))
 
     axes[0].plot(data["t"], data["ref"], "k--", label="Reference (rad/s)")
-    axes[0].plot(output_data["t"], output_data["value"], "b-", label="Actual Speed (rad/s)")
-    axes[0].plot(sensor_data["t"], sensor_data["value"], "r.", alpha=0.1, label="Measured Speed (rad/s)")
+    axes[0].plot(sensor_data["t"], sensor_data["truth"], "b-", label="Actual Speed (rad/s)")
+    axes[0].plot(data["t"], data["y_mea"], "r.", alpha=0.1, label="Measured Speed (rad/s)")
     axes[0].set_title("DC Motor Speed Control")
     axes[0].set_ylabel("Speed (rad/s)")
     axes[0].legend()

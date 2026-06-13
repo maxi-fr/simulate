@@ -5,21 +5,30 @@ from typing import Any, Self
 import numpy as np
 
 from simulate.component import Component
+from simulate.config import build_measurement
+from simulate.measurement_model import MeasurementModel
 
 
 class Sensor[L](Component[L], abc.ABC):
-    """Abstract base class for all sensors."""
+    """Abstract base class for all sensors.
+
+    A sensor maps the plant state to a (noisy) measurement ``y_mea`` at its own ``dt`` with
+    Zero-Order Hold. How the measurement is derived is up to the subclass: the generic
+    :class:`GaussianSensor` / :class:`RandomWalkBiasSensor` compose a deterministic
+    :data:`~simulate.measurement_model.MeasurementModel` with an additive error model, but a
+    bespoke sensor may compute ``h(x)`` and its noise directly in :meth:`update`.
+    """
 
     def __init__(self, dt: float) -> None:
-        """Initialize the sensor."""
+        """Initialize the sensor with its sample time."""
         super().__init__(dt)
 
-    def evaluate(self, t: float, y: float | np.ndarray) -> tuple[float | np.ndarray, L]:
-        """Measure the plant output (with ZOH)."""
-        return self._execute_zoh(t, self.update, y)
+    def evaluate(self, t: float, x: float | np.ndarray, u: float | np.ndarray) -> tuple[float | np.ndarray, L]:
+        """Measure the plant state (with ZOH)."""
+        return self._execute_zoh(t, self.update, x, u)
 
     @abc.abstractmethod
-    def update(self, t: float, y: float | np.ndarray) -> tuple[float | np.ndarray, L]:
+    def update(self, t: float, x: float | np.ndarray, u: float | np.ndarray) -> tuple[float | np.ndarray, L]:
         """Execute internal update dynamics. Must be implemented by subclasses."""
 
 
@@ -27,15 +36,17 @@ class Sensor[L](Component[L], abc.ABC):
 class GaussianSensorLog:
     """Dataclass for internal GaussianSensor logging."""
 
+    truth: float | np.ndarray
     noise: float | np.ndarray
 
 
 class GaussianSensor(Sensor[GaussianSensorLog]):
     """Sensor implementation that adds Gaussian noise to the measurement."""
 
-    def __init__(self, dt: float, std_dev: float = 0.0) -> None:
+    def __init__(self, dt: float, measurement: MeasurementModel, std_dev: float = 0.0) -> None:
         """Initialize the Gaussian sensor."""
         super().__init__(dt)
+        self.measurement = measurement
         self.std_dev = std_dev
         self.rng = np.random.default_rng(seed=42)
 
@@ -44,27 +55,32 @@ class GaussianSensor(Sensor[GaussianSensorLog]):
         """Instantiate the component from a raw configuration dictionary."""
         return cls(
             dt=float(config["dt"]),
+            measurement=build_measurement(config["measurement"]),
             std_dev=float(config.get("std_dev", 0.0)),
         )
 
-    def update(self, t: float, y: float | np.ndarray) -> tuple[float | np.ndarray, GaussianSensorLog]:  # noqa: ARG002
+    def update(
+        self, t: float, x: float | np.ndarray, u: float | np.ndarray
+    ) -> tuple[float | np.ndarray, GaussianSensorLog]:
         """
-        Add Gaussian noise to the plant output.
+        Measure the plant state and add Gaussian noise.
 
         Args:
             t: Simulation time.
-            y: True plant output vector.
+            x: State vector.
+            u: Control input vector.
         """
-        y_arr = np.atleast_1d(y)
-        noise = self.rng.normal(0, self.std_dev, size=y_arr.shape)
-        y_mea = y_arr + noise
-        return y_mea, GaussianSensorLog(noise=noise)
+        y = np.atleast_1d(self.measurement(t, x, u))
+        noise = self.rng.normal(0, self.std_dev, size=y.shape)
+        y_mea = y + noise
+        return y_mea, GaussianSensorLog(truth=y, noise=noise)
 
 
 @dataclasses.dataclass(frozen=True)
 class RandomWalkBiasSensorLog:
     """Dataclass for internal RandomWalkBiasSensor logging."""
 
+    truth: float | np.ndarray
     noise: float | np.ndarray
     bias: float | np.ndarray
 
@@ -75,6 +91,7 @@ class RandomWalkBiasSensor(Sensor[RandomWalkBiasSensorLog]):
     def __init__(
         self,
         dt: float,
+        measurement: MeasurementModel,
         std_dev_noise: float = 0.0,
         std_dev_bias: float = 0.0,
         seed: int = 42,
@@ -85,6 +102,8 @@ class RandomWalkBiasSensor(Sensor[RandomWalkBiasSensorLog]):
         ----------
         dt : float
             Sampling time step.
+        measurement : MeasurementModel
+            Deterministic truth model ``y = h(t, x, u)``.
         std_dev_noise : float, optional
             Standard deviation of the Gaussian measurement noise, by default 0.0.
         std_dev_bias : float, optional
@@ -93,6 +112,7 @@ class RandomWalkBiasSensor(Sensor[RandomWalkBiasSensorLog]):
             Random number generator seed, by default 42.
         """
         super().__init__(dt)
+        self.measurement = measurement
         self.std_dev_noise = std_dev_noise
         self.std_dev_bias = std_dev_bias
         self.rng = np.random.default_rng(seed=seed)
@@ -114,6 +134,7 @@ class RandomWalkBiasSensor(Sensor[RandomWalkBiasSensorLog]):
         """
         return cls(
             dt=float(config["dt"]),
+            measurement=build_measurement(config["measurement"]),
             std_dev_noise=float(config.get("std_dev_noise", 0.0)),
             std_dev_bias=float(config.get("std_dev_bias", 0.0)),
             seed=int(config.get("seed", 42)),
@@ -121,33 +142,36 @@ class RandomWalkBiasSensor(Sensor[RandomWalkBiasSensorLog]):
 
     def update(
         self,
-        t: float,  # noqa: ARG002
-        y: float | np.ndarray,
+        t: float,
+        x: float | np.ndarray,
+        u: float | np.ndarray,
     ) -> tuple[float | np.ndarray, RandomWalkBiasSensorLog]:
-        """Add Gaussian noise and a random walk bias to the plant output.
+        """Measure the plant state and add Gaussian noise and a random walk bias.
 
         Parameters
         ----------
         t : float
             Simulation time.
-        y : float or numpy.ndarray
-            True plant output vector.
+        x : float or numpy.ndarray
+            State vector.
+        u : float or numpy.ndarray
+            Control input vector.
 
         Returns
         -------
         y_mea : numpy.ndarray
             Measured output vector.
         log : RandomWalkBiasSensorLog
-            Detailed component logs containing the generated noise and current bias.
+            Detailed component logs containing the truth, generated noise and current bias.
         """
-        y_arr = np.atleast_1d(y)
-        if self.bias is None or self.bias.shape != y_arr.shape:
+        y = np.atleast_1d(self.measurement(t, x, u))
+        if self.bias is None or self.bias.shape != y.shape:
             # First (or warm-up) sample: initialise the bias to the measurement width.
-            self.bias = np.zeros_like(y_arr, dtype=float)
+            self.bias = np.zeros_like(y, dtype=float)
         else:
-            bias_step = self.rng.normal(0, self.std_dev_bias, size=y_arr.shape)
+            bias_step = self.rng.normal(0, self.std_dev_bias, size=y.shape)
             self.bias += bias_step
 
-        noise = self.rng.normal(0, self.std_dev_noise, size=y_arr.shape)
-        y_mea = y_arr + self.bias + noise
-        return y_mea, RandomWalkBiasSensorLog(noise=noise, bias=self.bias.copy())
+        noise = self.rng.normal(0, self.std_dev_noise, size=y.shape)
+        y_mea = y + self.bias + noise
+        return y_mea, RandomWalkBiasSensorLog(truth=y, noise=noise, bias=self.bias.copy())

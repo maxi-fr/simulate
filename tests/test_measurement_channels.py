@@ -3,7 +3,7 @@ import numpy as np
 from simulate.controller import PIDController
 from simulate.dynamics import LinearDynamics
 from simulate.estimator import IdentityEstimator
-from simulate.output import LinearOutput
+from simulate.measurement_model import LinearMeasurement
 from simulate.reference import StepReference
 from simulate.sensor import GaussianSensor
 from simulate.simulation import Simulation
@@ -13,10 +13,9 @@ def _two_channel_sim(t_end: float, sensor1_dt: float) -> Simulation:
     """A 2-state plant measured by two channels: one at base dt, one at sensor1_dt."""
     base = 0.01
     dynamics = LinearDynamics(dt=base, a=[[1.0, 0.0], [0.0, 1.0]], b=[[1.0, 0.0], [0.0, 1.0]])
-    out0 = LinearOutput(dt=base, c=[[1.0, 0.0]], d=[[0.0, 0.0]])  # measures state 0
-    out1 = LinearOutput(dt=base, c=[[0.0, 1.0]], d=[[0.0, 0.0]])  # measures state 1
-    sen0 = GaussianSensor(dt=base, std_dev=0.0)
-    sen1 = GaussianSensor(dt=sensor1_dt, std_dev=0.0)
+    # Each sensor owns a measurement model selecting one state component.
+    sen0 = GaussianSensor(dt=base, measurement=LinearMeasurement(c=[[1.0, 0.0]], d=[[0.0, 0.0]]), std_dev=0.0)
+    sen1 = GaussianSensor(dt=sensor1_dt, measurement=LinearMeasurement(c=[[0.0, 1.0]], d=[[0.0, 0.0]]), std_dev=0.0)
     reference = StepReference(dt=base, step_value=np.array([1.0, 2.0]))
     estimator = IdentityEstimator(dt=base)
     controller = PIDController(
@@ -25,7 +24,6 @@ def _two_channel_sim(t_end: float, sensor1_dt: float) -> Simulation:
     return Simulation(
         t_end=t_end,
         dynamics=dynamics,
-        outputs=[out0, out1],
         reference=reference,
         sensors=[sen0, sen1],
         estimator=estimator,
@@ -34,18 +32,19 @@ def _two_channel_sim(t_end: float, sensor1_dt: float) -> Simulation:
 
 
 def test_two_channels_log_per_channel() -> None:
-    """Each output/sensor channel is logged under its own indexed name; y/y_mea are not merged."""
+    """Each sensor channel logs its own truth/noise under an indexed name; y_mea is merged."""
     sim = _two_channel_sim(t_end=0.05, sensor1_dt=0.01)
     sim.run()
 
     logs = sim.logger.component_logs
     n = len(sim.logger.universal_logs)
-    for name in ("output_0", "output_1", "sensor_0", "sensor_1"):
+    for name in ("sensor_0", "sensor_1"):
         assert len(logs[name]) == n
+        assert "truth" in logs[name][0]
 
-    # The merged universal y/y_mea are present in the universal log.
-    assert "y" in sim.logger.universal_logs[0]
+    # Truth is per-channel only; the universal log carries the merged measurement.
     assert "y_mea" in sim.logger.universal_logs[0]
+    assert "y" not in sim.logger.universal_logs[0]
 
 
 def test_estimator_receives_concatenated_measurement() -> None:
