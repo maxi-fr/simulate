@@ -40,19 +40,14 @@ from .effector import Effector, RigidBodyState
 from .frames import eci_attitude_from_orc
 from .orbit_dynamics import SGP4
 from .quaternion import Quaternion, QuaternionRK4
+from .signals import BASE_STATES, STATE
 
-# Public state-vector layout (for building per-part measurement Outputs).
-POSITION = slice(0, 3)
-VELOCITY = slice(3, 6)
-QUATERNION = slice(6, 10)
-ANGULAR_VELOCITY = slice(10, 13)
-BASE_STATES = 13  # effector internal states begin here, in composition order
-
-_R = POSITION
-_V = VELOCITY
-_Q = QUATERNION
-_W = ANGULAR_VELOCITY
-_BASE_STATES = BASE_STATES
+# Public state-vector layout aliases for external consumers (per-part measurement Outputs,
+# tests); the canonical layout lives in :data:`spacecraft.signals.STATE`.
+POSITION = STATE.r
+VELOCITY = STATE.v
+QUATERNION = STATE.q
+ANGULAR_VELOCITY = STATE.omega
 
 
 def _load_class(class_path: str) -> type:
@@ -93,7 +88,7 @@ class RigidBodyDynamics(Dynamics[NoLog]):
         # Precompute the per-effector slices into the state and command vectors.
         self._state_slices: list[slice] = []
         self._cmd_slices: list[slice] = []
-        state_idx = _BASE_STATES
+        state_idx = BASE_STATES
         cmd_idx = 0
         for eff in self.effectors:
             eff.bind(self.mass, self.inertia)
@@ -104,7 +99,7 @@ class RigidBodyDynamics(Dynamics[NoLog]):
 
         self.n_inputs = cmd_idx
         self.x = np.zeros(state_idx, dtype=float)
-        self.x[_Q] = np.array([0.0, 0.0, 0.0, 1.0])  # identity attitude
+        self.x[STATE.q] = np.array([0.0, 0.0, 0.0, 1.0])  # identity attitude
         for eff, sl in zip(self.effectors, self._state_slices, strict=True):
             self.x[sl] = eff.initial_state()
 
@@ -157,18 +152,18 @@ class RigidBodyDynamics(Dynamics[NoLog]):
                 yaw=att["yaw"],
                 omega_bo=init["angular_velocity_orc"],
             )
-            instance.x[_R] = r0
-            instance.x[_V] = v0
-            instance.x[_Q] = q_bi.to_array()
-            instance.x[_W] = omega0
+            instance.x[STATE.r] = r0
+            instance.x[STATE.v] = v0
+            instance.x[STATE.q] = q_bi.to_array()
+            instance.x[STATE.omega] = omega0
 
         return instance
 
     def dynamics(self, t: float, x: np.ndarray, u: np.ndarray) -> np.ndarray:
         """Continuous-time rigid body derivative ``x_dot = f(t, x, u)``."""
-        q = Quaternion.from_array(x[_Q])
-        omega = x[_W]
-        state = RigidBodyState(r_eci=x[_R], v_eci=x[_V], q_bi=q, omega_b_bi=omega)
+        q = Quaternion.from_array(x[STATE.q])
+        omega = x[STATE.omega]
+        state = RigidBodyState(r_eci=x[STATE.r], v_eci=x[STATE.v], q_bi=q, omega_b_bi=omega)
 
         force = np.zeros(3, dtype=float)
         torque = np.zeros(3, dtype=float)
@@ -179,7 +174,7 @@ class RigidBodyDynamics(Dynamics[NoLog]):
             torque += tau_eff
             momentum += h_eff
 
-        r_dot = x[_V]
+        r_dot = x[STATE.v]
         v_dot = force / self.mass
         q_dot = q.kinematics(omega)
         omega_dot = self.inertia_inv @ (torque - np.cross(omega, self.inertia @ omega + momentum))
@@ -211,7 +206,7 @@ class RigidBodyOutput(Output[NoLog]):
         u: float | np.ndarray,  # noqa: ARG002
     ) -> tuple[float | np.ndarray, NoLog]:
         """Extract pose ``[r(3), q(4)]`` from the full rigid body state."""
-        y = np.concatenate([x[_R], x[_Q]])  # ty:ignore[not-subscriptable]
+        y = np.concatenate([x[STATE.r], x[STATE.q]])  # ty:ignore[not-subscriptable]
         return y, NoLog()
 
 
@@ -234,7 +229,7 @@ class RigidBodyAttitudeOutput(Output[NoLog]):
         u: float | np.ndarray,  # noqa: ARG002
     ) -> tuple[float | np.ndarray, NoLog]:
         """Select the attitude quaternion from the full rigid body state."""
-        return x[QUATERNION], NoLog()  # ty:ignore[not-subscriptable]
+        return x[STATE.q], NoLog()  # ty:ignore[not-subscriptable]
 
 
 class RigidBodyRateOutput(Output[NoLog]):
@@ -255,7 +250,7 @@ class RigidBodyRateOutput(Output[NoLog]):
         u: float | np.ndarray,  # noqa: ARG002
     ) -> tuple[float | np.ndarray, NoLog]:
         """Select the body-frame angular velocity from the full rigid body state."""
-        return x[ANGULAR_VELOCITY], NoLog()  # ty:ignore[not-subscriptable]
+        return x[STATE.omega], NoLog()  # ty:ignore[not-subscriptable]
 
 
 class ReactionWheelTelemetryOutput(Output[NoLog]):

@@ -12,6 +12,8 @@ from typing import Any
 import casadi as ca
 import numpy as np
 
+from .signals import MODEL
+
 
 def integrator(
     f: Callable[[ca.SX, ca.SX, ca.SX], ca.SX],
@@ -216,12 +218,12 @@ def satellite_dynamics(x: ca.SX, u: ca.SX, B_eci: ca.SX, J_hat: Any) -> ca.SX:
     ca.SX
         State derivative (10x1).
     """
-    q_BI = x[:4]
-    omega = x[4:7]
-    h_w = x[7:10]
+    q_BI = x[MODEL.q]
+    omega = x[MODEL.omega]
+    h_w = x[MODEL.h_w]
 
-    u_mag = u[:3]
-    u_rw = u[3:]
+    u_mag = u[MODEL.u_mag]
+    u_rw = u[MODEL.u_rw]
 
     d_q_BI = kinematics(q_BI, omega)
     d_omega = rotational_dynamics(omega, u_rw, u_mag, h_w, quaternion_rotation(q_BI, B_eci), J_hat)
