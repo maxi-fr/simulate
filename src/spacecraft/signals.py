@@ -1,4 +1,4 @@
-# ruff: noqa: RUF009
+# ruff: noqa: RUF009  # noqa: RUF100
 """Central named-slice layouts for the flat signal vectors passed between components.
 
 Each layout is a frozen-dataclass singleton mapping a component name to the ``slice`` that
@@ -62,9 +62,9 @@ class _ControlLayout:
 
 @dataclasses.dataclass(frozen=True)
 class _ModelLayout:
-    """Controller plant model: state ``[q(4), omega(3), h_w(3)]`` and input ``[u_mag(3), u_rw(3)]``.
+    """Controller model of the plant: state ``[q(4), omega(3), h_w(3)]`` and input ``[u_mag(3), u_rw(3)]``.
 
-    This is the full 10-number model the model-based controllers integrate; the linearized
+    This is the full 10-state model the model-based controllers integrate; the linearized
     error system it reduces to has 9 states (the unit quaternion contributes only 3 DOF).
     """
 

@@ -18,8 +18,6 @@ This repository ships **two packages**:
 [Part 2](#part-2--the-simulate-package) applies to [Part 3](#part-3--the-spacecraft-package)
 as well.
 
-> For the design rationale behind these choices, see [`whitepaper.md`](whitepaper.md).
-
 ---
 
 ## Part 1 — Getting Started
@@ -58,7 +56,7 @@ This project uses [uv](https://github.com/astral-sh/uv) for dependency managemen
 ```text
 simulate/
 ├── src/
-│   ├── simulate/            # Generic control-loop engine
+│   ├── simulate/            #   Generic control-loop engine
 │   │   ├── component.py     #   Component[L] base class (ZOH, multi-rate)
 │   │   ├── dynamics.py      #   Dynamics + LinearDynamics
 │   │   ├── output.py        #   Output + LinearOutput
@@ -70,7 +68,7 @@ simulate/
 │   │   ├── logger.py        #   Universal + per-component logging
 │   │   ├── experiment.py    #   Parallel batch runner
 │   │   └── simulation.py    #   Simulation orchestrator
-│   └── spacecraft/          # Aerospace domain extension
+│   └── spacecraft/          #   Aerospace domain extension
 │       ├── rigid_body.py    #   RigidBodyDynamics + telemetry outputs
 │       ├── effector.py      #   Effector base + actuators/environment
 │       ├── controller.py    #   QuaternionFeedbackController, AdaptiveLQR
@@ -78,11 +76,10 @@ simulate/
 │       ├── measurement.py   #   Magnetometer / sun / GPS truth outputs
 │       ├── reference.py     #   OrbitReference (nadir pointing)
 │       ├── signals.py       #   Named-slice layouts for the signal vectors
-│       └── ...              #   frames, quaternion, environment, disturbances
-├── examples/                # Marimo notebooks + runnable YAML configs
-├── tests/                   # Test suite (incl. differential tests)
-├── main.py                  # CLI entry point
-└── whitepaper.md            # Architecture & design guide
+│       └── ...              #   coordinate frames, quaternion, environment, disturbances
+├── examples/                #   Marimo notebooks + runnable YAML configs
+├── tests/                   #   Test suite (incl. differential tests)
+└── main.py                  #   CLI entry point
 ```
 
 ### Running a simulation
