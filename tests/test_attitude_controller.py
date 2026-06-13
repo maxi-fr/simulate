@@ -3,12 +3,11 @@
 import numpy as np
 
 from rigid_body.controller import (
-    AdaptiveLQRController,
+    AdaptiveLQR,
     QuaternionFeedbackController,
     allocation_matrix,
     to_current_commands,
 )
-from rigid_body.controller_models import reduced_model
 from rigid_body.effector import EarthGravity, MagnetorquerArray, ReactionWheelArray
 from rigid_body.frames import orc_from_orbit
 from rigid_body.orbit_dynamics import MU
@@ -153,7 +152,7 @@ def _lqr_kwargs() -> dict:
 
 
 def test_adaptive_lqr_adapts_when_field_changes() -> None:
-    adaptive = AdaptiveLQRController(**_lqr_kwargs())
+    adaptive = AdaptiveLQR(**_lqr_kwargs())
 
     ref = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
 

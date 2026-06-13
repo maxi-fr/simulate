@@ -49,7 +49,7 @@ def _(mo):
     * a **`FullStateEstimator`** — orbit Kalman filter (GPS) + attitude MEKF (gyro / magnetometer
       / sun) — produces `x_hat = [r, v, q, omega, b_body, h_wheel]` and exposes environment
       variables,
-    * a **`NadirPointingReference`** emits the desired attitude *relative to the orbital frame*
+    * a **`OrbitReference`** emits the desired attitude *relative to the orbital frame*
       (identity = nadir),
     * a **`QuaternionFeedbackController`** reconstructs the orbital frame from `x_hat` and drives
       the wheels.
@@ -84,7 +84,7 @@ def _(Path, Simulation, controller_select, load_config, np):
             "2 25544 097.6000 010.0000 0001000 000.0000 000.0000 15.25000000000009",
         ]
         _sim_config["controller"] = {
-            "class_path": "rigid_body.controller.AdaptiveLQRController",
+            "class_path": "rigid_body.controller.AdaptiveLQR",
             "dt": 0.2,
             "Q": np.diag([5, 5, 5, 2, 2, 2, 700, 700, 700]).tolist(),
             "R": (1e7 * np.diag([70, 70, 70, 7, 7, 7])).tolist(),
@@ -103,7 +103,7 @@ def _(Path, Simulation, controller_select, load_config, np):
 
 @app.cell
 def _(Quaternion, euler_from_quaternion, np, orbital_rate, orc_from_orbit):
-    def extract(sim_obj):
+    def extract(sim_obj) -> dict[str, np.ndarray]:
         """Pull the universal/component logs of a run into plain numpy arrays for plotting."""
         logs = sim_obj.logger.universal_logs
         t = np.array([row["t"] for row in logs])
@@ -255,7 +255,7 @@ def _(mo):
     mo.md(r"""
     ## LQR variant
 
-    The same plant and estimator, driven by the **`AdaptiveLQRController`** instead of quaternion feedback. It acquires nadir from the
+    The same plant and estimator, driven by the **`AdaptiveLQR`** instead of quaternion feedback. It acquires nadir from the
     same initial offset.
     """)
     return
@@ -278,7 +278,7 @@ def _(Simulation, config, controller_select, d, extract, np, plt):
         ]
         _lqr_config = dict(config)
         _lqr_config["controller"] = {
-            "class_path": "rigid_body.controller.AdaptiveLQRController",
+            "class_path": "rigid_body.controller.AdaptiveLQR",
             "dt": 0.2,
             "Q": np.diag([10.0, 10.0, 10.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]).tolist(),
             "R": np.eye(6).tolist(),
