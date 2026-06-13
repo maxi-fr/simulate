@@ -73,6 +73,11 @@ class Simulation:
         ``sensors`` is a single ``{class_path, ...}`` dict or a list of them (independent
         measurement channels); each carries a nested ``measurement`` model. The remaining
         components are single.
+
+        Returns
+        -------
+        Simulation
+            The simulation assembled from the configuration.
         """
         singles = {key: build_component(config[key]) for key in ("dynamics", "reference", "estimator", "controller")}
 

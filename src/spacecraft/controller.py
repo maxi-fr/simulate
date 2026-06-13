@@ -61,8 +61,12 @@ def _attitude_error(ref: np.ndarray, x_hat: np.ndarray) -> tuple[np.ndarray, np.
     * the orbital feedforward body rate is ``omega_des = q_bo_act.apply(orbital_rate(r, v)) + omega_bo``
       (the ORC frame's rate rotated into the body frame, plus the reference's ORC-relative rate).
 
-    Returns ``(q_err_vec(3), delta_omega(3))`` where ``q_err`` is the small-angle attitude error and
-    ``delta_omega = omega - omega_des`` the body-rate error, both in the body frame.
+    Returns
+    -------
+    q_err_vec : np.ndarray
+        Small-angle attitude error in the body frame, shape ``(3,)``.
+    delta_omega : np.ndarray
+        Body-rate error ``omega - omega_des`` in the body frame, shape ``(3,)``.
     """
     r = x_hat[ESTIMATE.r]
     v = x_hat[ESTIMATE.v]
@@ -85,6 +89,11 @@ def allocation_matrix(axes: ArrayLike, constants: ArrayLike) -> np.ndarray:
     For reaction wheels ``constants`` are the torque constants and ``Alpha @ i`` is the
     (negated) body torque; for magnetorquers ``constants`` are the dipole constants and
     ``Alpha @ i`` is the body-frame dipole moment.
+
+    Returns
+    -------
+    np.ndarray
+        Allocation matrix ``Alpha`` of shape ``(3, N)``.
     """
     axes_arr = np.asarray(axes, dtype=float)
     axes_arr = axes_arr / np.linalg.norm(axes_arr, axis=1, keepdims=True)
@@ -292,9 +301,10 @@ def _dlqr_warm_start(
 
     Returns
     -------
-    Tuple[np.ndarray, np.ndarray]
-        K_new: The updated control gain.
-        P_new: The updated Riccati solution.
+    K_new : np.ndarray
+        The updated control gain.
+    P_new : np.ndarray
+        The updated Riccati solution.
     """
     BtP = B.T @ P
     R_total = R + BtP @ B

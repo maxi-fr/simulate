@@ -65,10 +65,21 @@ class GaussianSensor(Sensor[GaussianSensorLog]):
         """
         Measure the plant state and add Gaussian noise.
 
-        Args:
-            t: Simulation time.
-            x: State vector.
-            u: Control input vector.
+        Parameters
+        ----------
+        t : float
+            Simulation time.
+        x : float or numpy.ndarray
+            State vector.
+        u : float or numpy.ndarray
+            Control input vector.
+
+        Returns
+        -------
+        y_mea : float or numpy.ndarray
+            Measured output with additive Gaussian noise.
+        log : GaussianSensorLog
+            Snapshot of the noise-free truth and the sampled noise.
         """
         y = np.atleast_1d(self.measurement(t, x, u))
         noise = self.rng.normal(0, self.std_dev, size=y.shape)

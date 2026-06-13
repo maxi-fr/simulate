@@ -9,11 +9,14 @@ def _run_worker(task: tuple[dict[str, Any], Path, str, int | None, bool]) -> boo
     """
     Worker function to run a single simulation.
 
-    Args:
-        task: A tuple containing (config_dict, output_dir, prefix, chunk_size, compress)
+    Parameters
+    ----------
+    task : tuple
+        A tuple containing (config_dict, output_dir, prefix, chunk_size, compress).
 
     Returns
     -------
+    bool
         True if successful, False otherwise.
     """
     config, output_dir, prefix, chunk_size, compress = task
@@ -48,14 +51,20 @@ class ExperimentManager:
         """
         Execute a batch of simulations in parallel.
 
-        Args:
-            configs: A list of simulation configuration dictionaries.
-            prefixes: Optional list of prefixes for result filenames.
-            chunk_size: Steps per chunk file. None disables mid-run flushing.
-            compress: Enable compression for simulation logs.
+        Parameters
+        ----------
+        configs : list of dict
+            A list of simulation configuration dictionaries.
+        prefixes : list of str, optional
+            Optional list of prefixes for result filenames.
+        chunk_size : int or None, optional
+            Steps per chunk file. None disables mid-run flushing.
+        compress : bool, optional
+            Enable compression for simulation logs.
 
         Returns
         -------
+        list of bool
             A list of boolean success statuses.
         """
         if prefixes is None:

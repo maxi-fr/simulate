@@ -62,8 +62,17 @@ class StepReference(Reference[StepReferenceLog]):
         """
         Generate a step signal or trajectory.
 
-        Args:
-            t: Simulation time.
+        Parameters
+        ----------
+        t : float
+            Simulation time.
+
+        Returns
+        -------
+        reference : float or numpy.ndarray
+            Step value (or horizon trajectory) evaluated at time ``t``.
+        log : StepReferenceLog
+            Snapshot of the reference configuration for this step.
         """
         if self.horizon == 1:
             if t >= self.start_time:

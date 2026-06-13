@@ -32,6 +32,13 @@ class Dynamics[L](Component[L], abc.ABC):
         continuous-time RHS `x_dot = f(t, x, u)` and is integrated over `dt`.
         Otherwise, `dynamics(t, x, u)` is treated as a discrete state transition
         returning `x_next` directly.
+
+        Returns
+        -------
+        x : float or np.ndarray
+            The state after advancing one time step.
+        log : L
+            The component log snapshot for the new state.
         """
         u_arr = np.atleast_1d(u)
 
@@ -49,6 +56,12 @@ class Dynamics[L](Component[L], abc.ABC):
 
         With an integrator: returns the continuous-time derivative `x_dot = f(t, x, u)`.
         Without an integrator: returns the discrete state transition `x_next = f(t, x, u)`.
+
+        Returns
+        -------
+        np.ndarray
+            Continuous-time derivative ``x_dot`` (with an integrator) or the next
+            state ``x_next`` (without one).
         """
 
     @abc.abstractmethod

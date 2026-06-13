@@ -14,6 +14,11 @@ def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]
 
     Nested dictionaries are merged cumulatively.
     Lists and other types are replaced entirely by the override.
+
+    Returns
+    -------
+    dict
+        A new dictionary with ``override`` merged into ``base``.
     """
     merged = copy.deepcopy(base)
     for key, value in override.items():
@@ -48,6 +53,11 @@ def build_measurement(spec: dict[str, Any]) -> MeasurementModel:
 
     ``class_path`` may point to a class (instantiated with the remaining keys as keyword
     arguments) or to a bare function (used as-is; no extra keys are then allowed).
+
+    Returns
+    -------
+    MeasurementModel
+        The instantiated measurement class or the resolved measurement function.
     """
     cfg = spec.copy()
     class_path: str = cfg.pop("class_path")

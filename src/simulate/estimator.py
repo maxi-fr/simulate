@@ -43,10 +43,21 @@ class IdentityEstimator(Estimator[NoLog]):
         """
         Return the measurement as the state estimate.
 
-        Args:
-            t: Simulation time.
-            y_mea: Measured output vector.
-            u: Control input vector.
+        Parameters
+        ----------
+        t : float
+            Simulation time.
+        y_mea : float or numpy.ndarray
+            Measured output vector.
+        u : float or numpy.ndarray
+            Control input vector.
+
+        Returns
+        -------
+        x_hat : float or numpy.ndarray
+            State estimate, equal to the measurement.
+        log : NoLog
+            Empty log placeholder.
         """
         res = y_mea.copy() if isinstance(y_mea, np.ndarray) else y_mea
         return res, NoLog()

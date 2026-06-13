@@ -71,10 +71,21 @@ class PIDController(Controller[PIDControllerLog]):
         """
         Compute control action based on reference and estimated state.
 
-        Args:
-            t: Simulation time.
-            ref: Reference trajectory vector.
-            x_hat: Estimated state vector.
+        Parameters
+        ----------
+        t : float
+            Simulation time.
+        ref : float or numpy.ndarray
+            Reference trajectory vector.
+        x_hat : float or numpy.ndarray
+            Estimated state vector.
+
+        Returns
+        -------
+        u : float or numpy.ndarray
+            Control action computed from the PID law.
+        log : PIDControllerLog
+            Snapshot of the error and integral terms for this step.
         """
         ref_arr = np.atleast_1d(ref)
         x_hat_arr = np.atleast_1d(x_hat)

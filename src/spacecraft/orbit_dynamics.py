@@ -156,8 +156,10 @@ class SGP4:
 
         Returns
         -------
-        Tuple[np.ndarray, np.ndarray]
-            A tuple containing the ECI position [m] and velocity [m/s] vectors.
+        r : np.ndarray
+            ECI position vectors [m].
+        v : np.ndarray
+            ECI velocity vectors [m/s].
         """
         if isinstance(time, datetime.datetime):
             time = [time]

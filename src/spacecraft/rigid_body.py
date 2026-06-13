@@ -69,12 +69,18 @@ class RigidBodyDynamics(Dynamics[NoLog]):
     ) -> None:
         """Initialize the rigid body.
 
-        Args:
-            dt: Sample time.
-            mass: Body mass.
-            inertia: Inertia tensor, either a ``(3, 3)`` matrix or a 3-vector diagonal.
-            effectors: Effectors composed into the body (order fixes the command layout).
-            integrator: Defaults to :class:`QuaternionRK4` over the quaternion slice.
+        Parameters
+        ----------
+        dt : float
+            Sample time.
+        mass : float
+            Body mass.
+        inertia : ArrayLike
+            Inertia tensor, either a ``(3, 3)`` matrix or a 3-vector diagonal.
+        effectors : list[Effector], optional
+            Effectors composed into the body (order fixes the command layout).
+        integrator : Integrator, optional
+            Defaults to :class:`QuaternionRK4` over the quaternion slice.
         """
         super().__init__(dt, integrator if integrator is not None else QuaternionRK4((6, 10)))
 
@@ -121,6 +127,11 @@ class RigidBodyDynamics(Dynamics[NoLog]):
         SGP4 propagates the TLE to the epoch for ``r``/``v``; :func:`~spacecraft.frames.eci_attitude_from_orc`
         turns the ORC-relative attitude into the inertial ``q``/``omega``. When ``initial_state`` is
         omitted the state keeps its defaults (zeros, identity quaternion).
+
+        Returns
+        -------
+        Self
+            The rigid-body dynamics configured from ``config``.
         """
         integrator = config.get("integrator")
         if isinstance(integrator, str):
@@ -200,6 +211,11 @@ def rigid_body_attitude(_t: float, x: float | np.ndarray, _u: float | np.ndarray
 
     Pair with a :class:`~simulate.sensor.GaussianSensor` to model a star tracker. Note that
     additive noise on ``q`` yields a non-unit quaternion; consumers must renormalize.
+
+    Returns
+    -------
+    np.ndarray
+        The body->inertial unit quaternion ``q``, shape ``(4,)``.
     """
     return x[STATE.q]  # ty:ignore[not-subscriptable]
 
@@ -208,6 +224,11 @@ def rigid_body_rate(_t: float, x: float | np.ndarray, _u: float | np.ndarray) ->
     """Angular-rate measurement: the body-frame angular velocity ``omega`` ``(3, 1)``.
 
     Pair with a :class:`~simulate.sensor.GaussianSensor` to model a rate gyro.
+
+    Returns
+    -------
+    np.ndarray
+        The body-frame angular velocity ``omega``, shape ``(3,)``.
     """
     return x[STATE.omega]  # ty:ignore[not-subscriptable]
 
