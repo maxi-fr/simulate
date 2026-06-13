@@ -6,7 +6,7 @@ extensibility, and modern software-engineering practices.
 This repository ships **two packages**:
 
 - **`simulate`** — a generic, configuration-driven engine for closed-loop control
-  simulation. It defines the block-based `Component` model (Dynamics, Output, Sensor,
+  simulation. It defines the block-based `Component` model (Dynamics, Sensor,
   Estimator, Controller, Reference), the multi-rate orchestrator, logging, and batch
   experimentation.
 - **`spacecraft`** — a domain extension built **on top of** `simulate`. It provides
@@ -58,9 +58,9 @@ simulate/
 ├── src/
 │   ├── simulate/            #   Generic control-loop engine
 │   │   ├── component.py     #   Component[L] base class (ZOH, multi-rate)
-│   │   ├── dynamics.py      #   Dynamics + LinearDynamics
-│   │   ├── output.py        #   Output + LinearOutput
-│   │   ├── sensor.py        #   Sensor + GaussianSensor, RandomWalkBiasSensor
+│   │   ├── dynamics.py     #   Dynamics + LinearDynamics
+│   │   ├── measurement_model.py #   MeasurementModel callable + LinearMeasurement
+│   │   ├── sensor.py       #   Sensor + GaussianSensor, RandomWalkBiasSensor
 │   │   ├── estimator.py     #   Estimator + IdentityEstimator
 │   │   ├── controller.py    #   Controller + PIDController
 │   │   ├── reference.py     #   Reference + StepReference
@@ -69,11 +69,11 @@ simulate/
 │   │   ├── experiment.py    #   Parallel batch runner
 │   │   └── simulation.py    #   Simulation orchestrator
 │   └── spacecraft/          #   Aerospace domain extension
-│       ├── rigid_body.py    #   RigidBodyDynamics + telemetry outputs
+│       ├── rigid_body.py    #   RigidBodyDynamics + telemetry measurements
 │       ├── effector.py      #   Effector base + actuators/environment
 │       ├── controller.py    #   QuaternionFeedbackController, AdaptiveLQR
 │       ├── estimator.py     #   FullStateEstimator (orbit KF + attitude MEKF)
-│       ├── measurement.py   #   Magnetometer / sun / GPS truth outputs
+│       ├── measurement.py   #   Magnetometer / sun / GPS truth measurements
 │       ├── reference.py     #   OrbitReference (nadir pointing)
 │       ├── signals.py       #   Named-slice layouts for the signal vectors
 │       └── ...              #   coordinate frames, quaternion, environment, disturbances
@@ -125,8 +125,9 @@ A config is a flat mapping of component roles to `{class_path, dt, ...}` blocks.
 `class_path` is imported dynamically and instantiated through the component's
 `from_config`, so **new components need no changes to the engine** — just a reachable
 import path. Each component declares its own `dt`; rates must be integer multiples of
-the dynamics' base `dt` (see [multi-rate](#the-component-model)). `outputs` and
-`sensors` accept either a single block or a list of parallel measurement channels.
+the dynamics' base `dt` (see [multi-rate](#the-component-model)). `sensors` accepts
+either a single block or a list of independent measurement channels; each sensor nests
+a `measurement` model (a callable `(t, x, u) -> y`).
 
 ```yaml
 t_end: 10.0
@@ -136,11 +137,6 @@ dynamics:
   a: [[0, 1], [-10, -1]]
   b: [[0], [1]]
   integrator: "simulate.integrator.rk4"
-outputs:
-  class_path: "simulate.output.LinearOutput"
-  dt: 0.01
-  c: [[1, 0]]
-  d: [[0]]
 reference:
   class_path: "simulate.reference.StepReference"
   dt: 0.01
@@ -150,6 +146,10 @@ sensors:
   class_path: "simulate.sensor.GaussianSensor"
   dt: 0.01
   std_dev: 0.05
+  measurement:
+    class_path: "simulate.measurement_model.LinearMeasurement"
+    c: [[1, 0]]
+    d: [[0]]
 estimator:
   class_path: "simulate.estimator.IdentityEstimator"
   dt: 0.01
@@ -188,8 +188,8 @@ to distinct mathematical operations:
 - **Dynamics** — system state transition
   - Discrete-time: $x_{k+1} = f(t_k, x_k, u_k)$
   - Continuous-time: $\dot{x} = f(t, x, u)$ (solved via a numerical integrator)
-- **Output** — measured quantity from state and input: $y_k = g(t_k, x_k, u_k)$
-- **Sensor** — measurement hardware model: $\tilde{y}_k = h(t_k, y_k)$
+- **Sensor** — a measurement model (truth $y_k = h(t_k, x_k, u_k)$) plus a hardware
+  error model: $\tilde{y}_k = h(t_k, x_k, u_k) + \text{noise}$
 - **Estimator** — state reconstruction: $\hat{x}_k = e(t_k, \tilde{y}_k, u_{k-1})$
 - **Controller** — control law: $u_k = c(t_k, r_k, \hat{x}_k)$
 
@@ -198,11 +198,10 @@ graph LR
     %% Forward path (Left to Right)
     Ref[Reference] -->|r_k| C[Controller]
     C -->|u_k| D[Dynamics]
-    D -->|x_k| O[Output]
-    C -->|u_k| O
+    D -->|x_k| S[Sensor]
+    C -->|u_k| S
 
     %% Feedback path (Right to Left, underneath)
-    O -->|y_k| S[Sensor]
     S -->|y_mea_k| E[Estimator]
     E -->|x_hat_k| C
 
@@ -210,7 +209,6 @@ graph LR
 
     %% Invisible links to force vertical alignment into columns
     C ~~~ E
-    D ~~~ S
 ```
 
 **Multi-rate & Zero-Order Hold.** Each component runs at its own `dt` (an integer
@@ -223,7 +221,7 @@ slow sensors/controllers compose with fast dynamics automatically.
 | Component | Class | File |
 | --- | --- | --- |
 | Dynamics | `LinearDynamics` — $x_{k+1}=Ax_k+Bu_k$ / $\dot{x}=Ax+Bu$ | [`dynamics.py`](src/simulate/dynamics.py) |
-| Output | `LinearOutput` — $y=Cx+Du$ | [`output.py`](src/simulate/output.py) |
+| Measurement | `LinearMeasurement` — $y=Cx+Du$ | [`measurement_model.py`](src/simulate/measurement_model.py) |
 | Sensor | `GaussianSensor` — additive $\mathcal{N}(0,\sigma^2)$ noise | [`sensor.py`](src/simulate/sensor.py) |
 | Sensor | `RandomWalkBiasSensor` — Gaussian noise + random-walk bias | [`sensor.py`](src/simulate/sensor.py) |
 | Estimator | `IdentityEstimator` — pass-through $\hat{x}_k=\tilde{y}_k$ | [`estimator.py`](src/simulate/estimator.py) |
@@ -237,21 +235,20 @@ Assemble these by reference from YAML — the [config above](#configuration-form
 complete, runnable example (linear plant + PID + Gaussian sensor). Swap `class_path`
 values to mix and match prebuilt and custom components.
 
-**Multiple outputs & sensors.** `outputs` and `sensors` are parallel measurement
-channels: `sensors[i]` adds noise to the truth produced by `outputs[i]`, so the two
-lists must be the same length. Each output transforms the plant state at the base `dt`
-(always-fresh truth), while its paired sensor may subsample at its own slower rate —
-letting you model, say, a fast gyro alongside a slow GPS fix in one run. Give each as a
-single block (one channel) or a YAML list (many); the measurements are concatenated
-into the `y_mea` vector handed to the estimator.
+**Multiple sensors.** `sensors` is a list of independent measurement channels. Each
+sensor owns a `measurement` model — a callable `(t, x, u) -> y` giving the deterministic
+truth — and adds noise on top, sampling at its own `dt`. This lets you model, say, a
+fast gyro alongside a slow GPS fix in one run. Give one block (a single channel) or a
+YAML list (many); the per-channel measurements are concatenated into the `y_mea` vector
+handed to the estimator, and each sensor logs its own clean `truth`.
 
 ### Logging
 
 Every step records a `UniversalLog` ([`src/simulate/logger.py`](src/simulate/logger.py))
-of the standard signals — `t, x, x_hat, u, ref, y, y_mea` — plus each component's own
+of the standard signals — `t, x, x_hat, u, ref, y_mea` — plus each component's own
 log dataclass. Component logs are keyed by role (`dynamics`, `reference`, `estimator`,
-`controller`, and `output_0`, `sensor_0`, … per channel) and hold **only** internal
-state not already in the universal log. After a run, read them in memory via
+`controller`, and `sensor_0`, … per channel; each sensor log carries its clean `truth`)
+and hold **only** internal state not already in the universal log. After a run, read them in memory via
 `sim.logger.universal_logs` and `sim.logger.component_logs`; when `run(output_dir=...)`
 is given, logs stream to chunked `.npz` files (optionally `--compress`ed) and are merged
 on `export_results`.
@@ -267,14 +264,18 @@ A custom component subclasses the role's base class and implements three things:
 3. The role's update method, returning `(output, log)`:
    - Dynamics: `dynamics(t, x, u)` returning $\dot{x}$ (or override `step` for
      discrete-time), plus `_make_log()`.
-   - Output / Sensor / Estimator / Controller / Reference: `update(t, ...)`.
+   - Sensor / Estimator / Controller / Reference: `update(t, ...)`.
+
+A **measurement model** is the exception: it is not a component but a plain callable
+`(t, x, u) -> y` (a module-level function, or a class with `__call__` when it carries
+parameters), owned by a `Sensor` and built from config via `build_measurement`.
 
 The log is a frozen dataclass holding **only** internal state not already captured by
 the universal logs; use `simulate.component.NoLog` when there is nothing extra to log.
 
 For complete, idiomatic references see
 [`examples/dc_motor.py`](examples/dc_motor.py) (a custom continuous-time `Dynamics`
-and `Output`) and `PIDController` in
+and a measurement callable) and `PIDController` in
 [`src/simulate/controller.py`](src/simulate/controller.py) (the logging-dataclass
 pattern). The matching notebook is
 [`examples/01_dc_motor_speed_control.py`](examples/01_dc_motor_speed_control.py).
@@ -335,9 +336,9 @@ command-free.
 | `QuaternionFeedbackController` | Quaternion PD + magnetorquer momentum dumping | [`controller.py`](src/spacecraft/controller.py) |
 | `AdaptiveLQR` | Discrete LQR re-solved each step from the live field | [`controller.py`](src/spacecraft/controller.py) |
 | `FullStateEstimator` | Orbit KF + attitude MEKF + exposed environment | [`estimator.py`](src/spacecraft/estimator.py) |
-| `MagneticFieldOutput` | IGRF field truth in body frame [T] | [`measurement.py`](src/spacecraft/measurement.py) |
-| `SunDirectionOutput` | Unit sun direction (zeroed in eclipse) | [`measurement.py`](src/spacecraft/measurement.py) |
-| `GpsOutput` | Inertial position and/or velocity | [`measurement.py`](src/spacecraft/measurement.py) |
+| `MagneticFieldMeasurement` | IGRF field truth in body frame [T] | [`measurement.py`](src/spacecraft/measurement.py) |
+| `SunDirectionMeasurement` | Unit sun direction (zeroed in eclipse) | [`measurement.py`](src/spacecraft/measurement.py) |
+| `GpsMeasurement` | Inertial position and/or velocity | [`measurement.py`](src/spacecraft/measurement.py) |
 
 ### Extending it
 
@@ -367,9 +368,10 @@ returning `(force_inertial, torque_body, momentum_body)`, and optionally overrid
 properties. `ReactionWheelArray` is a complete stateful example.
 
 **A new sensor** — for measurement noise, subclass `simulate.sensor.Sensor[L]` (see
-`GaussianSensor`). To add a new *truth* quantity to measure, add an `Output` in
-[`measurement.py`](src/spacecraft/measurement.py) (e.g. `MagneticFieldOutput`) and
-pair it with a sensor as a parallel `outputs`/`sensors` channel.
+`GaussianSensor`). To add a new *truth* quantity to measure, write a measurement model —
+a callable `(t, x, u) -> y` (a function, or a `__call__` class when it has parameters) —
+in [`measurement.py`](src/spacecraft/measurement.py) (e.g. `MagneticFieldMeasurement`)
+and pass it as a sensor's `measurement` in the `sensors` list.
 
 ### End-to-end example
 

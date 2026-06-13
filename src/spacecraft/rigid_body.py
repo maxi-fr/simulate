@@ -34,7 +34,6 @@ from numpy.typing import ArrayLike
 from simulate.component import NoLog
 from simulate.dynamics import Dynamics
 from simulate.integrator import Integrator
-from simulate.output import Output
 
 from .effector import Effector, RigidBodyState
 from .frames import eci_attitude_from_orc
@@ -191,69 +190,29 @@ class RigidBodyDynamics(Dynamics[NoLog]):
         return NoLog()
 
 
-class RigidBodyOutput(Output[NoLog]):
-    """Minimal pose output: position (inertial) and attitude quaternion."""
-
-    @classmethod
-    def from_config(cls, config: dict[str, Any]) -> Self:
-        """Instantiate the component from a raw configuration dictionary."""
-        return cls(dt=float(config["dt"]))
-
-    def update(
-        self,
-        t: float,  # noqa: ARG002
-        x: float | np.ndarray,
-        u: float | np.ndarray,  # noqa: ARG002
-    ) -> tuple[float | np.ndarray, NoLog]:
-        """Extract pose ``[r(3), q(4)]`` from the full rigid body state."""
-        y = np.concatenate([x[STATE.r], x[STATE.q]])  # ty:ignore[not-subscriptable]
-        return y, NoLog()
+def rigid_body_pose(_t: float, x: float | np.ndarray, _u: float | np.ndarray) -> np.ndarray:
+    """Minimal pose measurement: extract ``[r(3), q(4)]`` from the full rigid body state."""
+    return np.concatenate([x[STATE.r], x[STATE.q]])  # ty:ignore[not-subscriptable]
 
 
-class RigidBodyAttitudeOutput(Output[NoLog]):
+def rigid_body_attitude(_t: float, x: float | np.ndarray, _u: float | np.ndarray) -> np.ndarray:
     """Attitude measurement: the body->inertial unit quaternion ``q`` ``(4, 1)``.
 
     Pair with a :class:`~simulate.sensor.GaussianSensor` to model a star tracker. Note that
     additive noise on ``q`` yields a non-unit quaternion; consumers must renormalize.
     """
-
-    @classmethod
-    def from_config(cls, config: dict[str, Any]) -> Self:
-        """Instantiate the component from a raw configuration dictionary."""
-        return cls(dt=float(config["dt"]))
-
-    def update(
-        self,
-        t: float,  # noqa: ARG002
-        x: float | np.ndarray,
-        u: float | np.ndarray,  # noqa: ARG002
-    ) -> tuple[float | np.ndarray, NoLog]:
-        """Select the attitude quaternion from the full rigid body state."""
-        return x[STATE.q], NoLog()  # ty:ignore[not-subscriptable]
+    return x[STATE.q]  # ty:ignore[not-subscriptable]
 
 
-class RigidBodyRateOutput(Output[NoLog]):
+def rigid_body_rate(_t: float, x: float | np.ndarray, _u: float | np.ndarray) -> np.ndarray:
     """Angular-rate measurement: the body-frame angular velocity ``omega`` ``(3, 1)``.
 
     Pair with a :class:`~simulate.sensor.GaussianSensor` to model a rate gyro.
     """
-
-    @classmethod
-    def from_config(cls, config: dict[str, Any]) -> Self:
-        """Instantiate the component from a raw configuration dictionary."""
-        return cls(dt=float(config["dt"]))
-
-    def update(
-        self,
-        t: float,  # noqa: ARG002
-        x: float | np.ndarray,
-        u: float | np.ndarray,  # noqa: ARG002
-    ) -> tuple[float | np.ndarray, NoLog]:
-        """Select the body-frame angular velocity from the full rigid body state."""
-        return x[STATE.omega], NoLog()  # ty:ignore[not-subscriptable]
+    return x[STATE.omega]  # ty:ignore[not-subscriptable]
 
 
-class ReactionWheelTelemetryOutput(Output[NoLog]):
+class ReactionWheelTelemetry:
     """Effector telemetry: a single effector internal state (e.g. a wheel's momentum ``h_w``).
 
     ``index`` is the absolute position of the effector state in the rigid body state vector;
@@ -261,21 +220,10 @@ class ReactionWheelTelemetryOutput(Output[NoLog]):
     first state is ``BASE_STATES``.
     """
 
-    def __init__(self, dt: float, index: int = BASE_STATES) -> None:
+    def __init__(self, index: int = BASE_STATES) -> None:
         """Initialize with the absolute state-vector index of the effector state to report."""
-        super().__init__(dt)
         self.index = index
 
-    @classmethod
-    def from_config(cls, config: dict[str, Any]) -> Self:
-        """Instantiate the component from a raw configuration dictionary."""
-        return cls(dt=float(config["dt"]), index=int(config.get("index", BASE_STATES)))
-
-    def update(
-        self,
-        t: float,  # noqa: ARG002
-        x: float | np.ndarray,
-        u: float | np.ndarray,  # noqa: ARG002
-    ) -> tuple[float | np.ndarray, NoLog]:
+    def __call__(self, _t: float, x: float | np.ndarray, _u: float | np.ndarray) -> np.ndarray:
         """Select the effector internal state at ``index`` from the full rigid body state."""
-        return x[self.index : self.index + 1], NoLog()  # ty:ignore[not-subscriptable]
+        return x[self.index : self.index + 1]  # ty:ignore[not-subscriptable]

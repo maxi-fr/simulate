@@ -16,25 +16,25 @@ def _():
     from simulate.sensor import GaussianSensor
     from spacecraft.effector import EarthGravity, ReactionWheelArray, Wrench
     from spacecraft.rigid_body import (
-        ReactionWheelTelemetryOutput,
-        RigidBodyAttitudeOutput,
+        ReactionWheelTelemetry,
         RigidBodyDynamics,
-        RigidBodyRateOutput,
+        rigid_body_attitude,
+        rigid_body_rate,
     )
 
     return (
         EarthGravity,
         GaussianSensor,
         ReactionWheelArray,
-        ReactionWheelTelemetryOutput,
-        RigidBodyAttitudeOutput,
+        ReactionWheelTelemetry,
         RigidBodyDynamics,
-        RigidBodyRateOutput,
         Wrench,
         mo,
         np,
         pl,
         plt,
+        rigid_body_attitude,
+        rigid_body_rate,
     )
 
 
@@ -227,11 +227,11 @@ def _(gg_rows, pl, plt):
 @app.cell
 def _(mo):
     mo.md(r"""
-    ## 5. Measuring the body: per-part Outputs + Sensors
+    ## 5. Measuring the body: per-part measurement models + Sensors
 
-    Measurement is modular and split into two roles. An **Output** transforms the state into a
-    true sub-measurement (always at the dynamics rate); a reusable **`GaussianSensor`** then
-    adds noise at *its own* sampling rate. Here a slow **star tracker** reads the attitude $q$,
+    Measurement is modular. Each **`Sensor`** owns a **measurement model** — a callable
+    `(t, x, u) -> y` that transforms the state into a true sub-measurement — and adds noise at
+    *its own* sampling rate. Here a slow **star tracker** reads the attitude $q$,
     a fast **gyro** reads the body rate $\omega$, and a **wheel tachometer** reads the
     reaction-wheel momentum $h_w$ — each at a different rate.
 
@@ -244,12 +244,12 @@ def _(mo):
 def _(
     GaussianSensor,
     ReactionWheelArray,
-    ReactionWheelTelemetryOutput,
-    RigidBodyAttitudeOutput,
+    ReactionWheelTelemetry,
     RigidBodyDynamics,
-    RigidBodyRateOutput,
     Wrench,
     np,
+    rigid_body_attitude,
+    rigid_body_rate,
 ):
     dt_m = 0.01
     rw_array_m = ReactionWheelArray(
@@ -266,10 +266,10 @@ def _(
         effectors=[Wrench(), rw_array_m],
     )
 
-    # (Output transform, Sensor noise) channels, each at its own rate.
-    gyro_out, gyro_sen = RigidBodyRateOutput(dt=dt_m), GaussianSensor(dt=dt_m, std_dev=2e-3)
-    track_out, track_sen = RigidBodyAttitudeOutput(dt=10 * dt_m), GaussianSensor(dt=10 * dt_m, std_dev=2e-3)
-    tach_out, tach_sen = ReactionWheelTelemetryOutput(dt=5 * dt_m, index=18), GaussianSensor(dt=5 * dt_m, std_dev=1e-2)
+    # Each sensor owns a measurement model (truth) and adds noise, sampling at its own rate.
+    gyro_sen = GaussianSensor(dt=dt_m, measurement=rigid_body_rate, std_dev=2e-3)
+    track_sen = GaussianSensor(dt=10 * dt_m, measurement=rigid_body_attitude, std_dev=2e-3)
+    tach_sen = GaussianSensor(dt=5 * dt_m, measurement=ReactionWheelTelemetry(index=18), std_dev=1e-2)
 
     cmd_m = np.array([2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.25])
     meas_rows = []
@@ -278,12 +278,10 @@ def _(
         # Measure the current state (x_0 on the first iteration) before advancing the plant.
         x_m = body_m.x
 
-        wz_true, _ = gyro_out.evaluate(t_m, x_m, cmd_m)
-        wz_mea, _ = gyro_sen.evaluate(t_m, wz_true)
-        hw_true, _ = tach_out.evaluate(t_m, x_m, cmd_m)
-        hw_mea, _ = tach_sen.evaluate(t_m, hw_true)
-        q_true, _ = track_out.evaluate(t_m, x_m, cmd_m)
-        q_mea, _ = track_sen.evaluate(t_m, q_true)
+        wz_mea, gyro_log = gyro_sen.evaluate(t_m, x_m, cmd_m)
+        hw_mea, tach_log = tach_sen.evaluate(t_m, x_m, cmd_m)
+        q_mea, track_log = track_sen.evaluate(t_m, x_m, cmd_m)
+        wz_true, hw_true, q_true = gyro_log.truth, tach_log.truth, track_log.truth
 
         meas_rows.append(
             {

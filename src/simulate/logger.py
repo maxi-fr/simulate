@@ -18,7 +18,6 @@ class UniversalLog:
     x_hat: float | npt.NDArray[np.float64]
     u: float | npt.NDArray[np.float64]
     ref: float | npt.NDArray[np.float64]
-    y: float | npt.NDArray[np.float64] | None = None
     y_mea: float | npt.NDArray[np.float64] | None = None
 
 
@@ -126,7 +125,7 @@ class Logger:
         self._component_fields = {}
 
         # Universal signals
-        for key in ("t", "x", "y", "y_mea", "x_hat", "u", "ref"):
+        for key in ("t", "x", "y_mea", "x_hat", "u", "ref"):
             val = getattr(universal, key, None)
             if val is not None:
                 self._universal_buffers[key] = self._create_buffer_array(val)
@@ -142,7 +141,7 @@ class Logger:
 
             # Assuming log_model is a dataclass
             fields = [
-                f.name for f in dataclasses.fields(log_model) if f.name not in {"x", "y", "y_mea", "x_hat", "u", "ref"}
+                f.name for f in dataclasses.fields(log_model) if f.name not in {"x", "y_mea", "x_hat", "u", "ref"}
             ]
             self._component_fields[name] = fields
 

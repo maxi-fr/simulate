@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import importlib
 import math
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from tqdm import tqdm
 
-from simulate.config import load_config
+from simulate.config import build_component, load_config
 from simulate.logger import Logger, UniversalLog
 
 if TYPE_CHECKING:
@@ -17,7 +16,6 @@ if TYPE_CHECKING:
     from simulate.controller import Controller
     from simulate.dynamics import Dynamics
     from simulate.estimator import Estimator
-    from simulate.output import Output
     from simulate.reference import Reference
     from simulate.sensor import Sensor
 
@@ -29,7 +27,6 @@ class Simulation:
         self,
         t_end: float,
         dynamics: Dynamics,
-        outputs: Output | list[Output],
         reference: Reference,
         sensors: Sensor | list[Sensor],
         estimator: Estimator,
@@ -37,20 +34,14 @@ class Simulation:
     ) -> None:
         """Initialize the simulation with instantiated components.
 
-        ``outputs`` and ``sensors`` are parallel measurement channels: ``sensors[i]`` adds
-        noise to the truth produced by ``outputs[i]``. Outputs transform the state at the
-        base ``dt`` (always-fresh truth); each sensor may run at its own (slower) rate.
+        Each sensor owns a measurement model (deterministic truth ``y = h(t, x, u)``) and
+        adds noise on top, sampling at its own ``dt``. ``sensors`` may be a single sensor or
+        a list of independent measurement channels.
         """
-        outputs_list = [outputs] if not isinstance(outputs, list) else outputs
         sensors_list = [sensors] if not isinstance(sensors, list) else sensors
-
-        if len(outputs_list) != len(sensors_list):
-            msg = f"outputs ({len(outputs_list)}) and sensors ({len(sensors_list)}) must be the same length"
-            raise ValueError(msg)
 
         self.t_end = t_end
         self.dynamics = dynamics
-        self.outputs: list[Output] = outputs_list  # ty:ignore[invalid-assignment]
         self.reference = reference
         self.sensors: list[Sensor] = sensors_list  # ty:ignore[invalid-assignment]
         self.estimator = estimator
@@ -66,7 +57,6 @@ class Simulation:
             ("reference", self.reference),
             ("estimator", self.estimator),
             ("controller", self.controller),
-            *((f"output_{i}", out) for i, out in enumerate(self.outputs)),
             *((f"sensor_{i}", sen) for i, sen in enumerate(self.sensors)),
         ]
         for name, comp in named_components:
@@ -76,44 +66,26 @@ class Simulation:
                 msg = f"{name.capitalize()} dt ({dt}) must be an integer multiple of plant dt ({base_dt})"
                 raise ValueError(msg)
 
-    @staticmethod
-    def _build_component(comp_config: dict[str, Any]) -> Any:  # noqa: ANN401
-        """Instantiate a single component from a ``{class_path, ...}`` config dict."""
-        cfg = comp_config.copy()
-        class_path: str = cfg.pop("class_path")
-        module_name, class_name = class_path.rsplit(".", 1)
-        module = importlib.import_module(module_name)
-        comp_class: Component = getattr(module, class_name)
-        return comp_class.from_config(cfg)
-
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> Simulation:
         """Instantiate a simulation from a configuration dictionary using dynamic loading.
 
-        ``outputs`` and ``sensors`` are lists of ``{class_path, ...}`` dicts (parallel
-        measurement channels); the remaining components are single.
+        ``sensors`` is a single ``{class_path, ...}`` dict or a list of them (independent
+        measurement channels); each carries a nested ``measurement`` model. The remaining
+        components are single.
         """
-        singles = {
-            key: cls._build_component(config[key]) for key in ("dynamics", "reference", "estimator", "controller")
-        }
-        raw_outputs = config["outputs"]
-        outputs = (
-            [cls._build_component(raw_outputs)]
-            if not isinstance(raw_outputs, list)
-            else [cls._build_component(c) for c in raw_outputs]
-        )
+        singles = {key: build_component(config[key]) for key in ("dynamics", "reference", "estimator", "controller")}
 
         raw_sensors = config["sensors"]
         sensors = (
-            [cls._build_component(raw_sensors)]
+            [build_component(raw_sensors)]
             if not isinstance(raw_sensors, list)
-            else [cls._build_component(c) for c in raw_sensors]
+            else [build_component(c) for c in raw_sensors]
         )
 
         return cls(
             t_end=float(config["t_end"]),
             dynamics=singles["dynamics"],
-            outputs=outputs,
             reference=singles["reference"],
             sensors=sensors,
             estimator=singles["estimator"],
@@ -151,10 +123,7 @@ class Simulation:
 
                 ref_k, ref_log = self.reference.evaluate(t)
 
-                output_results = [out.evaluate(t, x_k, u_k) for out in self.outputs]
-                y_list = [res for res, _ in output_results]
-
-                sensor_logs = [sensor.evaluate(t, y_list[i]) for i, sensor in enumerate(self.sensors)]
+                sensor_logs = [sensor.evaluate(t, x_k, u_k) for sensor in self.sensors]
                 y_mea_list = [np.atleast_1d(res) for res, _ in sensor_logs]
                 y_mea = np.concatenate(y_mea_list) if y_mea_list else np.zeros(0)
 
@@ -165,12 +134,7 @@ class Simulation:
                 # Advance the plant; ``self.dynamics.x`` becomes the next step's state.
                 _, dynamics_log = self.dynamics.evaluate(t, u_k)
 
-                if len(self.outputs) == 1:
-                    y_val = y_list[0]
-                    y_mea_val = sensor_logs[0][0]
-                else:
-                    y_val = np.concatenate([np.atleast_1d(res) for res in y_list])
-                    y_mea_val = y_mea
+                y_mea_val = sensor_logs[0][0] if len(self.sensors) == 1 else y_mea
 
                 uni_log = UniversalLog(
                     t=t,
@@ -178,7 +142,6 @@ class Simulation:
                     x_hat=x_hat,
                     u=u_k,
                     ref=ref_k,
-                    y=y_val,
                     y_mea=y_mea_val,
                 )
                 comp_logs: dict[str, Any] = {
@@ -187,8 +150,6 @@ class Simulation:
                     "estimator": estim_log,
                     "controller": ctrl_log,
                 }
-                for i, (_, out_log) in enumerate(output_results):
-                    comp_logs[f"output_{i}"] = out_log
                 for i, (_, sen_log) in enumerate(sensor_logs):
                     comp_logs[f"sensor_{i}"] = sen_log
                 self.logger.log(uni_log, comp_logs)

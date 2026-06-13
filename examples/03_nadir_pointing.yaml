@@ -65,27 +65,44 @@ dynamics:
       epoch: "2024-01-01T12:00:00"
       surfaces: *surfaces
 
-# Parallel measurement channels: outputs[i] (truth) is paired with sensors[i] (noise). The ordering
-# here MUST match the estimator's `channels` layout below.
-# Outputs produce always-fresh truth at the base dt; the paired sensors below subsample at the real
-# (slower) measurement rates. (A slow Output would feed the sensor a multi-step-stale value.)
-outputs:
-  - {class_path: spacecraft.measurement.GpsOutput, dt: 0.2, include_velocity: false}
-  - {class_path: spacecraft.rigid_body.RigidBodyRateOutput, dt: 0.2}
-  - {class_path: spacecraft.measurement.MagneticFieldOutput, dt: 0.2, epoch: "2024-01-01T12:00:00"}
-  - {class_path: spacecraft.measurement.SunDirectionOutput, dt: 0.2, epoch: "2024-01-01T12:00:00"}
-  - {class_path: spacecraft.rigid_body.ReactionWheelTelemetryOutput, dt: 0.2, index: 19}
-  - {class_path: spacecraft.rigid_body.ReactionWheelTelemetryOutput, dt: 0.2, index: 20}
-  - {class_path: spacecraft.rigid_body.ReactionWheelTelemetryOutput, dt: 0.2, index: 21}
-
+# Independent measurement channels. Each sensor owns a measurement model (deterministic truth
+# y = h(t, x, u)) and adds noise, sampling at its own (slower) rate. The channel ordering here
+# MUST match the estimator's `channels` layout below.
 sensors:
-  - {class_path: simulate.sensor.GaussianSensor, dt: 5.0, std_dev: 3.0}            # GPS position [m]
-  - {class_path: simulate.sensor.RandomWalkBiasSensor, dt: 0.2, std_dev_noise: 1.0e-3, std_dev_bias: 3.16e-6}  # gyro [rad/s]
-  - {class_path: simulate.sensor.GaussianSensor, dt: 0.4, std_dev: 1.0e-7}         # magnetometer [T]
-  - {class_path: simulate.sensor.GaussianSensor, dt: 1.0, std_dev: 0.01}           # sun sensor [-]
-  - {class_path: simulate.sensor.GaussianSensor, dt: 0.2, std_dev: 1.0e-3}         # wheel tachometer [rad/s]
-  - {class_path: simulate.sensor.GaussianSensor, dt: 0.2, std_dev: 1.0e-3}
-  - {class_path: simulate.sensor.GaussianSensor, dt: 0.2, std_dev: 1.0e-3}
+  # GPS position [m]
+  - class_path: simulate.sensor.GaussianSensor
+    dt: 5.0
+    std_dev: 3.0
+    measurement: {class_path: spacecraft.measurement.GpsMeasurement, include_velocity: false}
+  # gyro [rad/s]
+  - class_path: simulate.sensor.RandomWalkBiasSensor
+    dt: 0.2
+    std_dev_noise: 1.0e-3
+    std_dev_bias: 3.16e-6
+    measurement: {class_path: spacecraft.rigid_body.rigid_body_rate}
+  # magnetometer [T]
+  - class_path: simulate.sensor.GaussianSensor
+    dt: 0.4
+    std_dev: 1.0e-7
+    measurement: {class_path: spacecraft.measurement.MagneticFieldMeasurement, epoch: "2024-01-01T12:00:00"}
+  # sun sensor [-]
+  - class_path: simulate.sensor.GaussianSensor
+    dt: 1.0
+    std_dev: 0.01
+    measurement: {class_path: spacecraft.measurement.SunDirectionMeasurement, epoch: "2024-01-01T12:00:00"}
+  # wheel tachometers [rad/s]
+  - class_path: simulate.sensor.GaussianSensor
+    dt: 0.2
+    std_dev: 1.0e-3
+    measurement: {class_path: spacecraft.rigid_body.ReactionWheelTelemetry, index: 19}
+  - class_path: simulate.sensor.GaussianSensor
+    dt: 0.2
+    std_dev: 1.0e-3
+    measurement: {class_path: spacecraft.rigid_body.ReactionWheelTelemetry, index: 20}
+  - class_path: simulate.sensor.GaussianSensor
+    dt: 0.2
+    std_dev: 1.0e-3
+    measurement: {class_path: spacecraft.rigid_body.ReactionWheelTelemetry, index: 21}
 
 reference:
   class_path: spacecraft.reference.OrbitReference
