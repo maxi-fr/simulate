@@ -32,14 +32,9 @@ from .controller_models import build_reduced_system_dynamics
 from .frames import orbital_rate, orc_from_orbit
 from .orbit_dynamics import MU, SGP4
 from .quaternion import Quaternion
+from .signals import CONTROL, ESTIMATE, REFERENCE
 
 _EPS = 1e-12
-
-# Slices into x_hat.
-_Q = slice(6, 10)
-_W = slice(10, 13)
-_B = slice(13, 16)
-_H = slice(16, 19)
 
 
 def _gain_matrix(value: ArrayLike) -> np.ndarray:
@@ -69,18 +64,18 @@ def _attitude_error(ref: np.ndarray, x_hat: np.ndarray) -> tuple[np.ndarray, np.
     Returns ``(q_err_vec(3), delta_omega(3))`` where ``q_err`` is the small-angle attitude error and
     ``delta_omega = omega - omega_des`` the body-rate error, both in the body frame.
     """
-    r = x_hat[0:3]
-    v = x_hat[3:6]
-    q_bi = Quaternion.from_array(x_hat[_Q])
-    omega = x_hat[_W]
+    r = x_hat[ESTIMATE.r]
+    v = x_hat[ESTIMATE.v]
+    q_bi = Quaternion.from_array(x_hat[ESTIMATE.q])
+    omega = x_hat[ESTIMATE.omega]
 
     q_oi = orc_from_orbit(r, v)
     q_bo_act = q_bi * q_oi.conjugate()
-    q_bo_des = Quaternion.from_array(ref[0:4])
+    q_bo_des = Quaternion.from_array(ref[REFERENCE.q_des])
     q_err = q_bo_act.error_to(q_bo_des)
     q_err_vec = q_err.vec * np.sign(q_err.scalar)  # take the short rotation path
 
-    omega_des = q_bo_act.apply(orbital_rate(r, v)) + ref[4:7]
+    omega_des = q_bo_act.apply(orbital_rate(r, v)) + ref[REFERENCE.omega_des]
     return q_err_vec, omega - omega_des
 
 
@@ -213,8 +208,8 @@ class QuaternionFeedbackController(Controller[QuaternionFeedbackControllerLog]):
         """Compute the quaternion-feedback control current commands."""
         x = np.asarray(x_hat)
 
-        b_body = x[_B]
-        h_wheel = x[_H]
+        b_body = x[ESTIMATE.b_body]
+        h_wheel = x[ESTIMATE.h_wheel]
 
         q_err, delta_omega = _attitude_error(np.asarray(ref), x)
         tau_rw = -self.kp @ q_err - self.kd @ delta_omega
@@ -371,21 +366,21 @@ class AdaptiveLQR(Controller[AdaptiveLQRLog]):
         """Re-solve the gain at the current field, then compute the LQR current commands."""
         ref_arr = np.asarray(ref)
         x = np.asarray(x_hat)
-        r = x[0:3]
-        v = x[3:6]
-        q_bi = Quaternion.from_array(x[_Q])
-        omega = x[_W]
-        h_w = x[_H]
+        r = x[ESTIMATE.r]
+        v = x[ESTIMATE.v]
+        q_bi = Quaternion.from_array(x[ESTIMATE.q])
+        omega = x[ESTIMATE.omega]
+        h_w = x[ESTIMATE.h_wheel]
 
         q_oi = orc_from_orbit(r, v)
         q_bo_act = q_bi * q_oi.conjugate()
 
-        b_body = x[_B]
+        b_body = x[ESTIMATE.b_body]
         b_eci = q_bi.conjugate().apply(b_body)
 
-        q_bo_ref = Quaternion.from_array(ref_arr[0:4])
+        q_bo_ref = Quaternion.from_array(ref_arr[REFERENCE.q_des])
         q_bi_ref = (q_bo_ref * q_oi).to_array()
-        omega_ref = q_bo_act.apply(orbital_rate(r, v)) + ref_arr[4:7]
+        omega_ref = q_bo_act.apply(orbital_rate(r, v)) + ref_arr[REFERENCE.omega_des]
         h_w_ref = -self.inertia @ omega_ref
 
         x_ref = np.concatenate((q_bi_ref, omega_ref, h_w_ref))
@@ -407,19 +402,19 @@ class AdaptiveLQR(Controller[AdaptiveLQRLog]):
         control = -self.K @ error
 
         u = to_current_commands(
-            tau_rw=control[3:6],
-            tau_mtq=control[0:3],
+            tau_rw=control[CONTROL.tau_rw],
+            tau_mtq=control[CONTROL.tau_mtq],
             b_body=b_body,
             alpha_rw=self.alpha_rw,
             alpha_mtq=self.alpha_mtq,
         )
 
         b_norm_sq = np.dot(b_body, b_body)
-        dipole = np.cross(b_body, control[0:3]) / b_norm_sq if b_norm_sq > _EPS else np.zeros(3)
+        dipole = np.cross(b_body, control[CONTROL.tau_mtq]) / b_norm_sq if b_norm_sq > _EPS else np.zeros(3)
 
         return u, AdaptiveLQRLog(
             error=error,
             dipole=dipole,
-            tau_rw=control[3:6],
+            tau_rw=control[CONTROL.tau_rw],
             currents=u,
         )
