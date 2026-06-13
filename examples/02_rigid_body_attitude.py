@@ -15,19 +15,22 @@ def _():
 
     from simulate.sensor import GaussianSensor
     from spacecraft.effector import EarthGravity, ReactionWheelArray, Wrench
-    from spacecraft.rigid_body import (
+    from spacecraft.measurement import (
         ReactionWheelTelemetry,
-        RigidBodyDynamics,
         rigid_body_attitude,
         rigid_body_rate,
     )
+    from spacecraft.rigid_body import RigidBodyDynamics
+    from spacecraft.signals import BASE_STATES, STATE
 
     return (
+        BASE_STATES,
         EarthGravity,
         GaussianSensor,
         ReactionWheelArray,
         ReactionWheelTelemetry,
         RigidBodyDynamics,
+        STATE,
         Wrench,
         mo,
         np,
@@ -99,7 +102,7 @@ def _(mo):
 
 
 @app.cell
-def _(dt, dynamics, inertia, np):
+def _(BASE_STATES, STATE, dt, dynamics, inertia, np):
     t_end = 5.0
     n_steps = int(t_end / dt)
 
@@ -110,17 +113,17 @@ def _(dt, dynamics, inertia, np):
     rows = []
     for _k in range(n_steps):
         # Record the current state (x_0 on the first iteration) before advancing.
-        omega = dynamics.x[10:13]
-        # currents: x[13:16], omega_rel: x[16:19]
-        h_wheels = 0.05 * (dynamics.x[16:19] + omega)
+        omega = dynamics.x[STATE.omega]
+        # currents: x[BASE_STATES:BASE_STATES+3], omega_rel: x[BASE_STATES+3:BASE_STATES+6]
+        h_wheels = 0.05 * (dynamics.x[BASE_STATES + 3 : BASE_STATES + 6] + omega)
         total_h = inertia @ omega + h_wheels
         h_w_z = h_wheels[2]
         rows.append(
             {
                 "t": _k * dt,
-                "x": dynamics.x[0],
-                "qw": dynamics.x[9],
-                "qz": dynamics.x[8],
+                "x": dynamics.x[STATE.r][0],
+                "qw": dynamics.x[STATE.q][3],
+                "qz": dynamics.x[STATE.q][2],
                 "wz": omega[2],
                 "h_w": h_w_z,
                 "H_norm": float(np.linalg.norm(total_h)),
@@ -187,7 +190,7 @@ def _(mo):
 
 
 @app.cell
-def _(EarthGravity, RigidBodyDynamics, np):
+def _(EarthGravity, RigidBodyDynamics, STATE, np):
     dt_gg = 1.0
     body = RigidBodyDynamics(
         dt=dt_gg,
@@ -195,13 +198,13 @@ def _(EarthGravity, RigidBodyDynamics, np):
         inertia=np.diag([100.0, 200.0, 300.0]),
         effectors=[EarthGravity(mu=3.986e14)],
     )
-    body.x[0:3] = np.array([7.0e6, 0.0, 0.0])  # LEO radius along inertial x
+    body.x[STATE.r] = np.array([7.0e6, 0.0, 0.0])  # LEO radius along inertial x
     half = np.deg2rad(10.0)  # initial tilt about body z
-    body.x[6:10] = np.array([0.0, 0.0, np.sin(half), np.cos(half)])
+    body.x[STATE.q] = np.array([0.0, 0.0, np.sin(half), np.cos(half)])
 
     gg_rows = []
     for _k in range(6000):
-        gg_rows.append({"t": _k * dt_gg, "wz": body.x[12], "qz": body.x[8]})
+        gg_rows.append({"t": _k * dt_gg, "wz": body.x[STATE.omega][2], "qz": body.x[STATE.q][2]})
         body.evaluate(_k * dt_gg, np.zeros(0))
     return (gg_rows,)
 
@@ -242,6 +245,7 @@ def _(mo):
 
 @app.cell
 def _(
+    BASE_STATES,
     GaussianSensor,
     ReactionWheelArray,
     ReactionWheelTelemetry,
@@ -269,7 +273,7 @@ def _(
     # Each sensor owns a measurement model (truth) and adds noise, sampling at its own rate.
     gyro_sen = GaussianSensor(dt=dt_m, measurement=rigid_body_rate, std_dev=2e-3)
     track_sen = GaussianSensor(dt=10 * dt_m, measurement=rigid_body_attitude, std_dev=2e-3)
-    tach_sen = GaussianSensor(dt=5 * dt_m, measurement=ReactionWheelTelemetry(index=18), std_dev=1e-2)
+    tach_sen = GaussianSensor(dt=5 * dt_m, measurement=ReactionWheelTelemetry(index=BASE_STATES + 5), std_dev=1e-2)
 
     cmd_m = np.array([2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.25])
     meas_rows = []

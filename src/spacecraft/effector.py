@@ -29,11 +29,12 @@ import numpy as np
 from numpy.typing import ArrayLike
 
 import spacecraft.disturbances as dis
-from spacecraft.environment import atmosphere_density_msis, is_in_shadow, moon_position, sun_position
-from spacecraft.frames import eci_to_geodedic
-from spacecraft.orbit_dynamics import MU
-from spacecraft.quaternion import Quaternion
-from spacecraft.surface import Surface
+
+from .environment import atmosphere_density_msis, is_in_shadow, moon_position, sun_position
+from .frames import eci_to_geodedic
+from .orbit_dynamics import MU
+from .quaternion import Quaternion
+from .surface import Surface
 
 
 @dataclasses.dataclass(frozen=True)

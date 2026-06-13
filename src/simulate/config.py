@@ -5,7 +5,7 @@ from typing import Any
 
 import yaml
 
-from simulate.measurement_model import MeasurementModel
+from .measurement_model import MeasurementModel
 
 
 def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:

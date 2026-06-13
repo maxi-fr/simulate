@@ -10,6 +10,8 @@ from scipy.spatial.transform import Rotation
 
 from simulate.integrator import rk4
 
+from .signals import STATE
+
 FloatArray = NDArray[np.float64]
 Vec3 = Annotated[FloatArray, Literal[3]]
 Vec4 = Annotated[FloatArray, Literal[4]]
@@ -335,9 +337,9 @@ class Quaternion:
                 -\mathbf{q}_{1: 3}^T
             \end{bmatrix} =
             \begin{bmatrix}
-                q_4 & -q_3 & q_2 \\
-                q_3 & q_4 & -q_1 \\
-                -q_2 & q_1 & q_4 \\
+                 q_4 & -q_3 &  q_2 \\
+                 q_3 &  q_4 & -q_1 \\
+                -q_2 &  q_1 &  q_4 \\
                 -q_1 & -q_2 & -q_3
             \end{bmatrix}
 
@@ -361,9 +363,12 @@ class QuaternionRK4:
     :class:`Integrator` protocol.
     """
 
-    def __init__(self, quat_slice: tuple[int, int] = (6, 10)) -> None:
+    def __init__(self, quat_slice: tuple[int, int] | None = None) -> None:
         """Store the half-open ``[start, stop)`` index range of the quaternion within the state."""
-        self._sl = slice(*quat_slice)
+        if quat_slice is None:
+            self._sl = STATE.q
+        else:
+            self._sl = slice(*quat_slice)
 
     def __call__(
         self,

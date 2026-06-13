@@ -5,8 +5,8 @@ from typing import Any, Self, cast
 import numpy as np
 from numpy.typing import ArrayLike
 
-from simulate.component import Component, NoLog
-from simulate.integrator import Integrator
+from .component import Component, NoLog
+from .integrator import Integrator
 
 
 class Dynamics[L](Component[L], abc.ABC):
@@ -75,15 +75,15 @@ class LinearDynamics(Dynamics[NoLog]):
     def __init__(
         self,
         dt: float,
-        a: ArrayLike,
-        b: ArrayLike,
+        A: ArrayLike,  # noqa: N803
+        B: ArrayLike,  # noqa: N803
         integrator: Integrator | None = None,
     ) -> None:
         """Initialize the linear dynamics."""
         super().__init__(dt, integrator)
 
-        self.a = np.atleast_2d(a)
-        self.b = np.atleast_2d(b)
+        self.a = np.atleast_2d(A)
+        self.b = np.atleast_2d(B)
 
         self.x = np.zeros(self.a.shape[0], dtype=float)
         self.n_inputs = self.b.shape[1]
@@ -99,8 +99,8 @@ class LinearDynamics(Dynamics[NoLog]):
 
         return cls(
             dt=float(config["dt"]),
-            a=config["a"],
-            b=config["b"],
+            A=config["A"],
+            B=config["B"],
             integrator=integrator,
         )
 

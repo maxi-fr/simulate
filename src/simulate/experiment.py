@@ -2,7 +2,7 @@ import multiprocessing
 from pathlib import Path
 from typing import Any
 
-from simulate.simulation import Simulation
+from .simulation import Simulation
 
 
 def _run_worker(task: tuple[dict[str, Any], Path, str, int | None, bool]) -> bool:

@@ -19,8 +19,8 @@ def _identity(_t: float, x: float | np.ndarray, _u: float | np.ndarray) -> float
 
 def test_plant_step_logic() -> None:
     """Test standard plant update dynamics."""
-    dynamics = LinearDynamics(dt=0.1, a=[[0.9]], b=[[1.0]])
-    measurement = LinearMeasurement(c=[[1.0]], d=[[0.0]])
+    dynamics = LinearDynamics(dt=0.1, A=[[0.9]], B=[[1.0]])
+    measurement = LinearMeasurement(C=[[1.0]], D=[[0.0]])
 
     assert dynamics.x[0] == 0.0
 
@@ -94,7 +94,7 @@ def test_component_zoh_behavior() -> None:
 
 def test_invalid_simulation_config_non_integer_multiple() -> None:
     """Test that a ValueError is raised when sample times are not integer multiples."""
-    dynamics = LinearDynamics(dt=0.1, a=[[1]], b=[[1]])
+    dynamics = LinearDynamics(dt=0.1, A=[[1]], B=[[1]])
     reference = StepReference(dt=0.1)
     sensor = GaussianSensor(dt=0.1, measurement=_identity)
     estimator = IdentityEstimator(dt=0.1)
@@ -113,7 +113,7 @@ def test_invalid_simulation_config_non_integer_multiple() -> None:
 
 def test_floating_point_precision_handling() -> None:
     """Test that precision issues (e.g. 0.3 / 0.1) are handled properly."""
-    dynamics = LinearDynamics(dt=0.1, a=[[1]], b=[[1]])
+    dynamics = LinearDynamics(dt=0.1, A=[[1]], B=[[1]])
     reference = StepReference(dt=0.1)
     sensor = GaussianSensor(dt=0.1, measurement=_identity)
     estimator = IdentityEstimator(dt=0.1)
@@ -154,7 +154,7 @@ def test_step_reference_trajectory() -> None:
 
 def test_simulation_execution_and_logging() -> None:
     """Test full simulation execution, ensuring correct loop length and log aggregation."""
-    dynamics = LinearDynamics(dt=0.1, a=[[0.9]], b=[[1.0]])
+    dynamics = LinearDynamics(dt=0.1, A=[[0.9]], B=[[1.0]])
     reference = StepReference(dt=0.1, start_time=0.5)
     sensor = GaussianSensor(dt=0.1, measurement=_identity, std_dev=0.0)
     estimator = IdentityEstimator(dt=0.1)
@@ -187,7 +187,7 @@ def test_simulation_execution_and_logging() -> None:
 
 def test_simulation_single_sensor() -> None:
     """Test that Simulation accepts a single sensor directly instead of a list."""
-    dynamics = LinearDynamics(dt=0.1, a=[[0.9]], b=[[1.0]])
+    dynamics = LinearDynamics(dt=0.1, A=[[0.9]], B=[[1.0]])
     reference = StepReference(dt=0.1, start_time=0.5)
     sensor = GaussianSensor(dt=0.1, measurement=_identity, std_dev=0.0)
     estimator = IdentityEstimator(dt=0.1)
@@ -264,7 +264,7 @@ def test_random_walk_bias_sensor() -> None:
         "std_dev_noise": 0.5,
         "std_dev_bias": 0.2,
         "seed": 99,
-        "measurement": {"class_path": "simulate.measurement_model.LinearMeasurement", "c": [[1.0]], "d": [[0.0]]},
+        "measurement": {"class_path": "simulate.measurement_model.LinearMeasurement", "C": [[1.0]], "D": [[0.0]]},
     }
     sensor_cfg = RandomWalkBiasSensor.from_config(config)
     assert sensor_cfg.dt == 0.2

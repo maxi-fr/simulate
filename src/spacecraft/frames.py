@@ -19,13 +19,13 @@ from astropy.coordinates import EarthLocation
 from numpy.typing import ArrayLike
 from scipy.spatial.transform import Rotation
 
-from .quaternion import FloatArray, Quaternion, Vec3
+from .quaternion import Quaternion, Vec3
 
 # Intrinsic Euler sequence used throughout (matches the legacy attitude convention).
 _EULER_SEQUENCE = "YXZ"
 
 
-def _eci_to_orc_matrix(r_eci: FloatArray, v_eci: FloatArray) -> FloatArray:
+def _eci_to_orc_matrix(r_eci: np.ndarray, v_eci: np.ndarray) -> np.ndarray:
     """Build the inertial->ORC rotation matrix whose rows are the ORC axes in ECI."""
     z = -r_eci / np.linalg.norm(r_eci)
     h = np.cross(r_eci, v_eci)
@@ -36,7 +36,7 @@ def _eci_to_orc_matrix(r_eci: FloatArray, v_eci: FloatArray) -> FloatArray:
 
 
 def orc_from_orbit(r_eci: ArrayLike, v_eci: ArrayLike) -> Quaternion:
-    """Desired nadir-pointing attitude (inertial->ORC) for a given orbit state.
+    """Nadir-pointing attitude (inertial->ORC) for a given orbit state.
 
     Parameters
     ----------

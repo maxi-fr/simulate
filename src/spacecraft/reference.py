@@ -16,10 +16,7 @@ class OrbitReference(Reference[NoLog]):
     For nadir pointing the body coincides with the ORC frame, so this is constant ``[0, 0, 0, 1]``
     (identity) and ``[0, 0, 0]``.
 
-    The reference is deliberately orbit-relative and constant: the inertial-frame attitude/rate
-    targets are recovered inside the controller, which reconstructs the ORC frame and the orbital
-    feedforward rate from the estimated orbit ``r, v`` in ``x_hat`` (see
-    :func:`spacecraft.controller._attitude_error`). It therefore needs no orbit propagator of its own.
+    The reference is deliberately orbit-relative because it is constant for nadir pointing and therefore needs no orbit propagator of its own.
     """
 
     def __init__(self, dt: float) -> None:

@@ -14,10 +14,10 @@ def get_base_config() -> dict[str, Any]:
         "dynamics": {
             "class_path": "simulate.dynamics.LinearDynamics",
             "dt": 0.01,
-            "a": [[0.0]],
-            "b": [[1.0]],
-            "c": [[1.0]],
-            "d": [[0.0]],
+            "A": [[0.0]],
+            "B": [[1.0]],
+            "C": [[1.0]],
+            "D": [[0.0]],
         },
         "reference": {
             "class_path": "simulate.reference.StepReference",
@@ -32,8 +32,8 @@ def get_base_config() -> dict[str, Any]:
                 "std_dev": 0.0,
                 "measurement": {
                     "class_path": "simulate.measurement_model.LinearMeasurement",
-                    "c": [[1.0]],
-                    "d": [[0.0]],
+                    "C": [[1.0]],
+                    "D": [[0.0]],
                 },
             },
         ],
@@ -107,8 +107,8 @@ def test_single_simulation_from_config_with_single_elements() -> None:
         "std_dev": 0.0,
         "measurement": {
             "class_path": "simulate.measurement_model.LinearMeasurement",
-            "c": [[1.0]],
-            "d": [[0.0]],
+            "C": [[1.0]],
+            "D": [[0.0]],
         },
     }
     sim = Simulation.from_config(config)

@@ -5,7 +5,7 @@ from typing import Any, Self
 import numpy as np
 from numpy.typing import ArrayLike
 
-from simulate.component import Component
+from .component import Component
 
 
 class Controller[L](Component[L], abc.ABC):

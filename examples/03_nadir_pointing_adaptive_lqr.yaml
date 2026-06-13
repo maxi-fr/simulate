@@ -74,7 +74,7 @@ sensors:
     dt: 0.2
     std_dev_noise: 1.0e-3
     std_dev_bias: 3.16e-6
-    measurement: {class_path: spacecraft.rigid_body.rigid_body_rate}
+    measurement: {class_path: spacecraft.measurement.rigid_body_rate}
   # magnetometer [T]
   - class_path: simulate.sensor.GaussianSensor
     dt: 0.4
@@ -89,15 +89,15 @@ sensors:
   - class_path: simulate.sensor.GaussianSensor
     dt: 0.2
     std_dev: 1.0e-3
-    measurement: {class_path: spacecraft.rigid_body.ReactionWheelTelemetry, index: 19}
+    measurement: {class_path: spacecraft.measurement.ReactionWheelTelemetry, index: 19}
   - class_path: simulate.sensor.GaussianSensor
     dt: 0.2
     std_dev: 1.0e-3
-    measurement: {class_path: spacecraft.rigid_body.ReactionWheelTelemetry, index: 20}
+    measurement: {class_path: spacecraft.measurement.ReactionWheelTelemetry, index: 20}
   - class_path: simulate.sensor.GaussianSensor
     dt: 0.2
     std_dev: 1.0e-3
-    measurement: {class_path: spacecraft.rigid_body.ReactionWheelTelemetry, index: 21}
+    measurement: {class_path: spacecraft.measurement.ReactionWheelTelemetry, index: 21}
 
 reference:
   class_path: spacecraft.reference.OrbitReference
