@@ -293,6 +293,11 @@ class FullStateEstimator(Estimator[FullStateEstimatorLog]):
         plus an ORC-relative attitude, the same anchor the dynamics use) so the estimate starts
         consistent with the truth; the ``orbit``/``attitude`` blocks then carry only the filter
         covariances. The epoch used for environment exposure also comes from ``initial_state``.
+
+        Returns
+        -------
+        Self
+            The estimator configured from ``config``.
         """
         init = config["initial_state"]
         epoch = datetime.datetime.fromisoformat(init["epoch"])
@@ -416,6 +421,11 @@ class FullStateEstimator(Estimator[FullStateEstimatorLog]):
         The tachometer reports relative wheel speeds ``omega_rel``; the stored momentum mirrors the
         :class:`~spacecraft.effector.ReactionWheelArray` contribution
         ``axes^T @ (J_w * (omega_rel + axes @ omega_body))``.
+
+        Returns
+        -------
+        np.ndarray
+            Body-frame reaction-wheel angular momentum, shape ``(3,)`` (zeros if no tachometer).
         """
         if self.rw_axes is None or self.rw_inertia is None or self.tach_channel not in channels:
             return np.zeros(3)

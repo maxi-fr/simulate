@@ -108,7 +108,6 @@ def magnetic_field_vector(dt_utc: datetime.datetime, lat_deg: float, lon_deg: fl
     in the North-East-Down (NED) frame, then transforms them to the
     Earth-Centered Inertial (ECI) J2000 frame.
 
-
     Parameters
     ----------
     dt_utc : datetime.datetime

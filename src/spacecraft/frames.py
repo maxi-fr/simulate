@@ -146,8 +146,10 @@ def eci_attitude_from_orc(  # noqa: PLR0913
 
     Returns
     -------
-    tuple[Quaternion, numpy.ndarray]
-        The inertial->body quaternion ``q_bi`` and the body angular velocity ``omega_b_bi`` [rad/s].
+    q_bi : Quaternion
+        The inertial->body quaternion.
+    omega_b_bi : numpy.ndarray
+        The body angular velocity [rad/s], shape ``(3,)``.
     """
     q_bo = quaternion_from_euler([pitch, roll, yaw], degrees=degrees)  # ORC->body
     q_oi = orc_from_orbit(r_eci, v_eci)
@@ -169,8 +171,12 @@ def eci_to_geodedic(pos_eci: np.ndarray) -> tuple[float, float, float]:
 
     Returns
     -------
-    tuple[float, float, float]
-        A tuple containing (latitude [deg], longitude [deg], altitude [m]).
+    lat : float
+        Geodetic latitude [deg].
+    lon : float
+        Geodetic longitude [deg].
+    alt : float
+        Altitude above the WGS84 ellipsoid [m].
     """
     loc = EarthLocation.from_geocentric(*(pos_eci * u.m)).to_geodetic("WGS84")
 

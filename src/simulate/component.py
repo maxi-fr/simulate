@@ -44,6 +44,13 @@ class Component[L](abc.ABC):
 
         This allows subclasses to define explicitly typed `step` and `update` methods
         without duplicating ZOH logic.
+
+        Returns
+        -------
+        output : float or np.ndarray
+            The primary output, refreshed on update steps and held otherwise.
+        log : L
+            The component log paired with ``output``.
         """
         if self.should_update(t) or self.last_output is None or self.last_log is None:
             primary_output, log_output = update_fn(t, *args, **kwargs)

@@ -73,11 +73,16 @@ class Effector(abc.ABC):
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Compute this effector's contribution at the current body state.
 
-        Args:
-            t: Simulation time.
-            state: Kinematic state of the host body.
-            x_eff: This effector's internal state ``(n_states, 1)``.
-            cmd: This effector's command slice ``(n_inputs, 1)``.
+        Parameters
+        ----------
+        t : float
+            Simulation time.
+        state : RigidBodyState
+            Kinematic state of the host body.
+        x_eff : np.ndarray
+            This effector's internal state ``(n_states, 1)``.
+        cmd : np.ndarray
+            This effector's command slice ``(n_inputs, 1)``.
 
         Returns
         -------
@@ -94,12 +99,23 @@ class Effector(abc.ABC):
     ) -> np.ndarray:
         """Compute the derivative of the effector's internal state.
 
-        Args:
-            t: Simulation time.
-            state: Kinematic state of the host body.
-            x_eff: This effector's internal state ``(n_states, 1)``.
-            cmd: This effector's command slice ``(n_inputs, 1)``.
-            omega_dot: Resolved angular acceleration of the spacecraft ``(3,)``.
+        Parameters
+        ----------
+        t : float
+            Simulation time.
+        state : RigidBodyState
+            Kinematic state of the host body.
+        x_eff : np.ndarray
+            This effector's internal state ``(n_states, 1)``.
+        cmd : np.ndarray
+            This effector's command slice ``(n_inputs, 1)``.
+        omega_dot : np.ndarray
+            Resolved angular acceleration of the spacecraft ``(3,)``.
+
+        Returns
+        -------
+        np.ndarray
+            Time-derivative of the effector's internal state ``(n_states,)``.
         """
         return np.zeros(self.n_states, dtype=float)
 
@@ -233,15 +249,24 @@ class ReactionWheelArray(Effector):
     ) -> None:
         """Initialize the reaction wheel array.
 
-        Args:
-            axes: (N, 3) or (3, N) spin axes in the body frame. Normalized internally.
-            inertia: (N,) axial inertias J_w (or scalar if identical).
-            torque_constant: (N,) torque constants K_w (or scalar if identical).
-            time_constant: (N,) current-loop time constants T_cur (or scalar if identical).
-            max_current: (N,) current saturation limits i_max (or scalar if identical).
-            max_rpm: (N,) maximum speeds in RPM (or scalar if identical).
-            initial_currents: (N,) initial motor currents. Defaults to zeros.
-            initial_omega: (N,) initial wheel spin rates. Defaults to zeros.
+        Parameters
+        ----------
+        axes : ArrayLike
+            (N, 3) or (3, N) spin axes in the body frame. Normalized internally.
+        inertia : ArrayLike
+            (N,) axial inertias J_w (or scalar if identical).
+        torque_constant : ArrayLike
+            (N,) torque constants K_w (or scalar if identical).
+        time_constant : ArrayLike
+            (N,) current-loop time constants T_cur (or scalar if identical).
+        max_current : ArrayLike
+            (N,) current saturation limits i_max (or scalar if identical).
+        max_rpm : ArrayLike, optional
+            (N,) maximum speeds in RPM (or scalar if identical).
+        initial_currents : ArrayLike, optional
+            (N,) initial motor currents. Defaults to zeros.
+        initial_omega : ArrayLike, optional
+            (N,) initial wheel spin rates. Defaults to zeros.
         """
         axes_arr = np.asarray(axes, dtype=float)
         if axes_arr.ndim == 1:
@@ -370,14 +395,21 @@ class MagnetorquerArray(Effector):
     ) -> None:
         """Initialize the magnetorquer array.
 
-        Args:
-            axes: (M, 3) or (3, M) coil normal axes. Normalized internally.
-            dipole_constant: (M,) dipole constants K_m (or scalar if identical).
-            time_constant: (M,) current-loop time constants T_cur (or scalar if identical).
-            max_current: (M,) current saturation limits i_max (or scalar if identical).
-            b_field_model: A callable (t, state) -> B_body, a constant B_body 3-vector,
-                or None (defaults to zero field).
-            initial_currents: (M,) initial currents. Defaults to zeros.
+        Parameters
+        ----------
+        axes : ArrayLike
+            (M, 3) or (3, M) coil normal axes. Normalized internally.
+        dipole_constant : ArrayLike
+            (M,) dipole constants K_m (or scalar if identical).
+        time_constant : ArrayLike
+            (M,) current-loop time constants T_cur (or scalar if identical).
+        max_current : ArrayLike
+            (M,) current saturation limits i_max (or scalar if identical).
+        b_field_model : Callable or ArrayLike or None, optional
+            A callable (t, state) -> B_body, a constant B_body 3-vector,
+            or None (defaults to zero field).
+        initial_currents : ArrayLike, optional
+            (M,) initial currents. Defaults to zeros.
         """
         axes_arr = np.asarray(axes, dtype=float)
         if axes_arr.ndim == 1:

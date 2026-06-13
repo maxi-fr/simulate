@@ -155,9 +155,12 @@ class Logger:
         """
         Record a snapshot of the simulation state.
 
-        Args:
-            universal: The universal log signals for this step.
-            components: A dictionary mapping component names to their log models.
+        Parameters
+        ----------
+        universal : UniversalLog
+            The universal log signals for this step.
+        components : Mapping
+            A dictionary mapping component names to their log models.
         """
         if not self._buffers_initialized:
             self._init_buffers(universal, components)

@@ -125,8 +125,10 @@ def aerodynamic_drag(
 
     Returns
     -------
-    tuple[np.ndarray, np.ndarray]
-        A tuple containing the total aerodynamic force [N] and torque [N*m] vectors in the body frame.
+    force : np.ndarray
+        Total aerodynamic force [N] in the body frame, shape ``(3,)``.
+    torque : np.ndarray
+        Total aerodynamic torque [N*m] in the body frame, shape ``(3,)``.
     """
     v_atm_I = np.cross(OMEGA_E, r_eci)  # = np.array([OMEGA_E[2] * r_eci[1], OMEGA_E[2] * r_eci[0], 0])
 
@@ -182,8 +184,10 @@ def solar_radiation_pressure(
 
     Returns
     -------
-    tuple[np.ndarray, np.ndarray]
-        A tuple containing the total SRP force [N] and torque [N*m] vectors in the body frame.
+    force : np.ndarray
+        Total SRP force [N] in the body frame, shape ``(3,)``.
+    torque : np.ndarray
+        Total SRP torque [N*m] in the body frame, shape ``(3,)``.
     """
     if in_shadow:
         return np.zeros(3), np.zeros(3)
