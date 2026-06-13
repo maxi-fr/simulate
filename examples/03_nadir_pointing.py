@@ -280,8 +280,8 @@ def _(Simulation, config, controller_select, d, extract, np, plt):
         _lqr_config["controller"] = {
             "class_path": "spacecraft.controller.AdaptiveLQR",
             "dt": 0.2,
-            "Q": np.diag([10.0, 10.0, 10.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]).tolist(),
-            "R": np.eye(6).tolist(),
+            "Q": np.diag([5, 5, 5, 2, 2, 2, 700, 700, 700]).tolist(),
+            "R": (1e7 * np.diag([70, 70, 70, 7, 7, 7])).tolist(),
             "inertia": config["dynamics"]["inertia"],
             "tle": _tle,
             "epoch": "2024-01-01T12:00:00",

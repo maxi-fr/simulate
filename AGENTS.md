@@ -17,6 +17,7 @@ uv run marimo check --fix --unsafe-fixes <notebook-name> # Run marimo specific l
 ```
 
 Pre-commit hooks run ruff (with `--fix --unsafe-fixes`), ruff-format, ty, pytest, `uv-lock`, and markdownlint on every commit. Note: since the pre-commit hooks runs all the checks and tests there is no point in running them manually as well.
+Use the README.md as a guide for the project.
 This project follows the numpy docstring convention.
 
 ## General instructions

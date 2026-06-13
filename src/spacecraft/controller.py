@@ -271,29 +271,45 @@ def _dlqr_gain(A: np.ndarray, B: np.ndarray, Q: np.ndarray, R: np.ndarray) -> tu
     return K, P
 
 
-def _dlqr_warm_start(  # noqa: PLR0913
-    A: np.ndarray,
-    B: np.ndarray,
-    Q: np.ndarray,
-    R: np.ndarray,
-    P: np.ndarray,
-    *,
-    iters: int = 50,
-    tol: float = 1e-9,
+def _dlqr_warm_start(
+    A: np.ndarray, B: np.ndarray, Q: np.ndarray, R: np.ndarray, P: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Re-solve the discrete Riccati equation by Newton-Kleinman value iteration from ``P``."""
-    for _ in range(iters):
-        BtP = B.T @ P
-        K = np.linalg.solve(R + BtP @ B, BtP @ A)
-        P_next = A.T @ P @ A - A.T @ P @ B @ K + Q
-        P_next = 0.5 * (P_next + P_next.T)
-        if np.max(np.abs(P_next - P)) < tol:
-            P = P_next
-            break
-        P = P_next
+    """
+    Update the LQR gain using a single Newton-Kleinman iteration (Warm Start).
+
+    Parameters
+    ----------
+    A : np.ndarray
+        Current time-varying state transition matrix A(t)
+    B : np.ndarray
+        Current time-varying input matrix B(t).
+    Q : np.ndarray
+        State cost matrix.
+    R : np.ndarray
+        Input cost matrix.
+    P : np.ndarray
+        The solution P from the previous time step.
+
+    Returns
+    -------
+    Tuple[np.ndarray, np.ndarray]
+        K_new: The updated control gain.
+        P_new: The updated Riccati solution.
+    """
     BtP = B.T @ P
-    K = np.linalg.solve(R + BtP @ B, BtP @ A)
-    return K, P
+    R_total = R + BtP @ B
+    K_0 = np.linalg.solve(R_total, BtP @ A)
+
+    A_cl = A - B @ K_0
+    S = Q + K_0.T @ R @ K_0
+    P_new = scipy.linalg.solve_discrete_lyapunov(A_cl.T, S)
+
+    BtP_new = B.T @ P_new
+
+    R_total_new = R + BtP_new @ B
+    K_new = np.linalg.solve(R_total_new, BtP_new @ A)
+
+    return K_new, P_new
 
 
 @dataclasses.dataclass(frozen=True)
