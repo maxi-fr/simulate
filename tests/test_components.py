@@ -3,18 +3,13 @@ import math
 import numpy as np
 import pytest
 
+from simulate.component import NoLog
 from simulate.controller import PIDController
 from simulate.dynamics import LinearDynamics
 from simulate.estimator import IdentityEstimator
-from simulate.measurement_model import LinearMeasurement
 from simulate.reference import StepReference
-from simulate.sensor import GaussianSensor, RandomWalkBiasSensor
+from simulate.sensor import GaussianSensor, LinearMeasurement, RandomWalkBiasSensor, full_state_measurement
 from simulate.simulation import Simulation
-
-
-def _identity(_t: float, x: float | np.ndarray, _u: float | np.ndarray) -> float | np.ndarray:
-    """Identity measurement model for sensor unit tests (observes the state directly)."""
-    return x
 
 
 def test_plant_step_logic() -> None:
@@ -39,14 +34,14 @@ def test_plant_step_logic() -> None:
 
 def test_sensor_step_logic() -> None:
     """Test sensor behavior with Gaussian noise."""
-    sensor = GaussianSensor(dt=0.1, measurement=_identity, std_dev=0.0)
+    sensor = GaussianSensor(dt=0.1, measurement=full_state_measurement, std_dev=0.0)
     y = 1.0
     y_mea, log = sensor.evaluate(0.0, y, 0.0)
     assert np.allclose(y_mea, 1.0)
     assert np.allclose(log.truth, 1.0)
     assert np.allclose(log.noise, 0.0)
 
-    sensor_noise = GaussianSensor(dt=0.1, measurement=_identity, std_dev=0.1)
+    sensor_noise = GaussianSensor(dt=0.1, measurement=full_state_measurement, std_dev=0.1)
     y_mea2, log2 = sensor_noise.evaluate(0.0, y, 0.0)
     assert not np.allclose(y_mea2, 1.0)
     assert not np.allclose(log2.noise, 0.0)
@@ -96,7 +91,7 @@ def test_invalid_simulation_config_non_integer_multiple() -> None:
     """Test that a ValueError is raised when sample times are not integer multiples."""
     dynamics = LinearDynamics(dt=0.1, A=[[1]], B=[[1]])
     reference = StepReference(dt=0.1)
-    sensor = GaussianSensor(dt=0.1, measurement=_identity)
+    sensor = GaussianSensor(dt=0.1, measurement=full_state_measurement)
     estimator = IdentityEstimator(dt=0.1)
     controller = PIDController(dt=0.15, kp=[[1]], ki=[[0]], kd=[[0]])
 
@@ -115,7 +110,7 @@ def test_floating_point_precision_handling() -> None:
     """Test that precision issues (e.g. 0.3 / 0.1) are handled properly."""
     dynamics = LinearDynamics(dt=0.1, A=[[1]], B=[[1]])
     reference = StepReference(dt=0.1)
-    sensor = GaussianSensor(dt=0.1, measurement=_identity)
+    sensor = GaussianSensor(dt=0.1, measurement=full_state_measurement)
     estimator = IdentityEstimator(dt=0.1)
     controller = PIDController(dt=0.3, kp=[[1]], ki=[[0]], kd=[[0]])
 
@@ -138,17 +133,16 @@ def test_step_reference_trajectory() -> None:
     step_value = 2.0
     ref_gen = StepReference(dt=dt, step_value=step_value, start_time=start_time, horizon=horizon)
 
-    res, log = ref_gen.evaluate(0.0)
+    res, _log = ref_gen.evaluate(0.0)
     assert isinstance(res, np.ndarray)
     assert res.shape == (5,)
     assert np.all(res == 0.0)
-    assert log.horizon == 5
 
-    res, log = ref_gen.evaluate(0.3)
+    res, _log = ref_gen.evaluate(0.3)
     expected = np.array([0.0, 0.0, 2.0, 2.0, 2.0])
     assert np.allclose(res, expected)
 
-    res, log = ref_gen.evaluate(0.6)
+    res, _log = ref_gen.evaluate(0.6)
     assert np.all(res == 2.0)
 
 
@@ -156,7 +150,7 @@ def test_simulation_execution_and_logging() -> None:
     """Test full simulation execution, ensuring correct loop length and log aggregation."""
     dynamics = LinearDynamics(dt=0.1, A=[[0.9]], B=[[1.0]])
     reference = StepReference(dt=0.1, start_time=0.5)
-    sensor = GaussianSensor(dt=0.1, measurement=_identity, std_dev=0.0)
+    sensor = GaussianSensor(dt=0.1, measurement=full_state_measurement, std_dev=0.0)
     estimator = IdentityEstimator(dt=0.1)
     controller = PIDController(dt=0.2, kp=[[0.5]], ki=[[0.1]], kd=[[0.0]])
 
@@ -189,7 +183,7 @@ def test_simulation_single_sensor() -> None:
     """Test that Simulation accepts a single sensor directly instead of a list."""
     dynamics = LinearDynamics(dt=0.1, A=[[0.9]], B=[[1.0]])
     reference = StepReference(dt=0.1, start_time=0.5)
-    sensor = GaussianSensor(dt=0.1, measurement=_identity, std_dev=0.0)
+    sensor = GaussianSensor(dt=0.1, measurement=full_state_measurement, std_dev=0.0)
     estimator = IdentityEstimator(dt=0.1)
     controller = PIDController(dt=0.2, kp=[[0.5]], ki=[[0.1]], kd=[[0.0]])
 
@@ -211,7 +205,7 @@ def test_simulation_single_sensor() -> None:
 def test_random_walk_bias_sensor() -> None:
     """Test RandomWalkBiasSensor behavior with zero noise/bias, noise only, and random walk bias."""
     # 1. Zero noise, zero bias
-    sensor = RandomWalkBiasSensor(dt=0.1, measurement=_identity, std_dev_noise=0.0, std_dev_bias=0.0)
+    sensor = RandomWalkBiasSensor(dt=0.1, measurement=full_state_measurement, std_dev_noise=0.0, std_dev_bias=0.0)
     y = np.array([1.0, 2.0])
 
     # First step (t=0)
@@ -228,7 +222,9 @@ def test_random_walk_bias_sensor() -> None:
     assert np.allclose(log2.bias, 0.0)
 
     # 2. Noise only
-    sensor_noise = RandomWalkBiasSensor(dt=0.1, measurement=_identity, std_dev_noise=0.1, std_dev_bias=0.0, seed=123)
+    sensor_noise = RandomWalkBiasSensor(
+        dt=0.1, measurement=full_state_measurement, std_dev_noise=0.1, std_dev_bias=0.0, seed=123
+    )
     y_mea_n1, log_n1 = sensor_noise.evaluate(0.0, y, 0.0)
     assert not np.allclose(y_mea_n1, y)
     assert np.allclose(log_n1.bias, 0.0)
@@ -238,7 +234,9 @@ def test_random_walk_bias_sensor() -> None:
     assert np.allclose(log_n2.bias, 0.0)
 
     # 3. Bias only
-    sensor_bias = RandomWalkBiasSensor(dt=0.1, measurement=_identity, std_dev_noise=0.0, std_dev_bias=0.1, seed=456)
+    sensor_bias = RandomWalkBiasSensor(
+        dt=0.1, measurement=full_state_measurement, std_dev_noise=0.0, std_dev_bias=0.1, seed=456
+    )
 
     # At t=0, bias is initialized to zero
     y_mea_b1, log_b1 = sensor_bias.evaluate(0.0, y, 0.0)
@@ -264,7 +262,7 @@ def test_random_walk_bias_sensor() -> None:
         "std_dev_noise": 0.5,
         "std_dev_bias": 0.2,
         "seed": 99,
-        "measurement": {"class_path": "simulate.measurement_model.LinearMeasurement", "C": [[1.0]], "D": [[0.0]]},
+        "measurement": {"class_path": "simulate.sensor.LinearMeasurement", "C": [[1.0]], "D": [[0.0]]},
     }
     sensor_cfg = RandomWalkBiasSensor.from_config(config)
     assert sensor_cfg.dt == 0.2

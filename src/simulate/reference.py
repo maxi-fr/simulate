@@ -1,10 +1,9 @@
 import abc
-import dataclasses
 from typing import Any, Self
 
 import numpy as np
 
-from .component import Component
+from .component import Component, NoLog
 
 
 class Reference[L](Component[L], abc.ABC):
@@ -23,16 +22,7 @@ class Reference[L](Component[L], abc.ABC):
         """Execute internal update dynamics to generate reference. Must be implemented by subclasses."""
 
 
-@dataclasses.dataclass(frozen=True)
-class StepReferenceLog:
-    """Dataclass for internal StepReference logging."""
-
-    step_value: float | np.ndarray
-    start_time: float
-    horizon: int
-
-
-class StepReference(Reference[StepReferenceLog]):
+class StepReference(Reference[NoLog]):
     """Reference generator that provides a step signal (or trajectory)."""
 
     def __init__(
@@ -44,7 +34,10 @@ class StepReference(Reference[StepReferenceLog]):
     ) -> None:
         """Initialize the step reference."""
         super().__init__(dt)
-        self.step_value = step_value
+        if isinstance(step_value, (list, tuple)):
+            self.step_value = np.array(step_value)
+        else:
+            self.step_value = step_value
         self.start_time = start_time
         self.horizon = horizon
 
@@ -58,7 +51,7 @@ class StepReference(Reference[StepReferenceLog]):
             horizon=int(config.get("horizon", 1)),
         )
 
-    def update(self, t: float) -> tuple[float | np.ndarray, StepReferenceLog]:
+    def update(self, t: float) -> tuple[float | np.ndarray, NoLog]:
         """
         Generate a step signal or trajectory.
 
@@ -71,8 +64,8 @@ class StepReference(Reference[StepReferenceLog]):
         -------
         reference : float or numpy.ndarray
             Step value (or horizon trajectory) evaluated at time ``t``.
-        log : StepReferenceLog
-            Snapshot of the reference configuration for this step.
+        log : NoLog
+            Empty log placeholder.
         """
         if self.horizon == 1:
             if t >= self.start_time:
@@ -83,4 +76,4 @@ class StepReference(Reference[StepReferenceLog]):
             future_times = t + np.arange(self.horizon) * self.dt
             res = np.where(future_times >= self.start_time, self.step_value, 0.0)
 
-        return res, StepReferenceLog(step_value=self.step_value, start_time=self.start_time, horizon=self.horizon)
+        return res, NoLog()

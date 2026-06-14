@@ -5,7 +5,7 @@ import numpy as np
 
 from simulate.dynamics import LinearDynamics
 from simulate.integrator import euler, midpoint, rk4
-from simulate.measurement_model import LinearMeasurement
+from simulate.sensor import LinearMeasurement
 from spacecraft.quaternion import QuaternionRK4
 
 

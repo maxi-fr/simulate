@@ -105,8 +105,9 @@ sensors:
     measurement: {class_path: spacecraft.measurement.ReactionWheelTelemetry, index: 21}
 
 reference:
-  class_path: spacecraft.reference.OrbitReference
+  class_path: simulate.reference.StepReference
   dt: 0.2
+  step_value: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
 
 estimator:
   class_path: spacecraft.estimator.FullStateEstimator

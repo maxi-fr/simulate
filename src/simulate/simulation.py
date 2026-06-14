@@ -20,6 +20,28 @@ if TYPE_CHECKING:
     from .sensor import Sensor
 
 
+def _time_unit(seconds: float) -> tuple[float, str]:
+    """Pick a human-friendly unit for a duration given in seconds.
+
+    Parameters
+    ----------
+    seconds : float
+        The duration to display, in seconds.
+
+    Returns
+    -------
+    divisor : float
+        Factor to convert seconds into the chosen unit.
+    label : str
+        tqdm unit label for the chosen unit.
+    """
+    if seconds >= 2 * 3600:
+        return 3600.0, "sim h"
+    if seconds >= 2 * 60:
+        return 60.0, "sim min"
+    return 1.0, "sim s"
+
+
 class Simulation:
     """Central orchestrator for the simulation loop."""
 
@@ -122,7 +144,9 @@ class Simulation:
         buffer_size = chunk_size if (chunk_size is not None and output_dir is not None) else total_steps
         self.logger.set_buffer_size(buffer_size)
 
-        with tqdm(total=total_steps, desc="Running simulation") as pbar:
+        divisor, unit = _time_unit(self.t_end)
+        bar_format = "{l_bar}{bar}| {n:.1f}/{total:.1f} {unit} [{elapsed}<{remaining}, {rate_fmt}{postfix}]"
+        with tqdm(total=self.t_end / divisor, desc="Simulation time", unit=unit, bar_format=bar_format) as pbar:
             while t <= self.t_end:
                 x_k = self.dynamics.x
 
@@ -137,7 +161,7 @@ class Simulation:
                 u_k, ctrl_log = self.controller.evaluate(t, ref_k, x_hat)
 
                 # Advance the plant; ``self.dynamics.x`` becomes the next step's state.
-                _, dynamics_log = self.dynamics.evaluate(t, u_k)
+                _x_next, dynamics_log = self.dynamics.evaluate(t, u_k)
 
                 y_mea_val = sensor_logs[0][0] if len(self.sensors) == 1 else y_mea
 
@@ -164,7 +188,7 @@ class Simulation:
                     self.logger.flush_chunk(output_dir, prefix)
 
                 t += self.dt
-                pbar.update(1)
+                pbar.update(self.dt / divisor)
 
     def export_results(self, directory: str | Path, prefix: str = "sim", *, compress: bool = False) -> None:
         """Flush remaining in-memory data then merge all chunks into {prefix}.npz."""

@@ -1,7 +1,6 @@
 # simulate
 
-A modular Python framework for control-system simulation, designed for flexibility,
-extensibility, and modern software-engineering practices.
+A Python framework for control-system simulation, designed for flexibility, extensibility.
 
 This repository ships **two packages**:
 
@@ -9,7 +8,7 @@ This repository ships **two packages**:
   simulation. It defines the block-based `Component` model (Dynamics, Sensor,
   Estimator, Controller, Reference), the multi-rate orchestrator, logging, and batch
   experimentation.
-- **`spacecraft`** — a domain extension built **on top of** `simulate`. It provides
+- **`spacecraft`** — an extension built **on top of** `simulate`. It provides
   6-DOF rigid-body attitude/orbit dynamics with composable effectors, plus a full
   ADCS stack (attitude controllers, a full-state estimator, sensors/measurements,
   and references).
@@ -31,6 +30,8 @@ This project uses [uv](https://github.com/astral-sh/uv) for dependency managemen
    ```bash
    curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
+
+   See [uv install](https://docs.astral.sh/uv/getting-started/installation/) for windows and mac installation.
 
 2. **Sync dependencies**:
 
@@ -57,10 +58,9 @@ This project uses [uv](https://github.com/astral-sh/uv) for dependency managemen
 simulate/
 ├── src/
 │   ├── simulate/            #   Generic control-loop engine
-│   │   ├── component.py     #   Component[L] base class (ZOH, multi-rate)
-│   │   ├── dynamics.py     #   Dynamics + LinearDynamics
-│   │   ├── measurement_model.py #   MeasurementModel callable + LinearMeasurement
-│   │   ├── sensor.py       #   Sensor + GaussianSensor, RandomWalkBiasSensor
+│   │   ├── component.py     #   Component base class
+│   │   ├── dynamics.py      #   Dynamics + LinearDynamics
+│   │   ├── sensor.py        #   Sensor + GaussianSensor, RandomWalkBiasSensor, LinearMeasurement
 │   │   ├── estimator.py     #   Estimator + IdentityEstimator
 │   │   ├── controller.py    #   Controller + PIDController
 │   │   ├── reference.py     #   Reference + StepReference
@@ -69,12 +69,11 @@ simulate/
 │   │   ├── experiment.py    #   Parallel batch runner
 │   │   └── simulation.py    #   Simulation orchestrator
 │   └── spacecraft/          #   Aerospace domain extension
-│       ├── rigid_body.py    #   RigidBodyDynamics + telemetry measurements
+│       ├── rigid_body.py    #   RigidBodyDynamics
 │       ├── effector.py      #   Effector base + actuators/environment
 │       ├── controller.py    #   QuaternionFeedbackController, AdaptiveLQR
 │       ├── estimator.py     #   FullStateEstimator (orbit KF + attitude MEKF)
-│       ├── measurement.py   #   Magnetometer / sun / GPS truth measurements
-│       ├── reference.py     #   OrbitReference (nadir pointing)
+│       ├── measurement.py   #   Magnetometer / sun / GPS truth measurements etc.
 │       ├── signals.py       #   Named-slice layouts for the signal vectors
 │       └── ...              #   coordinate frames, quaternion, environment, disturbances
 ├── examples/                #   Marimo notebooks + runnable YAML configs
@@ -147,7 +146,7 @@ sensors:
   dt: 0.01
   std_dev: 0.05
   measurement:
-    class_path: "simulate.measurement_model.LinearMeasurement"
+    class_path: "simulate.sensor.LinearMeasurement"
     c: [[1, 0]]
     d: [[0]]
 estimator:
@@ -221,7 +220,7 @@ slow sensors/controllers compose with fast dynamics automatically.
 | Component | Class | File |
 | --- | --- | --- |
 | Dynamics | `LinearDynamics` — $x_{k+1}=Ax_k+Bu_k$ / $\dot{x}=Ax+Bu$ | [`dynamics.py`](src/simulate/dynamics.py) |
-| Measurement | `LinearMeasurement` — $y=Cx+Du$ | [`measurement_model.py`](src/simulate/measurement_model.py) |
+| Measurement | `LinearMeasurement` — $y=Cx+Du$ | [`sensor.py`](src/simulate/sensor.py) |
 | Sensor | `GaussianSensor` — additive $\mathcal{N}(0,\sigma^2)$ noise | [`sensor.py`](src/simulate/sensor.py) |
 | Sensor | `RandomWalkBiasSensor` — Gaussian noise + random-walk bias | [`sensor.py`](src/simulate/sensor.py) |
 | Estimator | `IdentityEstimator` — pass-through $\hat{x}_k=\tilde{y}_k$ | [`estimator.py`](src/simulate/estimator.py) |
@@ -312,7 +311,6 @@ hard-coding offsets, read state through these named slices:
 | Class | Purpose | File |
 | --- | --- | --- |
 | `RigidBodyDynamics` | 6-DOF orbit + attitude plant with composed effectors | [`rigid_body.py`](src/spacecraft/rigid_body.py) |
-| `OrbitReference` | Nadir-pointing attitude reference (ORC-relative) | [`reference.py`](src/spacecraft/reference.py) |
 
 #### Effectors
 
