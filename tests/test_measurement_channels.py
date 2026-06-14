@@ -3,9 +3,8 @@ import numpy as np
 from simulate.controller import PIDController
 from simulate.dynamics import LinearDynamics
 from simulate.estimator import IdentityEstimator
-from simulate.measurement_model import LinearMeasurement
 from simulate.reference import StepReference
-from simulate.sensor import GaussianSensor
+from simulate.sensor import GaussianSensor, LinearMeasurement
 from simulate.simulation import Simulation
 
 

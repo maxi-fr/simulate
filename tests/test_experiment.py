@@ -31,7 +31,7 @@ def get_base_config() -> dict[str, Any]:
                 "dt": 0.01,
                 "std_dev": 0.0,
                 "measurement": {
-                    "class_path": "simulate.measurement_model.LinearMeasurement",
+                    "class_path": "simulate.sensor.LinearMeasurement",
                     "C": [[1.0]],
                     "D": [[0.0]],
                 },
@@ -106,7 +106,7 @@ def test_single_simulation_from_config_with_single_elements() -> None:
         "dt": 0.01,
         "std_dev": 0.0,
         "measurement": {
-            "class_path": "simulate.measurement_model.LinearMeasurement",
+            "class_path": "simulate.sensor.LinearMeasurement",
             "C": [[1.0]],
             "D": [[0.0]],
         },

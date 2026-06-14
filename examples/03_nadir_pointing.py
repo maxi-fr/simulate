@@ -49,7 +49,7 @@ def _(mo):
     * a **`FullStateEstimator`** — orbit Kalman filter (GPS) + attitude MEKF (gyro / magnetometer
       / sun) — produces `x_hat = [r, v, q, omega, b_body, h_wheel]` and exposes environment
       variables,
-    * a **`OrbitReference`** emits the desired attitude *relative to the orbital frame*
+    * a **`StepReference`** emits the desired attitude *relative to the orbital frame*
       (identity = nadir),
     * a **`QuaternionFeedbackController`** reconstructs the orbital frame from `x_hat` and drives
       the wheels.

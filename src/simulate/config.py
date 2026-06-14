@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 import copy
 import importlib
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
-from .measurement_model import MeasurementModel
+if TYPE_CHECKING:
+    from .sensor import MeasurementModel
 
 
 def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:

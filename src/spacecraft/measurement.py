@@ -6,7 +6,7 @@ These models read the orbit state (and, where needed, the environment evaluated 
 handling used by the environmental effectors in :mod:`spacecraft.effector`.
 
 A measurement model is a plain callable ``(t, x, u) -> y`` (see
-:data:`simulate.measurement_model.MeasurementModel`). The dynamics-only measurements (rate
+:data:`simulate.sensor.MeasurementModel`). The dynamics-only measurements (rate
 gyro, star tracker, reaction-wheel tachometer) live in :mod:`spacecraft.rigid_body`
 (:func:`~spacecraft.rigid_body.rigid_body_rate`,
 :func:`~spacecraft.rigid_body.rigid_body_attitude`,

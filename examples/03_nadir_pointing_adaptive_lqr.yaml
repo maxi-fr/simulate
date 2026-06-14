@@ -4,7 +4,7 @@
 # dumping) under real disturbances, a full-state estimator (orbit KF + attitude MEKF + exposed
 # environment variables) and an AdaptiveLQR controller.
 
-t_end: 100.0  # short period for profiling [s]
+t_end: 5673.5  # short period for profiling [s]
 
 # Initial orbit + attitude, shared (via the &init anchor) by the dynamics truth and the estimator's
 # initial guess so they start consistent. SGP4 propagates the TLE to the epoch for r/v; the attitude
@@ -100,8 +100,9 @@ sensors:
     measurement: {class_path: spacecraft.measurement.ReactionWheelTelemetry, index: 21}
 
 reference:
-  class_path: spacecraft.reference.OrbitReference
+  class_path: simulate.reference.StepReference
   dt: 0.2
+  step_value: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
 
 estimator:
   class_path: spacecraft.estimator.FullStateEstimator
