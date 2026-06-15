@@ -22,19 +22,21 @@ import dataclasses
 import datetime
 from typing import Any, Self
 
+import casadi as ca
 import numpy as np
 import scipy.linalg
 from numpy.typing import ArrayLike
 
 from simulate.controller import Controller
 
-from .controller_models import build_reduced_system_dynamics
+from .controller_models import build_reduced_system_dynamics, quaternion_conjugate, quaternion_product
 from .frames import orbital_rate, orc_from_orbit
 from .orbit_dynamics import MU, SGP4
 from .quaternion import Quaternion
-from .signals import CONTROL, ESTIMATE, REFERENCE
+from .signals import CONTROL, ESTIMATE, MODEL, REFERENCE
 
 _EPS = 1e-12
+_LQR_STABLE_MARGIN = 1e-9  # closed-loop spectral radius must stay below 1 - this for the Lyapunov solve
 
 
 def _gain_matrix(value: ArrayLike) -> np.ndarray:
@@ -45,6 +47,16 @@ def _gain_matrix(value: ArrayLike) -> np.ndarray:
     if arr.ndim == 1 and arr.shape[0] == 3:  # noqa: PLR2004
         return np.diag(arr)
     return arr.reshape(3, 3)
+
+
+def _weight_matrix(value: ArrayLike, n: int) -> np.ndarray:
+    """Coerce a weight to an (n, n) matrix: scalar -> k*I, length-n -> diag, else as given."""
+    arr = np.asarray(value, dtype=float)
+    if arr.ndim == 0:
+        return float(arr) * np.eye(n)
+    if arr.ndim == 1:
+        return np.diag(arr)
+    return arr.reshape(n, n)
 
 
 def _attitude_error(ref: np.ndarray, x_hat: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -280,16 +292,35 @@ def _dlqr_gain(A: np.ndarray, B: np.ndarray, Q: np.ndarray, R: np.ndarray) -> tu
     return K, P
 
 
-def _dlqr_warm_start(
-    A: np.ndarray, B: np.ndarray, Q: np.ndarray, R: np.ndarray, P: np.ndarray
-) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Update the LQR gain using a single Newton-Kleinman iteration (Warm Start).
+def _dlqr_warm_start(  # noqa: PLR0913
+    A: np.ndarray,
+    B: np.ndarray,
+    Q: np.ndarray,
+    R: np.ndarray,
+    P: np.ndarray,
+    rtol: float = 1e-9,
+    max_iter: int = 30,
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """Refine the LQR gain with Newton-Kleinman (Hewer) iterations warm-started from ``P``.
+
+    Each iteration forms the gain ``K_i = (R + B'P_i B)^-1 B'P_i A``, then updates the
+    Riccati solution by solving the discrete Lyapunov (Stein) equation for the closed loop
+    ``A_cl = A - B K_i``. Because ``A``, ``B`` and therefore ``P`` vary slowly between
+    steps, seeding the iteration with the previous ``P`` converges in a handful of
+    iterations. Iterating to convergence (rather than taking a single step) is what keeps
+    the recursion robust for the weakly-controllable momentum-along-field mode: a single
+    step leaves a large error that destabilises ``A_cl`` and makes the next Lyapunov solve
+    singular.
+
+    The Lyapunov solve uses the Schur-based ``"bilinear"`` method, which is well-conditioned
+    near the unit circle (unlike the default direct ``I - kron(A_cl, A_cl)`` solve). If an
+    iterate's gain ever fails to stabilise ``A_cl`` -- where no positive-definite Lyapunov
+    solution exists -- the gain is recomputed cold with :func:`_dlqr_gain`.
 
     Parameters
     ----------
     A : np.ndarray
-        Current time-varying state transition matrix A(t)
+        Current time-varying state transition matrix A(t).
     B : np.ndarray
         Current time-varying input matrix B(t).
     Q : np.ndarray
@@ -297,39 +328,80 @@ def _dlqr_warm_start(
     R : np.ndarray
         Input cost matrix.
     P : np.ndarray
-        The solution P from the previous time step.
+        The solution P from the previous time step (the warm-start seed).
+    rtol : float
+        Relative convergence tolerance on ``P`` between iterations.
+    max_iter : int
+        Maximum number of Newton-Kleinman iterations.
 
     Returns
     -------
-    K_new : np.ndarray
+    K : np.ndarray
         The updated control gain.
     P_new : np.ndarray
         The updated Riccati solution.
+    n_iter : int
+        Number of Newton-Kleinman iterations performed; ``0`` when an iterate was not
+        stabilising and a cold :func:`_dlqr_gain` solve was used as a fallback.
     """
-    BtP = B.T @ P
-    R_total = R + BtP @ B
-    K_0 = np.linalg.solve(R_total, BtP @ A)
+    p_curr = P
+    n_iter = 0
+    while n_iter < max_iter:
+        n_iter += 1
+        btp = B.T @ p_curr
+        k = np.linalg.solve(R + btp @ B, btp @ A)
+        a_cl = A - B @ k
+        if np.max(np.abs(np.linalg.eigvals(a_cl))) >= 1.0 - _LQR_STABLE_MARGIN:
+            k_cold, p_cold = _dlqr_gain(A, B, Q, R)
+            return k_cold, p_cold, 0
+        p_next = scipy.linalg.solve_discrete_lyapunov(a_cl.T, Q + k.T @ R @ k, method="bilinear")
+        converged = np.linalg.norm(p_next - p_curr) <= rtol * np.linalg.norm(p_next)
+        p_curr = p_next
+        if converged:
+            break
 
-    A_cl = A - B @ K_0
-    S = Q + K_0.T @ R @ K_0
-    P_new = scipy.linalg.solve_discrete_lyapunov(A_cl.T, S)
-
-    BtP_new = B.T @ P_new
-
-    R_total_new = R + BtP_new @ B
-    K_new = np.linalg.solve(R_total_new, BtP_new @ A)
-
-    return K_new, P_new
+    btp = B.T @ p_curr
+    k = np.linalg.solve(R + btp @ B, btp @ A)
+    return k, p_curr, n_iter
 
 
 @dataclasses.dataclass(frozen=True)
 class AdaptiveLQRLog:
-    """Internal log for the LQR controllers."""
+    """Internal log for the LQR controllers.
+
+    Besides the control outputs, the scalar gain diagnostics make the adaptive solve
+    observable: ``closed_loop_radius`` is the divergence indicator (it should stay below 1),
+    while ``gain_norm``/``riccati_norm``/``n_iter`` track the Riccati solution's evolution.
+
+    Attributes
+    ----------
+    error : np.ndarray
+        Stacked tracking error ``[q_err_vec(3), omega_err(3), h_w_err(3)]``.
+    dipole : np.ndarray
+        Commanded magnetorquer dipole moment [A*m^2], shape (3,).
+    tau_rw : np.ndarray
+        Commanded reaction-wheel torque [N*m], shape (3,).
+    currents : np.ndarray
+        Allocated actuator current commands ``[i_mtq, i_rw]`` [A].
+    gain_norm : float
+        Frobenius norm of the LQR gain ``K``.
+    closed_loop_radius : float
+        Spectral radius ``max|eig(A - B K)|`` of the closed loop (should be < 1).
+    riccati_norm : float
+        Frobenius norm of the Riccati solution ``P``.
+    n_iter : int
+        Newton-Kleinman iterations taken this step; ``0`` when a cold solve was used (the
+        first step or the stabilizing-guard fallback).
+    """
 
     error: np.ndarray
     dipole: np.ndarray
     tau_rw: np.ndarray
     currents: np.ndarray
+    gain_norm: float
+    closed_loop_radius: float
+    riccati_norm: float
+    n_iter: int
 
 
 class AdaptiveLQR(Controller[AdaptiveLQRLog]):
@@ -415,9 +487,11 @@ class AdaptiveLQR(Controller[AdaptiveLQRLog]):
         A = np.array(self.A_func(x_ref, u_ref, b_eci))
         B = np.array(self.B_func(x_ref, u_ref, b_eci))
 
-        self.K, self.P = (
-            _dlqr_gain(A, B, self.Q, self.R) if self.P is None else _dlqr_warm_start(A, B, self.Q, self.R, self.P)
-        )
+        if self.P is None:
+            self.K, self.P = _dlqr_gain(A, B, self.Q, self.R)
+            n_iter = 0
+        else:
+            self.K, self.P, n_iter = _dlqr_warm_start(A, B, self.Q, self.R, self.P)
 
         q_err = q_bo_act.error_to(q_bo_ref)
         q_err_vec = q_err.vec * np.sign(q_err.scalar)
@@ -443,4 +517,8 @@ class AdaptiveLQR(Controller[AdaptiveLQRLog]):
             dipole=dipole,
             tau_rw=control[CONTROL.tau_rw],
             currents=u,
+            gain_norm=float(np.linalg.norm(self.K)),
+            closed_loop_radius=float(np.max(np.abs(np.linalg.eigvals(A - B @ self.K)))),
+            riccati_norm=float(np.linalg.norm(self.P)),
+            n_iter=n_iter,
         )
