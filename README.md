@@ -86,7 +86,7 @@ simulate/
 **From the command line**, point `main.py` at a YAML config:
 
 ```bash
-uv run python main.py --config examples/03_nadir_pointing.yaml
+uv run python main.py --config examples/03_satellite/quat_feedback.yaml
 ```
 
 - `--config` — path to the YAML configuration (required).
@@ -99,7 +99,7 @@ uv run python main.py --config examples/03_nadir_pointing.yaml
 ```python
 from simulate.simulation import Simulation
 
-sim = Simulation.from_yaml("examples/03_nadir_pointing.yaml")
+sim = Simulation.from_yaml("examples/03_satellite/quat_feedback.yaml")
 sim.run(output_dir="results")
 
 # Results are available in-memory after the run:
@@ -110,12 +110,12 @@ sim.logger.component_logs   # per-component internal logs
 `Simulation.from_config(config_dict)` does the same from an already-parsed dict.
 
 The [`examples/`](examples/) directory holds interactive [marimo](https://marimo.io)
-notebooks (`01_dc_motor_speed_control.py`, `02_rigid_body_attitude.py`,
-`03_nadir_pointing.py`). Open one for editing, or serve it read-only as an app, with:
+notebooks (`01_dc_motor/notebook.py`, `02_quadrocopter/notebook.py`,
+`03_satellite/notebook.py`). Open one for editing, or serve it read-only as an app, with:
 
 ```bash
-uv run marimo edit examples/01_dc_motor_speed_control.py   # interactive editing
-uv run marimo run examples/01_dc_motor_speed_control.py    # run as an app
+uv run marimo edit examples/01_dc_motor/notebook.py   # interactive editing
+uv run marimo run examples/01_dc_motor/notebook.py    # run as an app
 ```
 
 ### Configuration format
@@ -273,11 +273,11 @@ The log is a frozen dataclass holding **only** internal state not already captur
 the universal logs; use `simulate.component.NoLog` when there is nothing extra to log.
 
 For complete, idiomatic references see
-[`examples/dc_motor.py`](examples/dc_motor.py) (a custom continuous-time `Dynamics`
+[`examples/01_dc_motor/dc_motor.py`](examples/01_dc_motor/dc_motor.py) (a custom continuous-time `Dynamics`
 and a measurement callable) and `PIDController` in
 [`src/simulate/controller.py`](src/simulate/controller.py) (the logging-dataclass
 pattern). The matching notebook is
-[`examples/01_dc_motor_speed_control.py`](examples/01_dc_motor_speed_control.py).
+[`examples/01_dc_motor/notebook.py`](examples/01_dc_motor/notebook.py).
 
 ---
 
@@ -300,7 +300,7 @@ hard-coding offsets, read state through these named slices:
 | --- | --- | --- |
 | `STATE` | 13 (+ effector states) | `r(3), v(3), q(4), omega(3)` |
 | `ESTIMATE` | 19 | `r, v, q, omega, b_body(3), h_wheel(3)` |
-| `REFERENCE` | 7 | `q_des(4), omega_des(3)` (ORC-relative) |
+| `REFERENCE` | 7 | `q_des(4), omega_des(3)` (LVLH-relative) |
 | `CONTROL` | 6 | `tau_mtq(3), tau_rw(3)` |
 | `MODEL` | 10 / 6 | model state `q, omega, h_w` and input `u_mag, u_rw` |
 
@@ -373,8 +373,8 @@ and pass it as a sensor's `measurement` in the `sensors` list.
 
 ### End-to-end example
 
-[`examples/03_nadir_pointing.yaml`](examples/03_nadir_pointing.yaml) is a full ADCS
+[`examples/03_satellite/quat_feedback.yaml`](examples/03_satellite/quat_feedback.yaml) is a full ADCS
 run: a 3U CubeSat holding nadir pointing in LEO with reaction wheels and magnetorquer
 momentum dumping, real disturbances, a full-state estimator, and a quaternion-feedback
 controller. Drive it with `main.py` or via the notebook
-[`examples/03_nadir_pointing.py`](examples/03_nadir_pointing.py).
+[`examples/03_satellite/notebook.py`](examples/03_satellite/notebook.py).

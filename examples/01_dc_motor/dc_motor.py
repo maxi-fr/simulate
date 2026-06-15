@@ -12,14 +12,14 @@ from simulate.dynamics import Dynamics
 class DCMotorDynamics(Dynamics[NoLog]):
     """Custom DC Motor dynamics implementation."""
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         dt: float,
-        R: float,  # noqa: N803
-        L: float,  # noqa: N803
-        Ke: float,  # noqa: N803
-        Kt: float,  # noqa: N803
-        J: float,  # noqa: N803
+        R: float,
+        L: float,
+        Ke: float,
+        Kt: float,
+        J: float,
         b: float,
         integrator: Any = None,  # noqa: ANN401
     ) -> None:

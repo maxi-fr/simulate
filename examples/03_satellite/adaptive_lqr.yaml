@@ -8,15 +8,15 @@ t_end: 5673.5  # short period for profiling [s]
 
 # Initial orbit + attitude, shared (via the &init anchor) by the dynamics truth and the estimator's
 # initial guess so they start consistent. SGP4 propagates the TLE to the epoch for r/v; the attitude
-# is given relative to the orbital (ORC) frame -- 15 deg yaw off nadir, at rest wrt ORC -- and
-# converted to the inertial q/omega by rigid_body.frames.eci_attitude_from_orc.
+# is given relative to the orbital (LVLH) frame -- 15 deg yaw off nadir, at rest wrt LVLH -- and
+# converted to the inertial q/omega by rigid_body.frames.eci_attitude_from_lvlh.
 initial_state: &init
   epoch: &epoch "2024-01-01T12:00:00"
   tle: &tle
     - "1 25544U 98067A   24001.50000000  .00000000  00000-0  00000-0 2    07"
     - "2 25544 097.6000 010.0000 0001000 000.0000 000.0000 15.25000000000009"
-  attitude_orc: {roll: 15.0, pitch: 10.0, yaw: -15.0}  # body wrt ORC [deg], intrinsic Y-X-Z
-  angular_velocity_orc: [0.0, 0.0, 0.0]              # body rate wrt ORC [deg/s]
+  attitude_lvlh: {roll: 15.0, pitch: 10.0, yaw: -15.0}  # body wrt LVLH [deg], intrinsic Y-X-Z
+  angular_velocity_lvlh: [0.0, 0.0, 0.0]              # body rate wrt LVLH [deg/s]
 
 dynamics:
   class_path: spacecraft.rigid_body.RigidBodyDynamics

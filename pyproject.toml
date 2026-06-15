@@ -106,9 +106,10 @@ convention = "numpy"
     "ANN401",  # legacy/duck-typed objects from the old repo are necessarily typed `Any`
 ]
 "examples/*" = ["INP001"]
+"examples/01_dc_motor/dc_motor.py" = ["N803", "PLR0913"]
 # Marimo notebooks: cells are functions, imports live in cells, and the final
 # expression of a cell is the displayed output.
-"examples/[0-9]*.py" = [
+"examples/[0-9]*/notebook.py" = [
     "ANN001",   # missing type annotation for cell args (marimo passes refs untyped)
     "ANN202",   # missing return type for cell `_` functions
     "PLC0415",  # imports inside cells (marimo idiom)
@@ -117,6 +118,7 @@ convention = "numpy"
     "ICN001",   # marimo requires private imports like _pd/_plt to avoid cell namespace clashes
     "N803",     # marimo cell arguments can be CamelCase class names
     "PLR0913",  # too many arguments in cell function definitions
+    "PLR0915",  # cells can have more than 50 statements (e.g. plotting/layout code)
 ]
 
 [tool.ruff.format]
@@ -135,7 +137,7 @@ testpaths = ["tests"]
 [tool.ty]
 
 [tool.ty.src]
-exclude = ["examples/[0-9]*.py", "tests/differential/adaptive-satellite-control"]
+exclude = ["examples/[0-9]*/notebook.py", "tests/differential/adaptive-satellite-control"]
 
 [tool.ty.rules]
 # In ty, you control strictness by setting individual rules to "error", "warn", or "ignore".
@@ -158,5 +160,5 @@ not-iterable = "error"               # Trying to use a non-iterable object in a 
 not-subscriptable = "error"          # Trying to index an object that doesn't support it
 
 [[tool.ty.overrides]]
-include = ["examples/[0-9]*.py"]
+include = ["examples/[0-9]*/notebook.py"]
 rules = { unresolved-reference = "ignore" }

@@ -2,13 +2,19 @@
 
 import marimo
 
-__generated_with = "0.23.6"
+__generated_with = "0.23.9"
 app = marimo.App(width="medium")
 
 
 @app.cell
 def _():
+    import sys
     from pathlib import Path
+
+    # Add workspace root to sys.path to allow importing 'examples' package
+    workspace_root = str(Path(__file__).resolve().parents[2])
+    if workspace_root not in sys.path:
+        sys.path.append(workspace_root)
 
     import marimo as mo
     import matplotlib.pyplot as plt
@@ -16,7 +22,7 @@ def _():
 
     from simulate.config import load_config
     from simulate.simulation import Simulation
-    from spacecraft.frames import euler_from_quaternion, orbital_rate, orc_from_orbit
+    from spacecraft.frames import euler_from_quaternion, lvlh_from_orbit, orbital_rate
     from spacecraft.quaternion import Quaternion
 
     return (
@@ -25,10 +31,10 @@ def _():
         Simulation,
         euler_from_quaternion,
         load_config,
+        lvlh_from_orbit,
         mo,
         np,
         orbital_rate,
-        orc_from_orbit,
         plt,
     )
 
@@ -43,7 +49,7 @@ def _(mo):
     real disturbances (central + gravity-gradient gravity, third body, solar radiation
     pressure, aerodynamic drag).
 
-    The full satellite is built from [`03_nadir_pointing.yaml`](03_nadir_pointing.yaml) via
+    The full satellite is built from [`quat_feedback.yaml`](quat_feedback.yaml) via
     `Simulation.from_yaml`. The loop closes:
 
     * a **`FullStateEstimator`** — orbit Kalman filter (GPS) + attitude MEKF (gyro / magnetometer
@@ -62,7 +68,7 @@ def _(mo):
 @app.cell
 def _(mo):
     controller_select = mo.ui.dropdown(
-        options=["Quaternion Feedback", "Adaptive LQR"],
+        options=["Quaternion Feedback", "Adaptive LQR", "MPC"],
         value="Quaternion Feedback",
         label="Controller Type",
     )
@@ -74,7 +80,7 @@ def _(mo):
 def _(Path, Simulation, controller_select, load_config, np):
     # One orbit (~95 min) is the config default; a few minutes already shows acquisition + hold, and
     # keeps the notebook responsive (the estimator/disturbances evaluate IGRF/ephemeris/MSIS each step).
-    config_path = Path(__file__).resolve().parent / "03_nadir_pointing.yaml"
+    config_path = Path(__file__).resolve().parent / "quat_feedback.yaml"
     config = load_config(config_path)
 
     _sim_config = dict(config)
@@ -94,6 +100,28 @@ def _(Path, Simulation, controller_select, load_config, np):
             "reaction_wheels": {"axes": [[-1, 0, 0], [0, 1, 0], [0, 0, 1]], "torque_constant": [0.01, 0.01, 0.01]},
             "magnetorquers": {"axes": [[-1, 0, 0], [0, 1, 0], [0, 0, 1]], "dipole_constant": [0.3, 0.3, 0.2]},
         }
+    elif controller_select.value == "MPC":
+        _sim_config["controller"] = {
+            "class_path": "spacecraft.controller.MPC",
+            "dt": 0.2,
+            "n_steps": 20,
+            "Q": np.diag([8.0, 8.0, 8.0, 2.0, 2.0, 2.0, 20.0, 20.0, 20.0]).tolist(),
+            "R": (np.diag([30.0, 30.0, 30.0, 3.0, 3.0, 3.0]) * 10000.0).tolist(),
+            "Qf": np.diag([160.0, 160.0, 160.0, 40.0, 40.0, 40.0, 400.0, 400.0, 400.0]).tolist(),
+            "inertia": config["dynamics"]["inertia"],
+            "reaction_wheels": {
+                "axes": [[-1, 0, 0], [0, 1, 0], [0, 0, 1]],
+                "torque_constant": [0.01, 0.01, 0.01],
+                "inertia": 2.82e-6,
+                "max_current": 0.2,
+                "max_rpm": 6000,
+            },
+            "magnetorquers": {
+                "axes": [[-1, 0, 0], [0, 1, 0], [0, 0, 1]],
+                "dipole_constant": [0.3, 0.3, 0.2],
+                "max_current": 1.0,
+            },
+        }
 
     sim = Simulation.from_config(_sim_config)
     sim.t_end = 200.0
@@ -102,7 +130,7 @@ def _(Path, Simulation, controller_select, load_config, np):
 
 
 @app.cell
-def _(Quaternion, euler_from_quaternion, np, orbital_rate, orc_from_orbit):
+def _(Quaternion, euler_from_quaternion, lvlh_from_orbit, np, orbital_rate):
     def extract(sim_obj) -> dict[str, np.ndarray]:
         """Pull the universal/component logs of a run into plain numpy arrays for plotting."""
         logs = sim_obj.logger.universal_logs
@@ -111,12 +139,12 @@ def _(Quaternion, euler_from_quaternion, np, orbital_rate, orc_from_orbit):
         x_hat = np.array([np.asarray(row["x_hat"]) for row in logs])
         u = np.array([np.asarray(row["u"]) for row in logs])
 
-        # Pointing error as the body-vs-ORC (nadir) attitude, in Euler angles [deg].
+        # Pointing error as the body-vs-LVLH (nadir) attitude, in Euler angles [deg].
         euler_err = np.zeros((len(t), 3))
         rate_ff = np.zeros((len(t), 3))
         for k, row in enumerate(x):
-            q_oi = orc_from_orbit(row[0:3], row[3:6])
-            q_err = Quaternion.from_array(row[6:10]).error_to(q_oi)  # desired q_bo = identity
+            q_li = lvlh_from_orbit(row[0:3], row[3:6])
+            q_err = Quaternion.from_array(row[6:10]).error_to(q_li)  # desired q_bo = identity
             euler_err[k] = np.degrees(euler_from_quaternion(q_err))
             rate_ff[k] = orbital_rate(row[0:3], row[3:6])
         return {"t": t, "x": x, "x_hat": x_hat, "u": u, "euler_err": euler_err, "rate_ff": rate_ff}
@@ -147,7 +175,7 @@ def _(extract, plt, sim):
     axes[0].axhline(0.0, color="k", lw=0.5)
     axes[0].legend()
     axes[0].grid(visible=True)
-    axes[0].set_title("Nadir pointing error (body relative to ORC)")
+    axes[0].set_title("Nadir pointing error (body relative to LVLH)")
 
     for _j, _lbl in enumerate(("$\\omega_x$", "$\\omega_y$", "$\\omega_z$")):
         axes[1].plot(d["t"], d["x"][:, 10 + _j], label=f"{_lbl} body")
@@ -253,10 +281,9 @@ def _(Quaternion, d, np, plt, sim):
 @app.cell
 def _(mo):
     mo.md(r"""
-    ## LQR variant
+    ## Alternative Controllers
 
-    The same plant and estimator, driven by the **`AdaptiveLQR`** instead of quaternion feedback. It acquires nadir from the
-    same initial offset.
+    The same plant and estimator driven by the alternative controllers (**`AdaptiveLQR`** or **`MPC`**) compared against the baseline quaternion feedback.
     """)
     return
 
@@ -269,8 +296,18 @@ def _(Simulation, config, controller_select, d, extract, np, plt):
         _qf_sim.run()
         _d_qf = extract(_qf_sim)
 
-        _d_lqr_plot = d
+        _d_compare_plot = d
         _d_qf_plot = _d_qf
+        label = "LQR"
+    elif controller_select.value == "MPC":
+        _qf_sim = Simulation.from_config(config)
+        _qf_sim.t_end = 200.0
+        _qf_sim.run()
+        _d_qf = extract(_qf_sim)
+
+        _d_compare_plot = d
+        _d_qf_plot = _d_qf
+        label = "MPC"
     else:
         _tle = [
             "1 25544U 98067A   24001.50000000  .00000000  00000-0  00000-0 2    07",
@@ -293,12 +330,13 @@ def _(Simulation, config, controller_select, d, extract, np, plt):
         _lqr_sim.run()
         _d_lqr = extract(_lqr_sim)
 
-        _d_lqr_plot = _d_lqr
+        _d_compare_plot = _d_lqr
         _d_qf_plot = d
+        label = "LQR"
 
     fig4, ax4 = plt.subplots(figsize=(12, 4))
     ax4.plot(_d_qf_plot["t"], np.linalg.norm(_d_qf_plot["euler_err"], axis=1), label="quaternion feedback")
-    ax4.plot(_d_lqr_plot["t"], np.linalg.norm(_d_lqr_plot["euler_err"], axis=1), label="LQR")
+    ax4.plot(_d_compare_plot["t"], np.linalg.norm(_d_compare_plot["euler_err"], axis=1), label=label)
     ax4.set_xlabel("time (s)")
     ax4.set_ylabel("pointing error norm (deg)")
     ax4.set_title("Controller comparison")

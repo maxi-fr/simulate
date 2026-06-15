@@ -1,33 +1,28 @@
-# End-to-end nadir-pointing satellite simulation (Phase 6).
+# End-to-end nadir-pointing satellite simulation (MPC) - Short version for profiling.
 #
 # A 3U-class CubeSat holding nadir pointing in LEO with reaction wheels (+ magnetorquer momentum
 # dumping) under real disturbances, a full-state estimator (orbit KF + attitude MEKF + exposed
-# environment variables) and a quaternion-feedback controller. Parameters are ported from the legacy
-# `simulation_config.json`. Drives `Simulation.from_yaml`.
-#
-# Frames: position/velocity inertial [m, m/s]; attitude q is scalar-last inertial->body. The nadir
-# reference is expressed relative to the orbital (ORC) frame; the controller reconstructs the ORC
-# frame and orbital feedforward from x_hat's r, v (see rigid_body.controller._attitude_error).
+# environment variables) and a model-predictive (MPC) controller.
 
-t_end: 5673.5  # one orbital period [s]
+t_end: 5673.5  # short period for profiling [s]
 
 # Initial orbit + attitude, shared (via the &init anchor) by the dynamics truth and the estimator's
 # initial guess so they start consistent. SGP4 propagates the TLE to the epoch for r/v; the attitude
-# is given relative to the orbital (ORC) frame -- 15 deg yaw off nadir, at rest wrt ORC -- and
-# converted to the inertial q/omega by rigid_body.frames.eci_attitude_from_orc.
+# is given relative to the orbital (LVLH) frame -- 15 deg yaw off nadir, at rest wrt LVLH -- and
+# converted to the inertial q/omega by rigid_body.frames.eci_attitude_from_lvlh.
 initial_state: &init
-  epoch: "2024-01-01T12:00:00"
-  tle:
+  epoch: &epoch "2024-01-01T12:00:00"
+  tle: &tle
     - "1 25544U 98067A   24001.50000000  .00000000  00000-0  00000-0 2    07"
     - "2 25544 097.6000 010.0000 0001000 000.0000 000.0000 15.25000000000009"
-  attitude_orc: {roll: -15.0, pitch: 10.0, yaw: -15.0}  # body wrt ORC [deg], intrinsic Y-X-Z
-  angular_velocity_orc: [0.0, 0.0, 0.0]              # body rate wrt ORC [deg/s]
+  attitude_lvlh: {roll: 15.0, pitch: 10.0, yaw: -15.0}  # body wrt LVLH [deg], intrinsic Y-X-Z
+  angular_velocity_lvlh: [0.0, 0.0, 0.0]              # body rate wrt LVLH [deg/s]
 
 dynamics:
   class_path: spacecraft.rigid_body.RigidBodyDynamics
   dt: 0.2
   mass: 2.304
-  inertia:
+  inertia: &inertia
     - [0.012286, -0.000065, -0.000236]
     - [-0.000065, 0.012726, -0.000039]
     - [-0.000236, -0.000039, 0.005707]
@@ -134,14 +129,48 @@ estimator:
     tach_channel: tachometer
 
 controller:
-  class_path: spacecraft.controller.QuaternionFeedbackController
+  class_path: spacecraft.controller.MPC
   dt: 0.2
-  kp: [0.02, 0.02, 0.01]
-  kd: [0.15, 0.15, 0.08]
-  k_m: 1.0e-4
+  n_steps: 20  # prediction horizon (steps); horizon length = n_steps * dt = 4 s
+  inertia: *inertia
+  # Stage/terminal state weight on the reduced error [q_err(3), omega(3), h_w(3)] -- same layout and
+  # values as the AdaptiveLQR example, so the two controllers' Q/R are interchangeable.
+  Q:
+    - [8.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 8.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 8.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 20.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 20.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 20.0]
+  R:
+    - [300000.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 300000.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 300000.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 30000.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 30000.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 30000.0]
+  Qf:
+    - [160.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 160.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 160.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 40.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 40.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 40.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 400.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 400.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 400.0]
+  # Actuator limits -- the MPC's constraint advantage over the feedback laws -- mirroring the
+  # effector config above. Omit `max_current`/`max_rpm` for an unconstrained tracker.
   reaction_wheels:
     axes: [[-1, 0, 0], [0, 1, 0], [0, 0, 1]]
     torque_constant: [0.01, 0.01, 0.01]
+    inertia: 2.82e-6
+    max_current: 0.2
+    max_rpm: 6000
   magnetorquers:
     axes: [[-1, 0, 0], [0, 1, 0], [0, 0, 1]]
     dipole_constant: [0.3, 0.3, 0.2]
+    max_current: 1.0

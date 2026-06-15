@@ -30,7 +30,7 @@ from simulate.estimator import Estimator
 from simulate.integrator import rk4
 
 from .environment import atmosphere_density_msis, is_in_shadow, magnetic_field_vector, sun_position
-from .frames import eci_attitude_from_orc, eci_to_geodedic
+from .frames import eci_attitude_from_lvlh, eci_to_geodedic
 from .orbit_dynamics import MU, SGP4
 from .quaternion import Quaternion
 
@@ -302,14 +302,15 @@ class FullStateEstimator(Estimator[FullStateEstimatorLog]):
         init = config["initial_state"]
         epoch = datetime.datetime.fromisoformat(init["epoch"])
         r0, v0 = SGP4.from_tle(*init["tle"]).propagate(epoch)
-        att = init["attitude_orc"]
-        q_bi, _ = eci_attitude_from_orc(
+        att = init.get("attitude_lvlh", init.get("attitude_orc"))
+        omega_bo = init.get("angular_velocity_lvlh", init.get("angular_velocity_orc"))
+        q_bi, _ = eci_attitude_from_lvlh(
             r0,
             v0,
             roll=att["roll"],
             pitch=att["pitch"],
             yaw=att["yaw"],
-            omega_bo=init["angular_velocity_orc"],
+            omega_bo=omega_bo,
         )
 
         layout = MeasurementLayout(channels=tuple((name, int(dim)) for name, dim in config["channels"]))

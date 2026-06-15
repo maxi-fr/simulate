@@ -34,7 +34,7 @@ from .controller_models import (
     quaternion_product,
     quaternion_rotation,
 )
-from .frames import orbital_rate, orc_from_orbit
+from .frames import lvlh_from_orbit, orbital_rate
 from .orbit_dynamics import MU, SGP4
 from .quaternion import Quaternion
 from .signals import CONTROL, ESTIMATE, MODEL, REFERENCE
@@ -70,18 +70,18 @@ def _sat_vector(value: ArrayLike, n: int) -> np.ndarray:
 
 
 def _attitude_error(ref: np.ndarray, x_hat: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Attitude and rate error of the body relative to the nadir (orbital/ORC) frame.
+    """Attitude and rate error of the body relative to the nadir (orbital/LVLH) frame.
 
-    The reference ``[q_bo(4), omega_bo(3)]`` is expressed **relative to the orbital frame**: ``q_bo``
-    is the desired ORC->body rotation (identity for nadir pointing) and ``omega_bo`` the desired rate
-    *relative to* ORC (zero for nadir). The orbital frame is reconstructed from the estimated orbit
+    The reference ``[q_bo(4), omega_bo(3)]`` is expressed **relative to the LVLH frame**: ``q_bo``
+    is the desired LVLH->body rotation (identity for nadir pointing) and ``omega_bo`` the desired rate
+    *relative to* LVLH (zero for nadir). The orbital frame is reconstructed from the estimated orbit
     ``r, v`` carried in ``x_hat`` (the controller never sees the inertial reference directly):
 
-    * the body's actual ORC->body rotation is ``q_bo_act = q_bi (x) q_oi^-1`` with
-      ``q_oi = orc_from_orbit(r, v)`` (inertial->ORC), so the body-frame attitude error is
+    * the body's actual LVLH->body rotation is ``q_bo_act = q_bi (x) q_li^-1`` with
+      ``q_li = lvlh_from_orbit(r, v)`` (inertial->LVLH), so the body-frame attitude error is
       ``q_err = q_bo_act (x) q_bo^-1`` (identity when the body is at the reference attitude),
     * the orbital feedforward body rate is ``omega_des = q_bo_act.apply(orbital_rate(r, v)) + omega_bo``
-      (the ORC frame's rate rotated into the body frame, plus the reference's ORC-relative rate).
+      (the LVLH frame's rate rotated into the body frame, plus the reference's LVLH-relative rate).
 
     Returns
     -------
@@ -95,8 +95,8 @@ def _attitude_error(ref: np.ndarray, x_hat: np.ndarray) -> tuple[np.ndarray, np.
     q_bi = Quaternion.from_array(x_hat[ESTIMATE.q])
     omega = x_hat[ESTIMATE.omega]
 
-    q_oi = orc_from_orbit(r, v)
-    q_bo_act = q_bi * q_oi.conjugate()
+    q_li = lvlh_from_orbit(r, v)
+    q_bo_act = q_bi * q_li.conjugate()
     q_bo_des = Quaternion.from_array(ref[REFERENCE.q_des])
     q_err = q_bo_act.error_to(q_bo_des)
     q_err_vec = q_err.vec * np.sign(q_err.scalar)  # take the short rotation path
@@ -269,7 +269,7 @@ def average_rate(
     epoch: datetime.datetime,
     n_samples: int = 24,
 ) -> np.ndarray:
-    """Orbit-averaged magnetic field (in the nadir/ORC frame) and reference rate over one orbit.
+    """Orbit-averaged magnetic field (in the nadir/LVLH frame) and reference rate over one orbit.
 
     Samples the SGP4 orbit ``n_samples`` times over one orbital period (estimated from the initial
     state via vis-viva) and averages the IGRF field rotated into the nadir-pointing frame together
@@ -486,14 +486,14 @@ class AdaptiveLQR(Controller[AdaptiveLQRLog]):
         omega = x[ESTIMATE.omega]
         h_w = x[ESTIMATE.h_wheel]
 
-        q_oi = orc_from_orbit(r, v)
-        q_bo_act = q_bi * q_oi.conjugate()
+        q_li = lvlh_from_orbit(r, v)
+        q_bo_act = q_bi * q_li.conjugate()
 
         b_body = x[ESTIMATE.b_body]
         b_eci = q_bi.conjugate().apply(b_body)
 
         q_bo_ref = Quaternion.from_array(ref_arr[REFERENCE.q_des])
-        q_bi_ref = (q_bo_ref * q_oi).to_array()
+        q_bi_ref = (q_bo_ref * q_li).to_array()
         omega_ref = q_bo_act.apply(orbital_rate(r, v)) + ref_arr[REFERENCE.omega_des]
         h_w_ref = -self.inertia @ omega_ref
 
@@ -764,14 +764,14 @@ class MPC(Controller[MPCLog]):
         omega = x[ESTIMATE.omega]
         h_w = x[ESTIMATE.h_wheel]
 
-        q_oi = orc_from_orbit(r, v)
-        q_bo_act = q_bi * q_oi.conjugate()
+        q_li = lvlh_from_orbit(r, v)
+        q_bo_act = q_bi * q_li.conjugate()
 
         b_body = x[ESTIMATE.b_body]
         b_eci = q_bi.conjugate().apply(b_body)
 
         q_bo_ref = Quaternion.from_array(ref_arr[REFERENCE.q_des])
-        q_bi_ref = (q_bo_ref * q_oi).to_array()
+        q_bi_ref = (q_bo_ref * q_li).to_array()
         omega_ref = q_bo_act.apply(orbital_rate(r, v)) + ref_arr[REFERENCE.omega_des]
         h_w_ref = -self.inertia @ omega_ref
 
