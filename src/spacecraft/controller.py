@@ -1,12 +1,11 @@
 # ruff: noqa: N803, N806
-"""Attitude controllers driving reaction wheels (+ magnetorquers) for nadir pointing.
+"""Attitude controllers driving 3 reaction wheels and 3 magnetorquers for nadir pointing.
 
 These controllers consume the estimator's ``x_hat`` and the nadir reference and return the control
-input ``u`` that the simulation feeds straight to the actuator effectors. Because
+input ``u`` - the currents to the 6 actuators. Because
 :class:`~spacecraft.effector.ReactionWheelArray` and :class:`~spacecraft.effector.MagnetorquerArray`
 interpret their command slice as **current commands** (amperes), the feedback law's desired control
-*torque* is converted to currents with :func:`to_current_commands` before being returned -- mirroring
-the legacy ``PI.calc_input_cmds`` flow.
+*torque* is converted to currents with :func:`to_current_commands` before being returned.
 
 ``x_hat`` layout (see :mod:`spacecraft.estimator`)::
 
@@ -20,7 +19,7 @@ allocation) and ``h_wheel`` the estimated reaction-wheel angular momentum in the
 
 import dataclasses
 import datetime
-from typing import Any, Self
+from typing import Any, Self, cast
 
 import casadi as ca
 import numpy as np
@@ -29,7 +28,12 @@ from numpy.typing import ArrayLike
 
 from simulate.controller import Controller
 
-from .controller_models import build_reduced_system_dynamics, quaternion_conjugate, quaternion_product
+from .controller_models import (
+    build_reduced_system_dynamics,
+    quaternion_conjugate,
+    quaternion_product,
+    quaternion_rotation,
+)
 from .frames import orbital_rate, orc_from_orbit
 from .orbit_dynamics import MU, SGP4
 from .quaternion import Quaternion
@@ -57,6 +61,12 @@ def _weight_matrix(value: ArrayLike, n: int) -> np.ndarray:
     if arr.ndim == 1:
         return np.diag(arr)
     return arr.reshape(n, n)
+
+
+def _sat_vector(value: ArrayLike, n: int) -> np.ndarray:
+    """Coerce a saturation limit to a length-n vector (a scalar is broadcast to every channel)."""
+    arr = np.atleast_1d(np.asarray(value, dtype=float))
+    return np.full(n, float(arr[0])) if arr.size == 1 else arr
 
 
 def _attitude_error(ref: np.ndarray, x_hat: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -168,12 +178,21 @@ def to_current_commands(
 
 @dataclasses.dataclass(frozen=True)
 class QuaternionFeedbackControllerLog:
-    """Internal log for :class:`QuaternionFeedbackController`."""
+    """Internal log for :class:`QuaternionFeedbackController`.
+
+    Attributes
+    ----------
+    q_err : np.ndarray
+        Small-angle attitude error in the body frame, shape ``(3,)``.
+    tau_rw : np.ndarray
+        Commanded reaction-wheel body torque [N*m], shape ``(3,)``.
+    tau_mtq : np.ndarray
+        Commanded magnetorquer body torque [N*m], shape ``(3,)``.
+    """
 
     q_err: np.ndarray
     tau_rw: np.ndarray
     tau_mtq: np.ndarray
-    currents: np.ndarray
 
 
 class QuaternionFeedbackController(Controller[QuaternionFeedbackControllerLog]):
@@ -237,7 +256,7 @@ class QuaternionFeedbackController(Controller[QuaternionFeedbackControllerLog]):
         tau_mtq = -self.k_m * h_wheel
 
         u = to_current_commands(tau_rw, tau_mtq, b_body, self.alpha_rw, self.alpha_mtq)
-        return u, QuaternionFeedbackControllerLog(q_err=q_err, tau_rw=tau_rw, tau_mtq=tau_mtq, currents=u)
+        return u, QuaternionFeedbackControllerLog(q_err=q_err, tau_rw=tau_rw, tau_mtq=tau_mtq)
 
 
 def _ensure_utc(epoch: datetime.datetime) -> datetime.datetime:
@@ -377,12 +396,10 @@ class AdaptiveLQRLog:
     ----------
     error : np.ndarray
         Stacked tracking error ``[q_err_vec(3), omega_err(3), h_w_err(3)]``.
-    dipole : np.ndarray
-        Commanded magnetorquer dipole moment [A*m^2], shape (3,).
     tau_rw : np.ndarray
-        Commanded reaction-wheel torque [N*m], shape (3,).
-    currents : np.ndarray
-        Allocated actuator current commands ``[i_mtq, i_rw]`` [A].
+        Commanded reaction-wheel torque [N*m], shape ``(3,)``.
+    tau_mtq : np.ndarray
+        Commanded magnetorquer torque [N*m], shape ``(3,)``.
     gain_norm : float
         Frobenius norm of the LQR gain ``K``.
     closed_loop_radius : float
@@ -395,9 +412,8 @@ class AdaptiveLQRLog:
     """
 
     error: np.ndarray
-    dipole: np.ndarray
     tau_rw: np.ndarray
-    currents: np.ndarray
+    tau_mtq: np.ndarray
     gain_norm: float
     closed_loop_radius: float
     riccati_norm: float
@@ -510,15 +526,274 @@ class AdaptiveLQR(Controller[AdaptiveLQRLog]):
         )
 
         b_norm_sq = np.dot(b_body, b_body)
-        dipole = np.cross(b_body, control[CONTROL.tau_mtq]) / b_norm_sq if b_norm_sq > _EPS else np.zeros(3)
+        np.cross(b_body, control[CONTROL.tau_mtq]) / b_norm_sq if b_norm_sq > _EPS else np.zeros(3)
 
         return u, AdaptiveLQRLog(
             error=error,
-            dipole=dipole,
             tau_rw=control[CONTROL.tau_rw],
-            currents=u,
+            tau_mtq=control[CONTROL.tau_mtq],
             gain_norm=float(np.linalg.norm(self.K)),
             closed_loop_radius=float(np.max(np.abs(np.linalg.eigvals(A - B @ self.K)))),
             riccati_norm=float(np.linalg.norm(self.P)),
             n_iter=n_iter,
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class MPCLog:
+    """Internal log for :class:`MPC`.
+
+    Attributes
+    ----------
+    tau_rw : np.ndarray
+        Commanded reaction-wheel torque [N*m], shape ``(3,)``.
+    tau_mtq : np.ndarray
+        Commanded magnetorquer torque [N*m], shape ``(3,)``.
+    cost : float
+        Optimal objective value; ``nan`` when the solver did not converge.
+    solve_success : bool
+        ``True`` when the IPOPT solve converged this step.
+    """
+
+    tau_rw: np.ndarray
+    tau_mtq: np.ndarray
+    cost: float
+    solve_success: bool
+
+
+class MPC(Controller[MPCLog]):
+    """Nonlinear model-predictive controller for nadir pointing.
+
+    A multiple-shooting MPC built once on a CasADi ``Opti`` stack: the discrete dynamics
+    ``x_next = F(x, u, B_eci)`` from :func:`build_reduced_system_dynamics` are used as the shooting
+    constraints over an ``n_steps`` horizon, with an LQR-style quadratic tracking cost on the error
+    ``[q_err_vec, omega_err, h_w_err]`` and a quadratic input cost. Each step re-solves the program,
+    warm-started from the previous solution.
+
+    The defining advantage over the feedback laws is explicit handling of actuator limits. The
+    physical limits -- driver currents and wheel speeds -- are mapped onto constraints on the control
+    ``u = [u_mag, u_rw]`` and state ``x``:
+
+    * reaction-wheel current ``|alpha_rw^+ u_rw| <= i_rw_max`` (``alpha_rw = Lambda_w K_w``, so its
+      pseudo-inverse is ``K_w^-1 Lambda_w^-1``),
+    * magnetorquer current ``|alpha_mtq^+ (b_body x u_mag / |b_body|^2)| <= i_mtq_max`` with the
+      body field ``b_body`` taken from the predicted attitude,
+    * wheel speed ``|D_w^-1 Lambda_w^-1 h_w - Lambda_w^T omega| <= omega_w_max`` (a state constraint
+      on the predicted ``h_w``/``omega``).
+    """
+
+    def __init__(  # noqa: PLR0913
+        self,
+        dt: float,
+        n_steps: int,
+        Q: ArrayLike,
+        R: ArrayLike,
+        Qf: ArrayLike,
+        inertia: ArrayLike,
+        alpha_rw: ArrayLike,
+        alpha_mtq: ArrayLike,
+        wheel_axes: ArrayLike,
+        wheel_inertia: ArrayLike,
+        i_rw_max: ArrayLike,
+        i_mtq_max: ArrayLike,
+        omega_w_max: ArrayLike,
+    ) -> None:
+        """Initialize the weights, model, actuator allocation and limits, then build the MPC program."""
+        super().__init__(dt)
+        self.n_steps = int(n_steps)
+        self.Q = _weight_matrix(Q, 9)
+        self.R = _weight_matrix(R, 6)
+        self.Qf = _weight_matrix(Qf, 9)
+        self.inertia = np.asarray(inertia, dtype=float)
+        self.alpha_rw = np.asarray(alpha_rw, dtype=float)
+        self.alpha_mtq = np.asarray(alpha_mtq, dtype=float)
+
+        self.F, _, _ = build_reduced_system_dynamics(dt, self.inertia)
+
+        self._init_actuator_limits(wheel_axes, wheel_inertia, i_rw_max, i_mtq_max, omega_w_max)
+        self._warm_start: tuple[np.ndarray, np.ndarray] | None = None
+        self._setup_opti()
+
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> Self:
+        """Instantiate from config (horizon, weights, inertia, actuator allocation and limits)."""
+        rw_cfg = config["reaction_wheels"]
+        mtq_cfg = config["magnetorquers"]
+        return cls(
+            dt=float(config["dt"]),
+            n_steps=int(config["n_steps"]),
+            Q=config["Q"],
+            R=config["R"],
+            Qf=config.get("Qf", config["Q"]),
+            inertia=config["inertia"],
+            alpha_rw=allocation_matrix(rw_cfg["axes"], rw_cfg["torque_constant"]),
+            alpha_mtq=allocation_matrix(mtq_cfg["axes"], mtq_cfg["dipole_constant"]),
+            wheel_axes=rw_cfg["axes"],
+            wheel_inertia=rw_cfg["inertia"],
+            i_rw_max=rw_cfg["max_current"],
+            i_mtq_max=mtq_cfg["max_current"],
+            omega_w_max=float(rw_cfg["max_rpm"]) * 2.0 * np.pi / 60.0,
+        )
+
+    def _init_actuator_limits(
+        self,
+        wheel_axes: ArrayLike,
+        wheel_inertia: ArrayLike,
+        i_rw_max: ArrayLike,
+        i_mtq_max: ArrayLike,
+        omega_w_max: ArrayLike,
+    ) -> None:
+        """Precompute the current/speed maps and saturation vectors for the actuator constraints."""
+        self._rw_current_map = ca.DM(np.linalg.pinv(self.alpha_rw))
+        self._i_rw_max = _sat_vector(i_rw_max, self.alpha_rw.shape[1])
+
+        self._mtq_current_map = ca.DM(np.linalg.pinv(self.alpha_mtq))
+        self._i_mtq_max = _sat_vector(i_mtq_max, self.alpha_mtq.shape[1])
+
+        lambda_w = allocation_matrix(wheel_axes, np.ones(np.asarray(wheel_axes).shape[0]))  # unit spin axes
+        n_w = lambda_w.shape[1]
+        d_w = np.diag(_sat_vector(wheel_inertia, n_w))
+        self._wheel_speed_from_h = ca.DM(np.linalg.pinv(lambda_w @ d_w))  # (Lambda_w D_w)^-1
+        self._wheel_speed_from_omega = ca.DM(lambda_w.T)
+        self._omega_w_max = _sat_vector(omega_w_max, n_w)
+
+    @staticmethod
+    def _stage_error(x: ca.MX, x_ref: ca.MX) -> ca.MX:
+        """Reduced 9-vector error ``[q_err_vec(3), omega_err(3), h_w_err(3)]`` matching the LQR layout."""
+        q_err = quaternion_product(x[MODEL.q], quaternion_conjugate(x_ref[MODEL.q]))
+        q_err_vec = q_err[:3] * ca.sign(q_err[3])
+        omega_err = x[MODEL.omega] - x_ref[MODEL.omega]
+        h_w_err = x[MODEL.h_w] - x_ref[MODEL.h_w]
+        return ca.vertcat(q_err_vec, omega_err, h_w_err)
+
+    def _add_actuator_constraints(self, opti: ca.Opti, var_x: ca.MX, var_u: ca.MX, p_b_eci: ca.MX) -> None:
+        """Add the per-step current and wheel-speed inequality constraints."""
+        for k in range(self.n_steps):
+            i_rw = self._rw_current_map @ var_u[MODEL.u_rw, k]
+            opti.subject_to(opti.bounded(-self._i_rw_max, i_rw, self._i_rw_max))
+
+            b_body = quaternion_rotation(var_x[MODEL.q, k], cast("ca.SX", p_b_eci))
+            dipole = ca.cross(b_body, var_u[MODEL.u_mag, k]) / ca.dot(b_body, b_body)
+            i_mtq = self._mtq_current_map @ dipole
+            opti.subject_to(opti.bounded(-self._i_mtq_max, i_mtq, self._i_mtq_max))
+
+            h_w = var_x[MODEL.h_w, k + 1]
+            omega = var_x[MODEL.omega, k + 1]
+            speed = self._wheel_speed_from_h @ h_w - self._wheel_speed_from_omega @ omega
+            opti.subject_to(opti.bounded(-self._omega_w_max, speed, self._omega_w_max))
+
+    def _setup_opti(self) -> None:
+        """Build the MPC program once: shooting constraints, tracking cost and actuator constraints."""
+        n = self.n_steps
+        opti = ca.Opti()
+
+        var_x = opti.variable(10, n + 1)
+        var_u = opti.variable(6, n)
+        p_x0 = opti.parameter(10)
+        p_b_eci = opti.parameter(3)
+        p_x_ref = opti.parameter(10, n + 1)
+
+        q_mat, r_mat, qf_mat = ca.DM(self.Q), ca.DM(self.R), ca.DM(self.Qf)
+
+        cost = 0
+        for k in range(n):
+            opti.subject_to(var_x[:, k + 1] == self.F(var_x[:, k], var_u[:, k], p_b_eci))
+            e_k = self._stage_error(var_x[:, k], p_x_ref[:, k])
+            cost += e_k.T @ q_mat @ e_k + var_u[:, k].T @ r_mat @ var_u[:, k]
+
+        e_n = self._stage_error(var_x[:, n], p_x_ref[:, n])
+        cost += e_n.T @ qf_mat @ e_n
+
+        opti.subject_to(var_x[:, 0] == p_x0)
+        self._add_actuator_constraints(opti, var_x, var_u, p_b_eci)
+        opti.minimize(cost)
+        opti.solver("ipopt", {"expand": True, "print_time": False}, {"max_iter": 100, "print_level": 0, "sb": "yes"})
+
+        self.opti = opti
+        self.var_x = var_x
+        self.var_u = var_u
+        self.p_x0 = p_x0
+        self.p_b_eci = p_b_eci
+        self.p_x_ref = p_x_ref
+        self.cost = cost
+
+    def _solve(self, x0: np.ndarray, b_eci: np.ndarray, x_ref: np.ndarray) -> tuple[np.ndarray, float, bool]:
+        """Set parameters, warm-start and solve the program; return the input trajectory, cost and status.
+
+        On solver failure the last iterate is returned (so the caller still has a usable input) with a
+        ``nan`` cost; that iterate is intentionally not stored as the next warm start.
+        """
+        self.opti.set_value(self.p_x0, x0)
+        self.opti.set_value(self.p_b_eci, b_eci)
+        self.opti.set_value(self.p_x_ref, np.tile(x_ref[:, None], (1, self.n_steps + 1)))
+
+        if self._warm_start is None:
+            x_init = np.tile(x0[:, None], (1, self.n_steps + 1))
+            u_init = np.zeros((6, self.n_steps))
+        else:
+            x_prev, u_prev = self._warm_start
+            x_init = np.hstack([x_prev[:, 1:], x_prev[:, -1:]])
+            u_init = np.hstack([u_prev[:, 1:], u_prev[:, -1:]])
+        self.opti.set_initial(self.var_x, x_init)
+        self.opti.set_initial(self.var_u, u_init)
+
+        try:
+            sol = self.opti.solve()
+            x_opt = np.array(sol.value(self.var_x)).reshape(10, self.n_steps + 1)
+            u_opt = np.array(sol.value(self.var_u)).reshape(6, self.n_steps)
+            cost = float(sol.value(self.cost))
+        except RuntimeError:
+            u_opt = np.array(self.opti.debug.value(self.var_u)).reshape(6, self.n_steps)
+            return u_opt, float("nan"), False
+
+        self._warm_start = (x_opt, u_opt)
+        return u_opt, cost, True
+
+    def update(
+        self,
+        t: float,  # noqa: ARG002
+        ref: float | np.ndarray,
+        x_hat: float | np.ndarray,
+    ) -> tuple[float | np.ndarray, MPCLog]:
+        """Re-solve the MPC program at the current state and return the first input as currents."""
+        ref_arr = np.asarray(ref)
+        x = np.asarray(x_hat)
+        r = x[ESTIMATE.r]
+        v = x[ESTIMATE.v]
+        q_bi = Quaternion.from_array(x[ESTIMATE.q])
+        omega = x[ESTIMATE.omega]
+        h_w = x[ESTIMATE.h_wheel]
+
+        q_oi = orc_from_orbit(r, v)
+        q_bo_act = q_bi * q_oi.conjugate()
+
+        b_body = x[ESTIMATE.b_body]
+        b_eci = q_bi.conjugate().apply(b_body)
+
+        q_bo_ref = Quaternion.from_array(ref_arr[REFERENCE.q_des])
+        q_bi_ref = (q_bo_ref * q_oi).to_array()
+        omega_ref = q_bo_act.apply(orbital_rate(r, v)) + ref_arr[REFERENCE.omega_des]
+        h_w_ref = -self.inertia @ omega_ref
+
+        x_ref = np.concatenate((q_bi_ref, omega_ref, h_w_ref))
+        x0 = np.concatenate((q_bi.to_array(), omega, h_w))
+
+        u_opt, cost, success = self._solve(x0, b_eci, x_ref)
+
+        u_first = u_opt[:, 0]
+        tau_mtq = u_first[MODEL.u_mag]
+        tau_rw = u_first[MODEL.u_rw]
+        u = to_current_commands(
+            tau_rw=tau_rw,
+            tau_mtq=tau_mtq,
+            b_body=b_body,
+            alpha_rw=self.alpha_rw,
+            alpha_mtq=self.alpha_mtq,
+        )
+
+        return u, MPCLog(
+            tau_rw=tau_rw,
+            tau_mtq=tau_mtq,
+            cost=cost,
+            solve_success=success,
         )

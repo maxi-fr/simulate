@@ -53,8 +53,8 @@ def test_sequential_simulations_memory_leak() -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         # Run and export warmup simulation
         sim_warmup = _create_simulation(steps=100)
-        sim_warmup.run(output_dir=tmpdir, prefix="warmup", chunk_size=50)
-        sim_warmup.export_results(tmpdir, prefix="warmup")
+        sim_warmup.run(output_dir=f"{tmpdir}/warmup", chunk_size=50)
+        sim_warmup.export_results(f"{tmpdir}/warmup")
         del sim_warmup
 
     gc.collect()
@@ -68,8 +68,8 @@ def test_sequential_simulations_memory_leak() -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             for i in range(5):
                 sim = _create_simulation(steps=500)
-                sim.run(output_dir=tmpdir, prefix=f"sim_{i}", chunk_size=100)
-                sim.export_results(tmpdir, prefix=f"sim_{i}")
+                sim.run(output_dir=f"{tmpdir}/sim_{i}", chunk_size=100)
+                sim.export_results(f"{tmpdir}/sim_{i}")
                 # Explicitly delete simulation to encourage garbage collection
                 del sim
                 gc.collect()
@@ -110,8 +110,8 @@ def test_chunked_vs_unchunked_memory() -> None:
     sim_chunked.logger = tracking_logger
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        sim_chunked.run(output_dir=tmpdir, prefix="chunked", chunk_size=chunk_size)
-        sim_chunked.export_results(tmpdir, prefix="chunked")
+        sim_chunked.run(output_dir=f"{tmpdir}/chunked", chunk_size=chunk_size)
+        sim_chunked.export_results(f"{tmpdir}/chunked")
 
     # 2. Unchunked simulation run
     sim_unchunked = _create_simulation(steps=steps)
@@ -119,7 +119,7 @@ def test_chunked_vs_unchunked_memory() -> None:
     sim_unchunked.logger = tracking_logger_unchunked
 
     # Run without chunking (chunk_size=None or output_dir=None)
-    sim_unchunked.run(output_dir=None, prefix="unchunked", chunk_size=None)
+    sim_unchunked.run(output_dir=None, chunk_size=None)
 
     # In-memory size assertions
     assert tracking_logger.max_universal_logs_size <= chunk_size, (
