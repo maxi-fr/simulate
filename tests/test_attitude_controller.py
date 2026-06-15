@@ -13,7 +13,7 @@ from spacecraft.controller import (
     to_current_commands,
 )
 from spacecraft.effector import EarthGravity, MagnetorquerArray, ReactionWheelArray
-from spacecraft.frames import orc_from_orbit
+from spacecraft.frames import lvlh_from_orbit
 from spacecraft.orbit_dynamics import MU
 from spacecraft.quaternion import Quaternion
 from spacecraft.rigid_body import RigidBodyDynamics
@@ -30,7 +30,7 @@ _V0 = np.array([0.0, float(np.sqrt(MU / 7.0e6)), 0.0])  # circular velocity [m/s
 def _make_plant(*, rw_initial_omega: np.ndarray | None = None) -> tuple[RigidBodyDynamics, ReactionWheelArray]:
     """Rigid body on a LEO orbit: magnetorquers, then reaction wheels (the [i_mtq, i_rw] order), then gravity.
 
-    ``EarthGravity`` makes the integrated position follow a Keplerian orbit so the nadir (ORC) frame
+    ``EarthGravity`` makes the integrated position follow a Keplerian orbit so the nadir (LVLH) frame
     -- which the controllers reconstruct from ``x_hat``'s ``r, v`` -- evolves physically.
     """
     mtq = MagnetorquerArray(axes=_AXES, dipole_constant=_KM, time_constant=0.3, max_current=50.0, b_field_model=_B_BODY)
@@ -50,8 +50,8 @@ def _make_plant(*, rw_initial_omega: np.ndarray | None = None) -> tuple[RigidBod
 
 
 def _nadir_angle(dynamics: RigidBodyDynamics) -> float:
-    """Geodesic angle [rad] between the body attitude and the nadir (ORC) frame from the plant state."""
-    q_oi = orc_from_orbit(dynamics.x[0:3], dynamics.x[3:6])
+    """Geodesic angle [rad] between the body attitude and the nadir (LVLH) frame from the plant state."""
+    q_oi = lvlh_from_orbit(dynamics.x[0:3], dynamics.x[3:6])
     q_err = Quaternion.from_array(dynamics.x[6:10]).error_to(q_oi)  # desired q_bo = identity (nadir)
     return float(2.0 * np.arctan2(np.linalg.norm(q_err.vec), abs(q_err.scalar)))
 
@@ -108,9 +108,9 @@ def _quaternion_controller(*, k_m: float) -> QuaternionFeedbackController:
 
 def test_quaternion_feedback_drives_attitude_error_to_zero() -> None:
     dynamics, rw = _make_plant()
-    # Start ~10 deg off nadir (a small body-frame offset from the ORC frame).
+    # Start ~10 deg off nadir (a small body-frame offset from the LVLH frame).
     offset = Quaternion.from_array(np.array([0.06, -0.05, 0.04, 1.0]))
-    q0 = offset * orc_from_orbit(_R0, _V0)
+    q0 = offset * lvlh_from_orbit(_R0, _V0)
     dynamics.x[6:10] = q0.to_array() / np.linalg.norm(q0.to_array())
 
     ref = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])  # q_bo = identity (nadir), zero orbit-relative rate
@@ -129,7 +129,7 @@ def test_quaternion_feedback_drives_attitude_error_to_zero() -> None:
 def test_quaternion_feedback_dumping_bounds_wheel_momentum() -> None:
     # Spin the wheels up so there is momentum to dump.
     dynamics, rw = _make_plant(rw_initial_omega=np.array([200.0, -150.0, 100.0]))
-    dynamics.x[6:10] = orc_from_orbit(_R0, _V0).to_array()  # start pointed at nadir
+    dynamics.x[6:10] = lvlh_from_orbit(_R0, _V0).to_array()  # start pointed at nadir
     ref = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])
     controller = _quaternion_controller(k_m=5e-4)
 
@@ -234,9 +234,9 @@ def _mpc_kwargs(**actuator_limits: object) -> dict:
 
 def test_mpc_drives_attitude_error_to_zero() -> None:
     dynamics, rw = _make_plant()
-    # Start ~10 deg off nadir (a small body-frame offset from the ORC frame).
+    # Start ~10 deg off nadir (a small body-frame offset from the LVLH frame).
     offset = Quaternion.from_array(np.array([0.06, -0.05, 0.04, 1.0]))
-    q0 = offset * orc_from_orbit(_R0, _V0)
+    q0 = offset * lvlh_from_orbit(_R0, _V0)
     dynamics.x[6:10] = q0.to_array() / np.linalg.norm(q0.to_array())
 
     ref = np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0])  # q_bo = identity (nadir), zero orbit-relative rate
@@ -290,7 +290,7 @@ def test_mpc_respects_actuator_current_limits() -> None:
 
     # A large attitude error would drive an unconstrained controller well past the limits.
     offset = Quaternion.from_array(np.array([0.3, -0.25, 0.2, 1.0]))
-    q0 = offset * orc_from_orbit(_R0, _V0)
+    q0 = offset * lvlh_from_orbit(_R0, _V0)
     x_hat = np.concatenate([_R0, _V0, q0.to_array() / np.linalg.norm(q0.to_array()), np.zeros(3), _B_BODY, np.zeros(3)])
 
     u, log = controller.update(0.0, ref, x_hat)
@@ -318,7 +318,7 @@ def test_mpc_respects_wheel_speed_limit() -> None:
 
     # Start near nadir but with the wheels already spun up close to the speed limit.
     h_w = wheel_inertia * np.array([45.0, -45.0, 45.0])
-    x_hat = np.concatenate([_R0, _V0, orc_from_orbit(_R0, _V0).to_array(), np.zeros(3), _B_BODY, h_w])
+    x_hat = np.concatenate([_R0, _V0, lvlh_from_orbit(_R0, _V0).to_array(), np.zeros(3), _B_BODY, h_w])
 
     _, log = controller.update(0.0, ref, x_hat)
 

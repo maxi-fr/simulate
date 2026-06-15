@@ -36,7 +36,7 @@ from simulate.dynamics import Dynamics
 from simulate.integrator import Integrator
 
 from .effector import Effector, RigidBodyState
-from .frames import eci_attitude_from_orc
+from .frames import eci_attitude_from_lvlh
 from .orbit_dynamics import SGP4
 from .quaternion import Quaternion, QuaternionRK4
 from .signals import BASE_STATES, STATE
@@ -144,21 +144,36 @@ class RigidBodyDynamics(Dynamics[NoLog]):
 
         init = config.get("initial_state")
         if init is not None:
-            epoch = datetime.datetime.fromisoformat(init["epoch"])
-            r0, v0 = SGP4.from_tle(*init["tle"]).propagate(epoch)
-            att = init["attitude_orc"]
-            q_bi, omega0 = eci_attitude_from_orc(
-                r0,
-                v0,
-                roll=att["roll"],
-                pitch=att["pitch"],
-                yaw=att["yaw"],
-                omega_bo=init["angular_velocity_orc"],
-            )
-            instance.x[STATE.r] = r0
-            instance.x[STATE.v] = v0
-            instance.x[STATE.q] = q_bi.to_array()
-            instance.x[STATE.omega] = omega0
+            if "attitude_lvlh" in init:
+                if "tle" in init:
+                    epoch = datetime.datetime.fromisoformat(init["epoch"])
+                    r0, v0 = SGP4.from_tle(*init["tle"]).propagate(epoch)
+                else:
+                    r0 = np.asarray(init["r"], dtype=float)
+                    v0 = np.asarray(init["v"], dtype=float)
+
+                att = init["attitude_lvlh"]
+                q_bi, omega0 = eci_attitude_from_lvlh(
+                    r0,
+                    v0,
+                    roll=att["roll"],
+                    pitch=att["pitch"],
+                    yaw=att["yaw"],
+                    omega_bo=init["angular_velocity_lvlh"],
+                )
+                instance.x[STATE.r] = r0
+                instance.x[STATE.v] = v0
+                instance.x[STATE.q] = q_bi.to_array()
+                instance.x[STATE.omega] = omega0
+            else:
+                if "r" in init:
+                    instance.x[STATE.r] = np.asarray(init["r"], dtype=float)
+                if "v" in init:
+                    instance.x[STATE.v] = np.asarray(init["v"], dtype=float)
+                if "q" in init:
+                    instance.x[STATE.q] = np.asarray(init["q"], dtype=float)
+                if "omega" in init:
+                    instance.x[STATE.omega] = np.asarray(init["omega"], dtype=float)
 
         return instance
 

@@ -1,10 +1,10 @@
 import numpy as np
 
 from spacecraft.frames import (
-    eci_attitude_from_orc,
+    eci_attitude_from_lvlh,
     euler_from_quaternion,
+    lvlh_from_orbit,
     orbital_rate,
-    orc_from_orbit,
     quaternion_from_euler,
 )
 from spacecraft.quaternion import Quaternion
@@ -16,29 +16,29 @@ _R_ECI = np.array([_RADIUS, 0.0, 0.0])
 _V_ECI = np.array([0.0, _SPEED, 0.0])
 
 
-def test_orc_nadir_points_at_earth() -> None:
-    q = orc_from_orbit(_R_ECI, _V_ECI)
+def test_lvlh_nadir_points_at_earth() -> None:
+    q = lvlh_from_orbit(_R_ECI, _V_ECI)
 
-    # The ORC z axis (3rd row of the inertial->ORC matrix) is nadir == -r_hat.
+    # The LVLH z axis (3rd row of the inertial->LVLH matrix) is nadir == -r_hat.
     nadir_inertial = -_R_ECI / np.linalg.norm(_R_ECI)
-    z_orc_in_body = q.apply(nadir_inertial)
-    np.testing.assert_allclose(z_orc_in_body, np.array([0.0, 0.0, 1.0]), atol=1e-9)
+    z_lvlh_in_body = q.apply(nadir_inertial)
+    np.testing.assert_allclose(z_lvlh_in_body, np.array([0.0, 0.0, 1.0]), atol=1e-9)
 
 
-def test_orc_matrix_is_orthonormal_right_handed() -> None:
-    matrix = orc_from_orbit(_R_ECI, _V_ECI).to_rot_mat()
+def test_lvlh_matrix_is_orthonormal_right_handed() -> None:
+    matrix = lvlh_from_orbit(_R_ECI, _V_ECI).to_rot_mat()
 
     np.testing.assert_allclose(matrix @ matrix.T, np.eye(3), atol=1e-9)
     np.testing.assert_allclose(np.linalg.det(matrix), 1.0, atol=1e-9)
 
 
 def test_orbital_rate_matches_mean_motion() -> None:
-    omega_orc = orbital_rate(_R_ECI, _V_ECI)
+    omega_lvlh = orbital_rate(_R_ECI, _V_ECI)
 
     expected_magnitude = _SPEED / _RADIUS  # circular orbit mean motion
-    np.testing.assert_allclose(np.linalg.norm(omega_orc), expected_magnitude, rtol=1e-12)
-    # Orbital angular velocity (+orbit normal) maps onto the ORC -y (pitch) axis.
-    np.testing.assert_allclose(omega_orc, np.array([0.0, -expected_magnitude, 0.0]), atol=1e-9)
+    np.testing.assert_allclose(np.linalg.norm(omega_lvlh), expected_magnitude, rtol=1e-12)
+    # Orbital angular velocity (+orbit normal) maps onto the LVLH -y (pitch) axis.
+    np.testing.assert_allclose(omega_lvlh, np.array([0.0, -expected_magnitude, 0.0]), atol=1e-9)
 
 
 def test_euler_round_trip() -> None:
@@ -66,24 +66,24 @@ def test_error_to_identity_for_equal() -> None:
     np.testing.assert_allclose(abs(q_err.scalar), 1.0, atol=1e-12)
 
 
-def test_eci_attitude_from_orc_nadir_at_rest() -> None:
-    # Zero ORC-relative attitude and rate => body aligned with ORC, rate == orbital feedforward.
-    q_bi, omega = eci_attitude_from_orc(_R_ECI, _V_ECI, roll=0.0, pitch=0.0, yaw=0.0, omega_bo=np.zeros(3))
+def test_eci_attitude_from_lvlh_nadir_at_rest() -> None:
+    # Zero LVLH-relative attitude and rate => body aligned with LVLH, rate == orbital feedforward.
+    q_bi, omega = eci_attitude_from_lvlh(_R_ECI, _V_ECI, roll=0.0, pitch=0.0, yaw=0.0, omega_bo=np.zeros(3))
 
-    q_bo = q_bi * orc_from_orbit(_R_ECI, _V_ECI).conjugate()
+    q_bo = q_bi * lvlh_from_orbit(_R_ECI, _V_ECI).conjugate()
     np.testing.assert_allclose(q_bo.to_rot_mat(), np.eye(3), atol=1e-9)
     np.testing.assert_allclose(omega, orbital_rate(_R_ECI, _V_ECI), atol=1e-9)
 
 
-def test_eci_attitude_from_orc_round_trips_orc_attitude() -> None:
-    # The ORC-relative attitude/rate fed in are recovered from the resulting inertial state.
+def test_eci_attitude_from_lvlh_round_trips_lvlh_attitude() -> None:
+    # The LVLH-relative attitude/rate fed in are recovered from the resulting inertial state.
     roll, pitch, yaw = 5.0, -12.0, 30.0
-    omega_bo = np.array([0.01, -0.02, 0.03])  # deg/s, body wrt ORC
-    q_bi, omega = eci_attitude_from_orc(
+    omega_bo = np.array([0.01, -0.02, 0.03])  # deg/s, body wrt LVLH
+    q_bi, omega = eci_attitude_from_lvlh(
         _R_ECI, _V_ECI, roll=roll, pitch=pitch, yaw=yaw, omega_bo=omega_bo, degrees=True
     )
 
-    q_bo = q_bi * orc_from_orbit(_R_ECI, _V_ECI).conjugate()
+    q_bo = q_bi * lvlh_from_orbit(_R_ECI, _V_ECI).conjugate()
     pitch_b, roll_b, yaw_b = euler_from_quaternion(q_bo, degrees=True)
     np.testing.assert_allclose([roll_b, pitch_b, yaw_b], [roll, pitch, yaw], atol=1e-9)
 

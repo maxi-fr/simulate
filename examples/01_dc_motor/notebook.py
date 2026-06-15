@@ -8,6 +8,14 @@ app = marimo.App(width="medium")
 
 @app.cell
 def _():
+    import sys
+    from pathlib import Path
+
+    # Add workspace root to sys.path to allow importing 'examples' package
+    workspace_root = str(Path(__file__).resolve().parents[2])
+    if workspace_root not in sys.path:
+        sys.path.append(workspace_root)
+
     import marimo as mo
     import matplotlib.pyplot as plt
     import polars as pl

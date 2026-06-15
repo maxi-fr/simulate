@@ -5,15 +5,15 @@ from pathlib import Path
 import numpy as np
 
 from simulate.simulation import Simulation
-from spacecraft.frames import orc_from_orbit
+from spacecraft.frames import lvlh_from_orbit
 from spacecraft.quaternion import Quaternion
 
-_CONFIG = Path(__file__).resolve().parents[1] / "examples" / "03_nadir_pointing.yaml"
+_CONFIG = Path(__file__).resolve().parents[1] / "examples" / "03_satellite" / "quat_feedback.yaml"
 
 
 def _nadir_angle(x: np.ndarray) -> float:
     """Body-vs-nadir geodesic angle [rad] from a full rigid-body state."""
-    q_err = Quaternion.from_array(x[6:10]).error_to(orc_from_orbit(x[0:3], x[3:6]))
+    q_err = Quaternion.from_array(x[6:10]).error_to(lvlh_from_orbit(x[0:3], x[3:6]))
     return float(2.0 * np.arctan2(np.linalg.norm(q_err.vec), abs(q_err.scalar)))
 
 

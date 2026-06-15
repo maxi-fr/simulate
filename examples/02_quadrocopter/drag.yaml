@@ -1,0 +1,36 @@
+t_end: 5.0
+
+dynamics:
+  class_path: spacecraft.rigid_body.RigidBodyDynamics
+  dt: 0.01
+  mass: 1.5
+  inertia: [0.015, 0.015, 0.03]
+  initial_state:
+    v: [5.0, 0.0, 0.0]
+    omega: [0.0, 2.0, 0.0]
+  effectors:
+    - class_path: examples.02_quadrocopter.quadrocopter.FlatGravity
+      gravity_acceleration: [0.0, 0.0, -9.81]
+    - class_path: examples.02_quadrocopter.quadrocopter.AerodynamicDragQuad
+      c_d: 0.2
+      c_rot: 0.1
+
+reference:
+  class_path: simulate.reference.StepReference
+  dt: 0.01
+  step_value: 0.0
+
+sensors:
+  - class_path: simulate.sensor.GaussianSensor
+    dt: 0.01
+    std_dev: 0.002
+    measurement:
+      class_path: spacecraft.measurement.rigid_body_rate
+
+estimator:
+  class_path: simulate.estimator.IdentityEstimator
+  dt: 0.01
+
+controller:
+  class_path: examples.02_quadrocopter.quadrocopter.ZeroController
+  dt: 0.01
