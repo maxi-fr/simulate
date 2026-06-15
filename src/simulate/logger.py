@@ -195,7 +195,7 @@ class Logger:
 
         self._write_idx += 1
 
-    def flush_chunk(self, directory: str | Path, prefix: str = "sim", *, compress: bool | None = None) -> None:
+    def flush_chunk(self, directory: str | Path, prefix: str = "log", *, compress: bool | None = None) -> None:
         """
         Write current in-memory buffers to a numbered chunk file, then clear them.
 
@@ -233,7 +233,7 @@ class Logger:
         self._component_lists.clear()
 
     @staticmethod
-    def merge_chunks(directory: str | Path, prefix: str = "sim", *, compress: bool = False) -> None:
+    def merge_chunks(directory: str | Path, prefix: str = "log", *, compress: bool = False) -> None:
         """Concatenate all chunk files for *prefix* into a single {prefix}.npz file.
 
         No-op when no chunk files are found. Individual chunk files are deleted

@@ -1,4 +1,5 @@
 import multiprocessing
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -34,8 +35,11 @@ def _run_worker(task: tuple[dict[str, Any], Path, str, int | None, bool]) -> boo
 class ExperimentManager:
     """Manager for batch simulation execution using multiprocessing."""
 
-    def __init__(self, output_dir: str | Path = "results") -> None:
+    def __init__(self, output_dir: str | Path | None = None) -> None:
         """Initialize the experiment manager."""
+        if output_dir is None:
+            local_now = datetime.now(UTC).astimezone()
+            output_dir = f"results/experiment_{local_now.strftime('%Y-%m-%d_%H-%M-%S')}"
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 

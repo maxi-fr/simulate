@@ -1,3 +1,5 @@
+import re
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -115,3 +117,17 @@ def test_single_simulation_from_config_with_single_elements() -> None:
     sim.run()
     assert sim.dynamics.dt == 0.01
     assert len(sim.sensors) == 1
+
+
+def test_experiment_manager_default_output_dir() -> None:
+    """Verify that the default output directory is named experiment_<current_datetime>."""
+    manager = ExperimentManager()
+    output_path = manager.output_dir
+    try:
+        assert output_path.exists()
+        name = output_path.name
+        pattern = r"^experiment_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$"
+        assert re.match(pattern, name) is not None
+    finally:
+        if output_path.exists():
+            shutil.rmtree(output_path)

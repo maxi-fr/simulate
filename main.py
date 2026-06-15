@@ -1,5 +1,6 @@
 import argparse
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 from simulate.config import deep_merge, load_config
@@ -11,9 +12,8 @@ def main() -> None:
     """Execute the main entry point for the simulation CLI."""
     parser = argparse.ArgumentParser(description="Modular Python Framework for Control System Simulation")
     parser.add_argument(
-        "--config",
+        "config_file",
         type=str,
-        required=True,
         help="Path to the YAML configuration file.",
     )
     parser.add_argument(
@@ -25,8 +25,8 @@ def main() -> None:
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="results",
-        help="Directory to save simulation results (default: results).",
+        default=None,
+        help="Directory to save simulation results (default: simulation_<current_datetime>).",
     )
     parser.add_argument(
         "--compress",
@@ -36,7 +36,7 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    config_path = Path(args.config)
+    config_path = Path(args.config_file)
     if not config_path.exists():
         sys.exit(1)
 
@@ -44,8 +44,14 @@ def main() -> None:
 
     chunk_size = args.chunk_size if args.chunk_size > 0 else None
 
+    if args.output_dir is None:
+        local_now = datetime.now(UTC).astimezone()
+        output_dir_str = f"results/simulation_{local_now.strftime('%Y-%m-%d_%H-%M-%S')}"
+    else:
+        output_dir_str = args.output_dir
+
     if "experiments" in config:
-        manager = ExperimentManager(output_dir=args.output_dir)
+        manager = ExperimentManager(output_dir=output_dir_str)
 
         raw_configs = config["experiments"]
         if not raw_configs:
@@ -57,10 +63,10 @@ def main() -> None:
 
         manager.run_batch(configs, chunk_size=chunk_size, compress=args.compress)
     else:
-        output_dir = Path(args.output_dir)
+        output_dir = Path(output_dir_str)
         sim = Simulation.from_config(config)
-        sim.run(output_dir=output_dir, prefix="sim", chunk_size=chunk_size, compress=args.compress)
-        sim.export_results(output_dir, prefix="sim", compress=args.compress)
+        sim.run(output_dir=output_dir, prefix="log", chunk_size=chunk_size, compress=args.compress)
+        sim.export_results(output_dir, prefix="log", compress=args.compress)
 
 
 if __name__ == "__main__":

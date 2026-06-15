@@ -128,7 +128,7 @@ class Simulation:
     def run(
         self,
         output_dir: str | Path | None = None,
-        prefix: str = "sim",
+        prefix: str = "log",
         chunk_size: int | None = 10_000,
         *,
         compress: bool = False,
