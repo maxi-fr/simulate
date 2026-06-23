@@ -1,10 +1,13 @@
+import contextlib
 import dataclasses
+import zipfile
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import numpy.typing as npt
+from numpy.lib.format import open_memmap
 
 from .component import NoLog
 
@@ -224,7 +227,7 @@ class Logger:
         if arrays_to_save:
             save_fn(
                 dir_path / f"{prefix}_chunk_{self._chunk_idx:04d}.npz",
-                **arrays_to_save,  # ty: ignore[invalid-argument-type]
+                **arrays_to_save,  # type: ignore[arg-type]
             )
 
         self._chunk_idx += 1
@@ -233,7 +236,7 @@ class Logger:
         self._component_lists.clear()
 
     @staticmethod
-    def merge_chunks(directory: str | Path, prefix: str = "log", *, compress: bool = False) -> None:
+    def merge_chunks(directory: str | Path, prefix: str = "log", *, compress: bool = False) -> None:  # noqa: C901
         """Concatenate all chunk files for *prefix* into a single {prefix}.npz file.
 
         No-op when no chunk files are found. Individual chunk files are deleted
@@ -244,16 +247,63 @@ class Logger:
         if not chunk_files:
             return
 
-        combined: dict[str, list[np.ndarray]] = {}
+        # 1. Inspect first chunk file to get keys, dtypes, and shapes
+        with np.load(chunk_files[0]) as data:
+            keys = list(data.files)
+            if not keys:
+                return
+            dtypes = {key: data[key].dtype for key in keys}
+            sub_shapes = {key: data[key].shape[1:] for key in keys}
+
+        # 2. Compute total length along axis 0 for each key
+        total_lengths = dict.fromkeys(keys, 0)
         for chunk_file in chunk_files:
             with np.load(chunk_file) as data:
-                for key in data.files:
-                    combined.setdefault(key, []).append(data[key].copy())
+                for key in keys:
+                    total_lengths[key] += data[key].shape[0]
 
-        merged = {key: np.concatenate(arrays, axis=0) for key, arrays in combined.items()}
+        # 3. Create temporary memory-mapped .npy files for each key and concatenate on disk
+        temp_files: dict[str, Path] = {}
+        try:
+            for key in keys:
+                total_shape = (total_lengths[key], *sub_shapes[key])
+                temp_path = dir_path / f"{prefix}_merge_{key}.npy.tmp"
+                temp_files[key] = temp_path
 
-        save_fn = np.savez_compressed if compress else np.savez
-        save_fn(dir_path / f"{prefix}.npz", **merged)  # ty: ignore[invalid-argument-type]
+                # Create the memory-mapped file with the proper NPY header
+                mmap_arr = open_memmap(
+                    temp_path,
+                    mode="w+",
+                    dtype=dtypes[key],
+                    shape=total_shape,
+                )
 
+                # Append chunk data incrementally
+                offset = 0
+                for chunk_file in chunk_files:
+                    with np.load(chunk_file) as data:
+                        arr = data[key]
+                        chunk_len = arr.shape[0]
+                        mmap_arr[offset : offset + chunk_len] = arr
+                        offset += chunk_len
+
+                mmap_arr.flush()
+                del mmap_arr
+
+            # 4. Package all the temporary .npy files into the final .npz zip file
+            zip_path = dir_path / f"{prefix}.npz"
+            zip_mode = zipfile.ZIP_DEFLATED if compress else zipfile.ZIP_STORED
+            with zipfile.ZipFile(zip_path, mode="w", compression=zip_mode) as zip_file:
+                for key, temp_path in temp_files.items():
+                    zip_file.write(temp_path, arcname=f"{key}.npy")
+
+        finally:
+            # 5. Clean up temporary files
+            for temp_path in temp_files.values():
+                if temp_path.exists():
+                    with contextlib.suppress(Exception):
+                        temp_path.unlink()
+
+        # 6. Delete the chunk files after a successful merge
         for chunk_file in chunk_files:
             chunk_file.unlink()
