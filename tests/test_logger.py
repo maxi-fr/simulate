@@ -122,3 +122,55 @@ def test_logger_multiple_chunks(tmp_path: Path) -> None:
     assert chunk1["universal_t"][0] == 1.0
     assert len(chunk0["universal_t"]) == 1
     assert len(chunk1["universal_t"]) == 1
+
+
+def test_logger_merge_chunks_memory_efficient(tmp_path: Path) -> None:
+    """Test that merge_chunks can handle large multi-dimensional arrays memory-efficiently."""
+    logger = Logger()
+
+    # Create several chunks with a multi-dimensional array
+    # We will simulate `universal_x` having shape (6, 76)
+    x_shape = (6, 76)
+
+    for i in range(3):
+        x_val = np.full(x_shape, float(i))
+        universal = UniversalLog(t=float(i), x=x_val, y_mea=float(i), x_hat=float(i), u=float(i), ref=float(i))
+        logger.log(universal, {})
+        # Log another point to make chunk length > 1
+        x_val2 = np.full(x_shape, float(i) + 0.5)
+        universal2 = UniversalLog(
+            t=float(i) + 0.5, x=x_val2, y_mea=float(i) + 0.5, x_hat=float(i) + 0.5, u=float(i) + 0.5, ref=float(i) + 0.5
+        )
+        logger.log(universal2, {})
+
+        logger.flush_chunk(tmp_path, prefix="test")
+
+    # At this point, we should have 3 chunk files, each with 2 rows.
+    # Total shape of merged universal_x should be (6, 6, 76)
+
+    Logger.merge_chunks(tmp_path, prefix="test", compress=True)
+
+    merged_file = tmp_path / "test.npz"
+    assert merged_file.exists()
+
+    # Ensure temporary files were deleted
+    temp_files = list(tmp_path.glob("*.npy.tmp"))
+    assert not temp_files
+
+    # Ensure chunk files were deleted
+    chunk_files = list(tmp_path.glob("test_chunk_*.npz"))
+    assert not chunk_files
+
+    data = np.load(merged_file)
+    assert "universal_x" in data
+
+    x_merged = data["universal_x"]
+    assert x_merged.shape == (6, 6, 76)
+
+    # Verify the contents
+    assert np.all(x_merged[0] == 0.0)
+    assert np.all(x_merged[1] == 0.5)
+    assert np.all(x_merged[2] == 1.0)
+    assert np.all(x_merged[3] == 1.5)
+    assert np.all(x_merged[4] == 2.0)
+    assert np.all(x_merged[5] == 2.5)

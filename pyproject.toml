@@ -31,6 +31,9 @@ dev = [
     "marimo>=0.23.6",
     "scalene>=2.3.0",
     "ty>=0.0.46",
+    "mypy>=2.1.0",
+    "types-pyyaml>=6.0.12.20260508",
+    "types-tqdm>=4.68.0.20260608",
 ]
 spacecraft = [
     "astropy>=7.2.0",
