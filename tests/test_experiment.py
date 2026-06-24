@@ -44,11 +44,10 @@ def get_base_config() -> dict[str, Any]:
             "dt": 0.01,
         },
         "controller": {
-            "class_path": "simulate.controller.PIDController",
+            "class_path": "simulate.controller.PIController",
             "dt": 0.01,
             "kp": [[1.0]],
             "ki": [[0.0]],
-            "kd": [[0.0]],
         },
     }
 

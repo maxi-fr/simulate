@@ -188,7 +188,7 @@ class Simulation:
                     self.logger.flush_chunk(output_dir, prefix)
 
                 t += self.dt
-                pbar.update(self.dt / divisor)
+                pbar.update(min(self.dt / divisor, max(0.0, self.t_end / divisor - pbar.n)))
 
     def export_results(self, directory: str | Path, prefix: str = "sim", *, compress: bool = False) -> None:
         """Flush remaining in-memory data then merge all chunks into {prefix}.npz."""

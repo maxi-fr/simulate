@@ -1,9 +1,12 @@
 import abc
-from typing import Any, Self
+import importlib
+from typing import Any, Self, cast
 
 import numpy as np
+from numpy.typing import ArrayLike
 
 from .component import Component, NoLog
+from .integrator import Integrator
 
 
 class Estimator[L](Component[L], abc.ABC):
@@ -61,3 +64,91 @@ class IdentityEstimator(Estimator[NoLog]):
         """
         res = y_mea.copy() if isinstance(y_mea, np.ndarray) else y_mea
         return res, NoLog()
+
+
+class LuenbergerObserver(Estimator[NoLog]):
+    """Model-based linear observer ``x_hat_dot = A x_hat + B u + L (y - C x_hat)``.
+
+    Reconstructs the full state from a (partial, noisy) measurement using a state-space model and
+    the observer gain ``L``. Mirroring :class:`~simulate.dynamics.LinearDynamics`, ``A``, ``B`` and
+    ``L`` are interpreted as continuous-time matrices and the observer ODE is integrated over ``dt``
+    when an ``integrator`` is given; without one they describe the discrete update directly. The
+    observer gain itself is designed by the caller (e.g. pole placement) and passed in.
+    """
+
+    def __init__(  # noqa: PLR0913
+        self,
+        dt: float,
+        A: ArrayLike,  # noqa: N803
+        B: ArrayLike,  # noqa: N803
+        C: ArrayLike,  # noqa: N803
+        L: ArrayLike,  # noqa: N803
+        integrator: Integrator | None = None,
+    ) -> None:
+        """Initialize the observer from the model matrices, observer gain and optional integrator."""
+        super().__init__(dt)
+        self.a = np.atleast_2d(A)
+        self.b = np.atleast_2d(B)
+        self.c = np.atleast_2d(C)
+        self.l = np.atleast_2d(L)
+        self.integrator = integrator
+
+        self.x_hat = np.zeros(self.a.shape[0], dtype=float)
+        self._y = np.zeros(self.c.shape[0], dtype=float)
+
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> Self:
+        """Instantiate the component from a raw configuration dictionary."""
+        integrator = config.get("integrator")
+        if isinstance(integrator, str):
+            module_name, func_name = integrator.rsplit(".", 1)
+            module = importlib.import_module(module_name)
+            integrator = getattr(module, func_name)
+
+        return cls(
+            dt=float(config["dt"]),
+            A=config["A"],
+            B=config["B"],
+            C=config["C"],
+            L=config["L"],
+            integrator=integrator,
+        )
+
+    def _rhs(self, t: float, x_hat: np.ndarray, u: np.ndarray) -> np.ndarray:  # noqa: ARG002
+        """Observer kernel ``A x_hat + B u + L (y - C x_hat)`` using the measurement held in ``_y``."""
+        return cast("np.ndarray", self.a @ x_hat + self.b @ u + self.l @ (self._y - self.c @ x_hat))
+
+    def update(
+        self,
+        t: float,
+        y_mea: float | np.ndarray,
+        u: float | np.ndarray,
+    ) -> tuple[float | np.ndarray, NoLog]:
+        """
+        Advance the observer one step and return the state estimate.
+
+        Parameters
+        ----------
+        t : float
+            Simulation time.
+        y_mea : float or numpy.ndarray
+            Measured output vector.
+        u : float or numpy.ndarray
+            Control input vector.
+
+        Returns
+        -------
+        x_hat : numpy.ndarray
+            Updated full-state estimate.
+        log : NoLog
+            Empty log placeholder.
+        """
+        self._y = np.atleast_1d(y_mea)
+        u_arr = np.atleast_1d(u)
+
+        if self.integrator is not None:
+            self.x_hat = self.integrator(self._rhs, t, self.dt, self.x_hat, u_arr)
+        else:
+            self.x_hat = self._rhs(t, self.x_hat, u_arr)
+
+        return self.x_hat, NoLog()

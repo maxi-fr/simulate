@@ -61,8 +61,8 @@ simulate/
 │   │   ├── component.py     #   Component base class
 │   │   ├── dynamics.py      #   Dynamics + LinearDynamics
 │   │   ├── sensor.py        #   Sensor + GaussianSensor, RandomWalkBiasSensor, LinearMeasurement
-│   │   ├── estimator.py     #   Estimator + IdentityEstimator
-│   │   ├── controller.py    #   Controller + PIDController
+│   │   ├── estimator.py     #   Estimator + IdentityEstimator, LuenbergerObserver
+│   │   ├── controller.py    #   Controller, PIController
 │   │   ├── reference.py     #   Reference + StepReference
 │   │   ├── integrator.py    #   euler / midpoint / rk4
 │   │   ├── logger.py        #   Universal + per-component logging
@@ -153,11 +153,10 @@ estimator:
   class_path: "simulate.estimator.IdentityEstimator"
   dt: 0.01
 controller:
-  class_path: "simulate.controller.PIDController"
+  class_path: "simulate.controller.PIController"
   dt: 0.01
   kp: [[5.0]]
   ki: [[2.0]]
-  kd: [[0.5]]
 ```
 
 ### Development
@@ -224,7 +223,8 @@ slow sensors/controllers compose with fast dynamics automatically.
 | Sensor | `GaussianSensor` — additive $\mathcal{N}(0,\sigma^2)$ noise | [`sensor.py`](src/simulate/sensor.py) |
 | Sensor | `RandomWalkBiasSensor` — Gaussian noise + random-walk bias | [`sensor.py`](src/simulate/sensor.py) |
 | Estimator | `IdentityEstimator` — pass-through $\hat{x}_k=\tilde{y}_k$ | [`estimator.py`](src/simulate/estimator.py) |
-| Controller | `PIDController` — matrix-gain PID | [`controller.py`](src/simulate/controller.py) |
+| Estimator | `LuenbergerObserver` — model-based $\dot{\hat{x}}=A\hat{x}+Bu+L(y-C\hat{x})$ | [`estimator.py`](src/simulate/estimator.py) |
+| Controller | `PIController` — matrix-gain PI | [`controller.py`](src/simulate/controller.py) |
 | Reference | `StepReference` — step at a start time | [`reference.py`](src/simulate/reference.py) |
 | Integrators | `euler`, `midpoint`, `rk4` | [`integrator.py`](src/simulate/integrator.py) |
 
@@ -274,7 +274,7 @@ the universal logs; use `simulate.component.NoLog` when there is nothing extra t
 
 For complete, idiomatic references see
 [`examples/01_dc_motor/dc_motor.py`](examples/01_dc_motor/dc_motor.py) (a custom continuous-time `Dynamics`
-and a measurement callable) and `PIDController` in
+and a measurement callable) and `PIController` in
 [`src/simulate/controller.py`](src/simulate/controller.py) (the logging-dataclass
 pattern). The matching notebook is
 [`examples/01_dc_motor/notebook.py`](examples/01_dc_motor/notebook.py).
