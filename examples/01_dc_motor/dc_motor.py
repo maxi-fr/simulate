@@ -59,9 +59,10 @@ class DCMotorDynamics(Dynamics[NoLog]):
         """Continuous-time dynamics x_dot = f(t, x, u)."""
         omega = x[0]
         i = x[1]
+        voltage = np.atleast_1d(u)[0]
 
         d_omega = (self.Kt * i - self.b * omega) / self.J
-        d_i = (-self.R * i - self.Ke * omega + u) / self.L
+        d_i = (-self.R * i - self.Ke * omega + voltage) / self.L
 
         return np.array([d_omega, d_i])
 
@@ -71,5 +72,9 @@ class DCMotorDynamics(Dynamics[NoLog]):
 
 
 def dc_motor_measurement(_t: float, x: float | np.ndarray, _u: float | np.ndarray) -> float | np.ndarray:
-    """DC motor measurement model: the full state ``[omega, i]`` is observed directly."""
-    return x
+    """DC motor measurement model: only the angular velocity ``omega`` (the first state) is observed.
+
+    The armature current ``i`` is left unmeasured; a :class:`~simulate.estimator.LuenbergerObserver`
+    reconstructs it from this single channel.
+    """
+    return np.atleast_1d(x)[0]

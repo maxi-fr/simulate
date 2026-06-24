@@ -2,11 +2,13 @@ import math
 
 import numpy as np
 import pytest
+from scipy.signal import place_poles
 
 from simulate.component import NoLog
-from simulate.controller import PIDController
+from simulate.controller import PIController
 from simulate.dynamics import LinearDynamics
-from simulate.estimator import IdentityEstimator
+from simulate.estimator import IdentityEstimator, LuenbergerObserver
+from simulate.integrator import rk4
 from simulate.reference import StepReference
 from simulate.sensor import GaussianSensor, LinearMeasurement, RandomWalkBiasSensor, full_state_measurement
 from simulate.simulation import Simulation
@@ -56,9 +58,34 @@ def test_estimator_step_logic() -> None:
     assert np.allclose(x_hat, 1.2)
 
 
+def test_luenberger_observer_reconstructs_unmeasured_state() -> None:
+    """The observer reconstructs the unmeasured second state from a first-state-only measurement."""
+    dt = 0.001
+    a = np.array([[-1.0, 50.0], [-5.0, -100.0]])
+    b = np.array([[0.0], [100.0]])
+    c = np.array([[1.0, 0.0]])
+    gain_l = place_poles(a.T, c.T, [-200.0, -300.0]).gain_matrix.T
+
+    plant = LinearDynamics(dt=dt, A=a, B=b, integrator=rk4)
+    plant.x = np.array([1.0, -0.5])  # nonzero initial state, unknown to the observer (starts at zero)
+    sensor = GaussianSensor(dt=dt, measurement=LinearMeasurement(C=c, D=[[0.0]]), std_dev=0.0)
+    observer = LuenbergerObserver(dt=dt, A=a, B=b, C=c, L=gain_l, integrator=rk4)
+
+    u = np.array([0.2])
+    x_hat: float | np.ndarray = np.zeros(2)
+    for k in range(400):
+        t = k * dt
+        y_mea, _ = sensor.evaluate(t, plant.x, u)
+        x_hat, _ = observer.evaluate(t, y_mea, u)
+        plant.evaluate(t, u)
+
+    # Both states, including the unmeasured second component, converge to the truth.
+    assert np.linalg.norm(np.asarray(x_hat) - plant.x) < 1e-2
+
+
 def test_controller_step_logic() -> None:
     """Test PI controller behavior and integration accumulation."""
-    controller = PIDController(dt=0.1, kp=[[0.5]], ki=[[0.1]], kd=[[0.0]])
+    controller = PIController(dt=0.1, kp=[[0.5]], ki=[[0.1]])
 
     ref = 1.0
     x_hat = 0.0
@@ -68,9 +95,24 @@ def test_controller_step_logic() -> None:
     assert np.allclose(log.integral, 0.1)
 
 
+def test_pi_controller_matrix_gain_feeds_back_derivative_state() -> None:
+    """A (1, 2) kp column lets the PI controller feed back an estimated derivative state."""
+    controller = PIController(dt=0.1, kp=[[1.0, 0.5]], ki=[[2.0, 0.0]])
+
+    ref = np.array([1.0, 0.0])
+    x_hat = np.array([0.0, 0.4])  # [measured output, estimated derivative state]
+    u, log = controller.evaluate(0.0, ref, x_hat)
+
+    # error = ref - x_hat = [1.0, -0.4]; integral = error * dt = [0.1, -0.04]
+    # u = kp @ error + ki @ integral = (1*1 + 0.5*-0.4) + (2*0.1 + 0*-0.04) = 0.8 + 0.2 = 1.0
+    assert np.isclose(float(np.asarray(u).item()), 1.0)
+    assert np.allclose(log.error, [1.0, -0.4])
+    assert np.allclose(log.integral, [0.1, -0.04])
+
+
 def test_component_zoh_behavior() -> None:
     """Test that a component retains its last output between scheduled updates."""
-    controller = PIDController(dt=0.2, kp=[[0.5]], ki=[[0.1]], kd=[[0.0]])
+    controller = PIController(dt=0.2, kp=[[0.5]], ki=[[0.1]])
 
     ref1 = 1.0
     x_hat1 = 0.0
@@ -93,7 +135,7 @@ def test_invalid_simulation_config_non_integer_multiple() -> None:
     reference = StepReference(dt=0.1)
     sensor = GaussianSensor(dt=0.1, measurement=full_state_measurement)
     estimator = IdentityEstimator(dt=0.1)
-    controller = PIDController(dt=0.15, kp=[[1]], ki=[[0]], kd=[[0]])
+    controller = PIController(dt=0.15, kp=[[1]], ki=[[0]])
 
     with pytest.raises(ValueError, match="must be an integer multiple"):
         Simulation(
@@ -112,7 +154,7 @@ def test_floating_point_precision_handling() -> None:
     reference = StepReference(dt=0.1)
     sensor = GaussianSensor(dt=0.1, measurement=full_state_measurement)
     estimator = IdentityEstimator(dt=0.1)
-    controller = PIDController(dt=0.3, kp=[[1]], ki=[[0]], kd=[[0]])
+    controller = PIController(dt=0.3, kp=[[1]], ki=[[0]])
 
     sim = Simulation(
         t_end=1.0,
@@ -152,7 +194,7 @@ def test_simulation_execution_and_logging() -> None:
     reference = StepReference(dt=0.1, start_time=0.5)
     sensor = GaussianSensor(dt=0.1, measurement=full_state_measurement, std_dev=0.0)
     estimator = IdentityEstimator(dt=0.1)
-    controller = PIDController(dt=0.2, kp=[[0.5]], ki=[[0.1]], kd=[[0.0]])
+    controller = PIController(dt=0.2, kp=[[0.5]], ki=[[0.1]])
 
     sim = Simulation(
         t_end=1.0,
@@ -185,7 +227,7 @@ def test_simulation_single_sensor() -> None:
     reference = StepReference(dt=0.1, start_time=0.5)
     sensor = GaussianSensor(dt=0.1, measurement=full_state_measurement, std_dev=0.0)
     estimator = IdentityEstimator(dt=0.1)
-    controller = PIDController(dt=0.2, kp=[[0.5]], ki=[[0.1]], kd=[[0.0]])
+    controller = PIController(dt=0.2, kp=[[0.5]], ki=[[0.1]])
 
     sim = Simulation(
         t_end=1.0,

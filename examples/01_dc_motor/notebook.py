@@ -2,7 +2,7 @@
 
 import marimo
 
-__generated_with = "0.23.6"
+__generated_with = "0.23.9"
 app = marimo.App(width="medium")
 
 
@@ -11,18 +11,19 @@ def _():
     import sys
     from pathlib import Path
 
+    import marimo as mo
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import yaml
+
     # Add workspace root to sys.path to allow importing 'examples' package
     workspace_root = str(Path(__file__).resolve().parents[2])
     if workspace_root not in sys.path:
         sys.path.append(workspace_root)
 
-    import marimo as mo
-    import matplotlib.pyplot as plt
-    import polars as pl
-
     from simulate.simulation import Simulation
 
-    return Simulation, mo, pl, plt
+    return Path, Simulation, mo, np, plt, yaml
 
 
 @app.cell
@@ -31,9 +32,9 @@ def _(mo):
     # DC Motor Speed Control
 
     This notebook demonstrates how to use the simulation framework to model and control a DC Motor. We will:
-    1. Implement a custom continuous-time `DCMotorDynamics` and `DCMotorOutput`.
-    2. Configure a simulation with a PID controller, Gaussian sensor noise, and a step reference.
-    3. Run the simulation and visualize the results.
+    1. Implement a custom continuous-time `DCMotorDynamics` whose only measurement is the speed $\omega$.
+    2. Reconstruct the full state $[\omega, i]$ with a model-based `LuenbergerObserver`.
+    3. Control the speed with a `PIController`, using the observed current as the damping (derivative) term.
     """)
     return
 
@@ -50,7 +51,12 @@ def _(mo):
     Where:
     - $x = [\omega, i]^T$ is the state vector (speed and armature current).
     - $u = V$ is the control input (voltage).
-    - $y = \omega$ is the measured output.
+    - $y = \omega$ is the **only** measured output — the current $i$ is *not* measured.
+
+    Because only $\omega$ is measured, a `LuenbergerObserver` reconstructs the full state from the motor
+    model. The observed current carries $\dot{\omega}$, so feeding it back through a column of the
+    proportional gain provides damping in place of a derivative term — without differentiating the noisy
+    measurement.
     """)
     return
 
@@ -65,54 +71,26 @@ def _(mo):
 
 @app.cell
 def _(mo):
-    kp = mo.ui.slider(start=0.0, stop=1.0, step=0.1, value=1.0, label="kp")
-    ki = mo.ui.slider(start=0.0, stop=2.0, step=0.1, value=2.0, label="ki")
-    kd = mo.ui.slider(start=0.0, stop=1.0, step=0.01, value=0.0, label="kd")
+    kp = mo.ui.slider(start=0.0, stop=2.0, step=0.1, value=1.0, label="kp (speed)")
+    kp_i = mo.ui.slider(start=0.0, stop=1.0, step=0.05, value=0.2, label="kp_i (current / damping)")
+    ki = mo.ui.slider(start=0.0, stop=5.0, step=0.1, value=2.0, label="ki (speed integral)")
     step_value = mo.ui.slider(start=0.0, stop=200.0, step=1.0, value=100.0, label="step_value (rad/s)")
     start_time = mo.ui.slider(start=0.0, stop=2.0, step=0.05, value=0.5, label="start_time (s)")
-    mo.vstack([kp, ki, kd, step_value, start_time])
-    return kd, ki, kp, start_time, step_value
+    mo.vstack([kp, kp_i, ki, step_value, start_time])
+    return ki, kp, kp_i, start_time, step_value
 
 
 @app.cell
-def _(kd, ki, kp, start_time, step_value):
-    config = {
-        "t_end": 2.0,
-        "dynamics": {
-            "class_path": "dc_motor.DCMotorDynamics",
-            "dt": 0.001,
-            "R": 1.0,
-            "L": 0.01,
-            "Ke": 0.05,
-            "Kt": 0.05,
-            "J": 0.001,
-            "b": 0.001,
-            "integrator": "simulate.integrator.rk4",
-        },
-        "reference": {
-            "class_path": "simulate.reference.StepReference",
-            "dt": 0.001,
-            "step_value": float(step_value.value),
-            "start_time": float(start_time.value),
-        },
-        "sensors": {
-            "class_path": "simulate.sensor.GaussianSensor",
-            "dt": 0.001,
-            "std_dev": 0.1,
-            "measurement": {"class_path": "dc_motor.dc_motor_measurement"},
-        },
-        "estimator": {
-            "class_path": "simulate.estimator.IdentityEstimator",
-            "dt": 0.001,
-        },
-        "controller": {
-            "class_path": "simulate.controller.PIDController",
-            "dt": 0.001,
-            "kp": [[float(kp.value)]],
-            "ki": [[float(ki.value)]],
-            "kd": [[float(kd.value)]],
-        },
-    }
+def _(Path, ki, kp, kp_i, start_time, step_value, yaml):
+    config_path = Path(__file__).parent / "config.yaml"
+    with config_path.open() as f:
+        config = yaml.safe_load(f)
+
+    # Overwrite slider-dependent values
+    config["reference"]["step_value"] = [float(step_value.value), 0.0]
+    config["reference"]["start_time"] = float(start_time.value)
+    config["controller"]["kp"] = [[float(kp.value), float(kp_i.value)]]
+    config["controller"]["ki"] = [[float(ki.value), 0.0]]
     return (config,)
 
 
@@ -135,34 +113,41 @@ def _(Simulation, config):
 def _(mo):
     mo.md(r"""
     ## 4. Visualizing Results
+
+    The bottom panel shows the observer reconstructing the **unmeasured** armature current from the speed
+    measurement alone — this estimate is what supplies the controller's damping term.
     """)
     return
 
 
 @app.cell
-def _(pl, plt, sim):
-    data = pl.DataFrame(sim.logger.universal_logs)
-    dynamics_data = pl.DataFrame(sim.logger.component_logs["dynamics"])
-    # The single channel logs the true speed (sensor_0 `truth`); the universal log carries the
-    # noisy measurement (`y_mea`).
-    sensor_data = pl.DataFrame(sim.logger.component_logs["sensor_0"])
+def _(np, plt, sim):
+    logs = sim.logger.universal_logs
+    t = np.array([row["t"] for row in logs])
+    x = np.array([np.asarray(row["x"]) for row in logs])  # true [omega, i]
+    x_hat = np.array([np.asarray(row["x_hat"]) for row in logs])  # observed [omega, i]
+    u = np.array([np.asarray(row["u"]) for row in logs])
+    ref = np.array([np.asarray(row["ref"]) for row in logs])
+    y_mea = np.array([np.atleast_1d(row["y_mea"]) for row in logs])
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 10))
 
-    axes[0].plot(data["t"], data["ref"], "k--", label="Reference (rad/s)")
-    axes[0].plot(sensor_data["t"], sensor_data["truth"], "b-", label="Actual Speed (rad/s)")
-    axes[0].plot(data["t"], data["y_mea"], "r.", alpha=0.1, label="Measured Speed (rad/s)")
+    axes[0].plot(t, ref[:, 0], "k--", label="Reference (rad/s)")
+    axes[0].plot(t, x[:, 0], "b-", label="Actual Speed (rad/s)")
+    axes[0].plot(t, y_mea[:, 0], "r.", alpha=0.1, label="Measured Speed (rad/s)")
+    axes[0].plot(t, x_hat[:, 0], "c-", lw=1, label="Observed Speed (rad/s)")
     axes[0].set_title("DC Motor Speed Control")
     axes[0].set_ylabel("Speed (rad/s)")
     axes[0].legend()
     axes[0].grid(visible=True)
 
-    axes[1].plot(data["t"], data["u"], "m-", label="Control Input (V)")
+    axes[1].plot(t, u[:, 0], "m-", label="Control Input (V)")
     axes[1].set_ylabel("Voltage (V)")
     axes[1].legend()
     axes[1].grid(visible=True)
 
-    axes[2].plot(data["t"], dynamics_data["current"], "g-", label="Armature Current (A)")
+    axes[2].plot(t, x[:, 1], "g-", label="Actual Current (A)")
+    axes[2].plot(t, x_hat[:, 1], "y--", label="Observed Current (A)")
     axes[2].set_xlabel("Time (s)")
     axes[2].set_ylabel("Current (A)")
     axes[2].legend()

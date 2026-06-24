@@ -25,32 +25,35 @@ class Controller[L](Component[L], abc.ABC):
 
 
 @dataclasses.dataclass(frozen=True)
-class PIDControllerLog:
-    """Dataclass for internal PIDController logging."""
+class PIControllerLog:
+    """Dataclass for internal PIController logging."""
 
     error: float | np.ndarray
     integral: float | np.ndarray
 
 
-class PIDController(Controller[PIDControllerLog]):
-    """Generic discrete-time PID controller using matrix gains."""
+class PIController(Controller[PIControllerLog]):
+    """Generic discrete-time PI controller using matrix gains.
+
+    The control law is ``u = kp @ (ref - x_hat) + ki @ integral`` where ``integral`` accumulates the
+    tracking error. Both gains are matrices, so a multi-element state estimate can be fed back: a
+    column of ``kp`` acting on an estimated derivative state provides damping in place of a separate
+    derivative term (see the DC motor example, which sources that derivative from an observer).
+    """
 
     def __init__(
         self,
         dt: float,
         kp: ArrayLike,
         ki: ArrayLike,
-        kd: ArrayLike,
     ) -> None:
-        """Initialize the PID controller."""
+        """Initialize the PI controller."""
         super().__init__(dt)
 
-        self.kp = np.asarray(kp, dtype=float)
-        self.ki = np.asarray(ki, dtype=float)
-        self.kd = np.asarray(kd, dtype=float)
+        self.kp = np.atleast_2d(kp)
+        self.ki = np.atleast_2d(ki)
 
         self.integral: np.ndarray | None = None
-        self.prev_error: np.ndarray | None = None
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> Self:
@@ -59,7 +62,6 @@ class PIDController(Controller[PIDControllerLog]):
             dt=float(config["dt"]),
             kp=config["kp"],
             ki=config["ki"],
-            kd=config["kd"],
         )
 
     def update(
@@ -67,41 +69,14 @@ class PIDController(Controller[PIDControllerLog]):
         t: float,  # noqa: ARG002
         ref: float | np.ndarray,
         x_hat: float | np.ndarray,
-    ) -> tuple[float | np.ndarray, PIDControllerLog]:
-        """
-        Compute control action based on reference and estimated state.
-
-        Parameters
-        ----------
-        t : float
-            Simulation time.
-        ref : float or numpy.ndarray
-            Reference trajectory vector.
-        x_hat : float or numpy.ndarray
-            Estimated state vector.
-
-        Returns
-        -------
-        u : float or numpy.ndarray
-            Control action computed from the PID law.
-        log : PIDControllerLog
-            Snapshot of the error and integral terms for this step.
-        """
-        ref_arr = np.atleast_1d(ref)
-        x_hat_arr = np.atleast_1d(x_hat)
-
-        error = ref_arr - x_hat_arr
+    ) -> tuple[float | np.ndarray, PIControllerLog]:
+        """Compute control action based on reference and estimated state."""
+        error = np.atleast_1d(ref) - np.atleast_1d(x_hat)
 
         if self.integral is None:
             self.integral = np.zeros_like(error)
-        if self.prev_error is None:
-            self.prev_error = np.zeros_like(error)
-
         self.integral += error * self.dt
 
-        derivative = (error - self.prev_error) / self.dt
-        self.prev_error = error.copy()
+        u = self.kp @ error + self.ki @ self.integral
 
-        u = self.kp @ error + self.ki @ self.integral + self.kd @ derivative
-
-        return u, PIDControllerLog(error=error.copy(), integral=self.integral.copy())
+        return u, PIControllerLog(error=error.copy(), integral=self.integral.copy())

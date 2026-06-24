@@ -7,7 +7,7 @@ from typing import Any
 
 import numpy as np
 
-from simulate.controller import PIDController
+from simulate.controller import PIController
 from simulate.dynamics import LinearDynamics
 from simulate.estimator import IdentityEstimator
 from simulate.logger import Logger, UniversalLog
@@ -22,7 +22,7 @@ def _create_simulation(steps: int) -> Simulation:
     reference = StepReference(dt=0.01)
     sensor = GaussianSensor(dt=0.01, measurement=LinearMeasurement(C=[[1.0]], D=[[0.0]]), std_dev=0.1)
     estimator = IdentityEstimator(dt=0.01)
-    controller = PIDController(dt=0.01, kp=[[0.5]], ki=[[0.1]], kd=[[0.05]])
+    controller = PIController(dt=0.01, kp=[[0.5]], ki=[[0.1]])
 
     t_end = steps * 0.01
     return Simulation(

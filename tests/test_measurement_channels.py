@@ -1,6 +1,6 @@
 import numpy as np
 
-from simulate.controller import PIDController
+from simulate.controller import PIController
 from simulate.dynamics import LinearDynamics
 from simulate.estimator import IdentityEstimator
 from simulate.reference import StepReference
@@ -17,9 +17,7 @@ def _two_channel_sim(t_end: float, sensor1_dt: float) -> Simulation:
     sen1 = GaussianSensor(dt=sensor1_dt, measurement=LinearMeasurement(C=[[0.0, 1.0]], D=[[0.0, 0.0]]), std_dev=0.0)
     reference = StepReference(dt=base, step_value=np.array([1.0, 2.0]))
     estimator = IdentityEstimator(dt=base)
-    controller = PIDController(
-        dt=base, kp=[[0.5, 0.0], [0.0, 0.5]], ki=[[0.0, 0.0], [0.0, 0.0]], kd=[[0.0, 0.0], [0.0, 0.0]]
-    )
+    controller = PIController(dt=base, kp=[[0.5, 0.0], [0.0, 0.5]], ki=[[0.0, 0.0], [0.0, 0.0]])
     return Simulation(
         t_end=t_end,
         dynamics=dynamics,
