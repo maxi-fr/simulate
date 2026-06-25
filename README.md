@@ -188,28 +188,14 @@ to distinct mathematical operations:
 - **Dynamics** — system state transition
   - Discrete-time: $x_{k+1} = f(t_k, x_k, u_k)$
   - Continuous-time: $\dot{x} = f(t, x, u)$ (solved via a numerical integrator)
-- **Sensor** — a measurement model (truth $y_k = h(t_k, x_k, u_k)$) plus a hardware
-  error model: $\tilde{y}_k = h(t_k, x_k, u_k) + \text{noise}$
+- **Sensor** — a measurement model (truth $y_k = g(t_k, x_k, u_k)$) plus a hardware
+  error model: $y_{\text{mea},k} = y_k + \text{noise}$
 - **Estimator** — state reconstruction: $\hat{x}_k = e(t_k, \tilde{y}_k, u_{k-1})$
 - **Controller** — control law: $u_k = c(t_k, r_k, \hat{x}_k)$
 
-```mermaid
-graph LR
-    %% Forward path (Left to Right)
-    Ref[Reference] -->|r_k| C[Controller]
-    C -->|u_k| D[Dynamics]
-    D -->|x_k| S[Sensor]
-    C -->|u_k| S
+![block_diagram](block_diagram.png)
 
-    %% Feedback path (Right to Left, underneath)
-    S -->|y_mea_k| E[Estimator]
-    E -->|x_hat_k| C
-
-    C -.->|u_k| E
-
-    %% Invisible links to force vertical alignment into columns
-    C ~~~ E
-```
+This block diagram shows the different compoents of the setup.
 
 **Multi-rate & Zero-Order Hold.** Each component runs at its own `dt` (an integer
 multiple of the dynamics' base step). The base `Component._execute_zoh` recomputes a
@@ -226,7 +212,7 @@ slow sensors/controllers compose with fast dynamics automatically.
 | Sensor | `RandomWalkBiasSensor` — Gaussian noise + random-walk bias | [`sensor.py`](src/simulate/sensor.py) |
 | Estimator | `IdentityEstimator` — pass-through $\hat{x}_k=\tilde{y}_k$ | [`estimator.py`](src/simulate/estimator.py) |
 | Estimator | `LuenbergerObserver` — model-based $\dot{\hat{x}}=A\hat{x}+Bu+L(y-C\hat{x})$ | [`estimator.py`](src/simulate/estimator.py) |
-| Controller | `PIController` — matrix-gain PI | [`controller.py`](src/simulate/controller.py) |
+| Controller | `PIController` — Linear controller with integral component | [`controller.py`](src/simulate/controller.py) |
 | Reference | `StepReference` — step at a start time | [`reference.py`](src/simulate/reference.py) |
 | Integrators | `euler`, `midpoint`, `rk4` | [`integrator.py`](src/simulate/integrator.py) |
 
