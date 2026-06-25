@@ -69,17 +69,17 @@ simulate/
 │   │   ├── experiment.py    #   Parallel batch runner
 │   │   └── simulation.py    #   Simulation orchestrator
 │   └── spacecraft/          #   Aerospace domain extension
-│       ├── rigid_body.py    #   RigidBodyDynamics (defines STATE and BASE_STATES)
+│       ├── rigid_body.py    #   RigidBodyDynamics
 │       ├── effector.py      #   Effector base + actuators/environment
 │       ├── estimator.py     #   OrbitKalmanFilter, AttitudeMEKF
 │       ├── measurement.py   #   Magnetometer / sun / GPS truth measurements etc.
-│       ├── frames.py        #   Coordinate frames and rate transformations (ECI, LVLH)
+│       ├── frames.py        #   Coordinate frames and rate transformations
 │       ├── quaternion.py    #   JPL quaternion algebra and RK4 integration
 │       ├── environment.py   #   Atmosphere, IGRF magnetic field, and planetary ephemerides
 │       ├── disturbances.py  #   Aero drag, solar radiation, and gravity gradient torques
 │       └── surface.py       #   Spacecraft flat panel geometry definition
 ├── examples/                #   Marimo notebooks + runnable YAML configs
-├── tests/                   #   Test suite (incl. differential tests)
+├── tests/                   #   Test suite
 └── main.py                  #   CLI entry point
 ```
 
@@ -294,18 +294,6 @@ forces and torques come from a list of composable **effectors** — actuators
 the same interface, integrated together so state-dependent forces are evaluated at
 every integrator substage.
 
-Controllers and estimators exchange flat numpy vectors whose index conventions live
-in the core library: [`src/spacecraft/rigid_body.py`](src/spacecraft/rigid_body.py) (for general state layouts) or in the example folder for config-specific signals. Rather than
-hard-coding offsets, read state through these named slices:
-
-| Layout | Length | Fields |
-| --- | --- | --- |
-| `STATE` | 13 (+ effector states) | `r(3), v(3), q(4), omega(3)` |
-| `ESTIMATE` | 19 | `r, v, q, omega, b_body(3), h_wheel(3)` |
-| `REFERENCE` | 7 | `q_des(4), omega_des(3)` (LVLH-relative) |
-| `CONTROL` | 6 | `tau_mtq(3), tau_rw(3)` |
-| `MODEL` | 10 / 6 | model state `q, omega, h_w` and input `u_mag, u_rw` |
-
 ### Prebuilt catalog
 
 #### Dynamics & reference
@@ -329,13 +317,17 @@ command-free.
 | `SolarRadiationPressure` | SRP over body surfaces | [`effector.py`](src/spacecraft/effector.py) |
 | `AerodynamicDrag` | Atmospheric drag over body surfaces | [`effector.py`](src/spacecraft/effector.py) |
 
-#### Controllers, estimators & measurements
+#### Estimators
 
 | Class | Role | File |
 | --- | --- | --- |
-| `QuaternionFeedbackController` | Quaternion PD + magnetorquer momentum dumping | [`controller.py`](examples/03_satellite/controller.py) |
-| `AdaptiveLQR` | Discrete LQR re-solved each step from the live field | [`controller.py`](examples/03_satellite/controller.py) |
-| `FullStateEstimator` | Orbit KF + attitude MEKF + exposed environment | [`estimator.py`](examples/03_satellite/estimator.py) |
+| `OrbitKalmanFilter` | Linear KF over orbit state `[r, v]` driven by GPS | [`estimator.py`](src/spacecraft/estimator.py) |
+| `AttitudeMEKF` | Multiplicative EKF over attitude error and gyro bias | [`estimator.py`](src/spacecraft/estimator.py) |
+
+#### Measurements
+
+| Class | Role | File |
+| --- | --- | --- |
 | `MagneticFieldMeasurement` | IGRF field truth in body frame [T] | [`measurement.py`](src/spacecraft/measurement.py) |
 | `SunDirectionMeasurement` | Unit sun direction (zeroed in eclipse) | [`measurement.py`](src/spacecraft/measurement.py) |
 | `GpsMeasurement` | Inertial position and/or velocity | [`measurement.py`](src/spacecraft/measurement.py) |
@@ -347,16 +339,13 @@ All four extension points follow the `simulate` component contract (`__init__` �
 spacecraft-specific. Read inputs and write outputs through the signal layouts so
 index conventions stay in one place.
 
-**A new controller** — subclass `simulate.controller.Controller[L]`. Slice the
-estimate and reference with `signals.ESTIMATE` / `signals.REFERENCE`, and emit a
-`signals.CONTROL` vector. `QuaternionFeedbackController` in
-[`controller.py`](examples/03_satellite/controller.py) is the reference; reuse the
+**A new controller** — subclass `simulate.controller.Controller[L]`. `QuaternionFeedbackController` in
+[`examples/03_satellite/controller.py`](examples/03_satellite/controller.py) is a complete reference; reuse the
 `_attitude_error`, `allocation_matrix`, and `to_current_commands` helpers there to
 turn desired torques into actuator currents.
 
-**A new estimator** — subclass `simulate.estimator.Estimator[L]` and output an
-`ESTIMATE`-shaped `x_hat`. `FullStateEstimator` in
-[`estimator.py`](examples/03_satellite/estimator.py) shows how to compose sub-filters
+**A new estimator** — subclass `simulate.estimator.Estimator[L]` and output your state estimate. `FullStateEstimator` in
+[`examples/03_satellite/estimator.py`](examples/03_satellite/estimator.py) shows how to compose sub-filters
 (`OrbitKalmanFilter`, `AttitudeMEKF`) and map a concatenated measurement vector to
 named channels via `MeasurementLayout`.
 
@@ -375,8 +364,12 @@ and pass it as a sensor's `measurement` in the `sensors` list.
 
 ### End-to-end example
 
-[`examples/03_satellite/quat_feedback.yaml`](examples/03_satellite/quat_feedback.yaml) is a full ADCS
-run: a 3U CubeSat holding nadir pointing in LEO with reaction wheels and magnetorquer
-momentum dumping, real disturbances, a full-state estimator, and a quaternion-feedback
-controller. Drive it with `main.py` or via the notebook
-[`examples/03_satellite/notebook.py`](examples/03_satellite/notebook.py).
+The [`examples/03_satellite/`](examples/03_satellite/) directory contains a complete ADCS stack for a 3U CubeSat in LEO holding nadir pointing. It includes realistic disturbances, a full-state estimator (orbit KF + attitude MEKF), and multiple attitude control strategies:
+
+- [`quat_feedback.yaml`](examples/03_satellite/quat_feedback.yaml): A baseline quaternion-feedback PD controller with magnetorquer momentum dumping.
+- [`adaptive_lqr.yaml`](examples/03_satellite/adaptive_lqr.yaml): A discrete LQR that re-solves the Riccati equation at each step to adapt to the changing magnetic field.
+- [`mpc.yaml`](examples/03_satellite/mpc.yaml): A nonlinear model-predictive controller built on CasADi that explicitly handles actuator saturation limits.
+
+This example contatins the implementations for the Adaptive Satelite Control project, see [Adaptive_Satellite_Control_Report.pdf](examples/03_satellite/Adaptive_Satellite_Control_Report.pdf)
+
+Drive the simulations from the command line using `main.py` or explore them interactively in the notebook at [`examples/03_satellite/notebook.py`](examples/03_satellite/notebook.py). The domain-specific components like the `FullStateEstimator` and the various controllers reside directly in the example package, demonstrating how to build a complete custom ADCS application on top of the generic `simulate` engine.
