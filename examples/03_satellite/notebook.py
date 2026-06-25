@@ -132,8 +132,8 @@ def _(Path, Simulation, controller_select, load_config, np):
 @app.cell
 def _(Quaternion, euler_from_quaternion, lvlh_from_orbit, np, orbital_rate):
     def extract(sim_obj) -> dict[str, np.ndarray]:
-        """Pull the universal/component logs of a run into plain numpy arrays for plotting."""
-        logs = sim_obj.logger.universal_logs
+        """Pull the core/component logs of a run into plain numpy arrays for plotting."""
+        logs = sim_obj.logger.core_logs
         t = np.array([row["t"] for row in logs])
         x = np.array([np.asarray(row["x"]) for row in logs])
         x_hat = np.array([np.asarray(row["x_hat"]) for row in logs])
