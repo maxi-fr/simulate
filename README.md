@@ -65,7 +65,7 @@ simulate/
 │   │   ├── controller.py    #   Controller, PIController
 │   │   ├── reference.py     #   Reference + StepReference
 │   │   ├── integrator.py    #   euler / midpoint / rk4
-│   │   ├── logger.py        #   Universal + per-component logging
+│   │   ├── logger.py        #   Core + per-component logging
 │   │   ├── experiment.py    #   Parallel batch runner
 │   │   └── simulation.py    #   Simulation orchestrator
 │   └── spacecraft/          #   Aerospace domain extension
@@ -105,7 +105,7 @@ sim = Simulation.from_yaml("examples/03_satellite/quat_feedback.yaml")
 sim.run(output_dir="results")
 
 # Results are available in-memory after the run:
-sim.logger.universal_logs   # t, x, x_hat, u, ref, y, y_mea
+sim.logger.core_logs   # t, x, x_hat, u, ref, y, y_mea
 sim.logger.component_logs   # per-component internal logs
 ```
 
@@ -245,12 +245,12 @@ handed to the estimator, and each sensor logs its own clean `truth`.
 
 ### Logging
 
-Every step records a `UniversalLog` ([`src/simulate/logger.py`](src/simulate/logger.py))
+Every step records a `CoreLog` ([`src/simulate/logger.py`](src/simulate/logger.py))
 of the standard signals — `t, x, x_hat, u, ref, y_mea` — plus each component's own
 log dataclass. Component logs are keyed by role (`dynamics`, `reference`, `estimator`,
 `controller`, and `sensor_0`, … per channel; each sensor log carries its clean `truth`)
-and hold **only** internal state not already in the universal log. After a run, read them in memory via
-`sim.logger.universal_logs` and `sim.logger.component_logs`; when `run(output_dir=...)`
+and hold **only** internal state not already in the core log. After a run, read them in memory via
+`sim.logger.core_logs` and `sim.logger.component_logs`; when `run(output_dir=...)`
 is given, logs stream to chunked `.npz` files (optionally `--compress`ed) and are merged
 on `export_results`.
 
@@ -272,7 +272,7 @@ A **measurement model** is the exception: it is not a component but a plain call
 parameters), owned by a `Sensor` and built from config via `build_measurement`.
 
 The log is a frozen dataclass holding **only** internal state not already captured by
-the universal logs; use `simulate.component.NoLog` when there is nothing extra to log.
+the core logs; use `simulate.component.NoLog` when there is nothing extra to log.
 
 For complete, idiomatic references see
 [`examples/01_dc_motor/dc_motor.py`](examples/01_dc_motor/dc_motor.py) (a custom continuous-time `Dynamics`

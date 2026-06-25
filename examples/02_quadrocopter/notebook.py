@@ -153,7 +153,7 @@ def _(mo):
 
 @app.cell
 def _(STATE, np, plt, sim):
-    logs = sim.logger.universal_logs
+    logs = sim.logger.core_logs
     t = np.array([row["t"] for row in logs])
     x = np.array([np.asarray(row["x"]) for row in logs])
     u = np.array([np.asarray(row["u"]) for row in logs])
