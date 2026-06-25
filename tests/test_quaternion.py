@@ -102,5 +102,29 @@ def test_scipy_interop() -> None:
 
 def test_xi() -> None:
     q = Quaternion(np.array([1.0, 2.0, 3.0]), 4.0)
-    xi = q.xi
-    assert xi.shape == (4, 3)
+
+    # Test scalar_first=False (default)
+    xi_default = q.xi()
+    assert xi_default.shape == (4, 3)
+    expected_default = np.array(
+        [
+            [4.0, -3.0, 2.0],
+            [3.0, 4.0, -1.0],
+            [-2.0, 1.0, 4.0],
+            [-1.0, -2.0, -3.0],
+        ]
+    )
+    np.testing.assert_allclose(xi_default, expected_default)
+
+    # Test scalar_first=True
+    xi_scalar_first = q.xi(scalar_first=True)
+    assert xi_scalar_first.shape == (4, 3)
+    expected_scalar_first = np.array(
+        [
+            [-1.0, -2.0, -3.0],
+            [4.0, -3.0, 2.0],
+            [3.0, 4.0, -1.0],
+            [-2.0, 1.0, 4.0],
+        ]
+    )
+    np.testing.assert_allclose(xi_scalar_first, expected_scalar_first)

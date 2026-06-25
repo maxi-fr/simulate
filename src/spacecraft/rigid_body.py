@@ -89,7 +89,7 @@ class RigidBodyDynamics(Dynamics[NoLog]):
         integrator : Integrator, optional
             Defaults to :class:`QuaternionRK4` over the quaternion slice.
         """
-        super().__init__(dt, integrator if integrator is not None else QuaternionRK4((6, 10)))
+        super().__init__(dt, integrator if integrator is not None else QuaternionRK4(STATE.q))
 
         self.mass = float(mass)
         inertia_arr = np.asarray(inertia, dtype=float)
