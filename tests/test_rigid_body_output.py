@@ -5,7 +5,7 @@ from spacecraft.measurement import (
     rigid_body_attitude,
     rigid_body_rate,
 )
-from spacecraft.signals import BASE_STATES, STATE
+from spacecraft.rigid_body import BASE_STATES, STATE
 
 
 def _state() -> np.ndarray:

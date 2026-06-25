@@ -12,7 +12,7 @@ from typing import Any
 import casadi as ca
 import numpy as np
 
-from .signals import MODEL
+from .signals import MODEL  # ty:ignore[unresolved-import]
 
 
 def integrator(

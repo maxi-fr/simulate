@@ -21,7 +21,7 @@ def _():
     import numpy as np
 
     from simulate.simulation import Simulation
-    from spacecraft.signals import STATE
+    from spacecraft.rigid_body import STATE
 
     return Path, STATE, Simulation, mo, np, plt
 

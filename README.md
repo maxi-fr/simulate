@@ -69,13 +69,15 @@ simulate/
 │   │   ├── experiment.py    #   Parallel batch runner
 │   │   └── simulation.py    #   Simulation orchestrator
 │   └── spacecraft/          #   Aerospace domain extension
-│       ├── rigid_body.py    #   RigidBodyDynamics
+│       ├── rigid_body.py    #   RigidBodyDynamics (defines STATE and BASE_STATES)
 │       ├── effector.py      #   Effector base + actuators/environment
-│       ├── controller.py    #   QuaternionFeedbackController, AdaptiveLQR
-│       ├── estimator.py     #   FullStateEstimator (orbit KF + attitude MEKF)
+│       ├── estimator.py     #   OrbitKalmanFilter, AttitudeMEKF
 │       ├── measurement.py   #   Magnetometer / sun / GPS truth measurements etc.
-│       ├── signals.py       #   Named-slice layouts for the signal vectors
-│       └── ...              #   coordinate frames, quaternion, environment, disturbances
+│       ├── frames.py        #   Coordinate frames and rate transformations (ECI, LVLH)
+│       ├── quaternion.py    #   JPL quaternion algebra and RK4 integration
+│       ├── environment.py   #   Atmosphere, IGRF magnetic field, and planetary ephemerides
+│       ├── disturbances.py  #   Aero drag, solar radiation, and gravity gradient torques
+│       └── surface.py       #   Spacecraft flat panel geometry definition
 ├── examples/                #   Marimo notebooks + runnable YAML configs
 ├── tests/                   #   Test suite (incl. differential tests)
 └── main.py                  #   CLI entry point
@@ -293,7 +295,7 @@ the same interface, integrated together so state-dependent forces are evaluated 
 every integrator substage.
 
 Controllers and estimators exchange flat numpy vectors whose index conventions live
-in one place: [`src/spacecraft/signals.py`](src/spacecraft/signals.py). Rather than
+in the core library: [`src/spacecraft/rigid_body.py`](src/spacecraft/rigid_body.py) (for general state layouts) or in the example folder for config-specific signals. Rather than
 hard-coding offsets, read state through these named slices:
 
 | Layout | Length | Fields |
@@ -331,9 +333,9 @@ command-free.
 
 | Class | Role | File |
 | --- | --- | --- |
-| `QuaternionFeedbackController` | Quaternion PD + magnetorquer momentum dumping | [`controller.py`](src/spacecraft/controller.py) |
-| `AdaptiveLQR` | Discrete LQR re-solved each step from the live field | [`controller.py`](src/spacecraft/controller.py) |
-| `FullStateEstimator` | Orbit KF + attitude MEKF + exposed environment | [`estimator.py`](src/spacecraft/estimator.py) |
+| `QuaternionFeedbackController` | Quaternion PD + magnetorquer momentum dumping | [`controller.py`](examples/03_satellite/controller.py) |
+| `AdaptiveLQR` | Discrete LQR re-solved each step from the live field | [`controller.py`](examples/03_satellite/controller.py) |
+| `FullStateEstimator` | Orbit KF + attitude MEKF + exposed environment | [`estimator.py`](examples/03_satellite/estimator.py) |
 | `MagneticFieldMeasurement` | IGRF field truth in body frame [T] | [`measurement.py`](src/spacecraft/measurement.py) |
 | `SunDirectionMeasurement` | Unit sun direction (zeroed in eclipse) | [`measurement.py`](src/spacecraft/measurement.py) |
 | `GpsMeasurement` | Inertial position and/or velocity | [`measurement.py`](src/spacecraft/measurement.py) |
@@ -342,19 +344,19 @@ command-free.
 
 All four extension points follow the `simulate` component contract (`__init__` →
 `from_config` → update method + log dataclass); the notes below add only what is
-spacecraft-specific. Read inputs and write outputs through `spacecraft.signals` so
+spacecraft-specific. Read inputs and write outputs through the signal layouts so
 index conventions stay in one place.
 
 **A new controller** — subclass `simulate.controller.Controller[L]`. Slice the
 estimate and reference with `signals.ESTIMATE` / `signals.REFERENCE`, and emit a
 `signals.CONTROL` vector. `QuaternionFeedbackController` in
-[`controller.py`](src/spacecraft/controller.py) is the reference; reuse the
+[`controller.py`](examples/03_satellite/controller.py) is the reference; reuse the
 `_attitude_error`, `allocation_matrix`, and `to_current_commands` helpers there to
 turn desired torques into actuator currents.
 
 **A new estimator** — subclass `simulate.estimator.Estimator[L]` and output an
 `ESTIMATE`-shaped `x_hat`. `FullStateEstimator` in
-[`estimator.py`](src/spacecraft/estimator.py) shows how to compose sub-filters
+[`estimator.py`](examples/03_satellite/estimator.py) shows how to compose sub-filters
 (`OrbitKalmanFilter`, `AttitudeMEKF`) and map a concatenated measurement vector to
 named channels via `MeasurementLayout`.
 

@@ -24,6 +24,7 @@ effects alike: total angular momentum ``H = J @ omega + h`` is conserved under z
 torque.
 """
 
+import dataclasses
 import datetime
 import importlib
 from typing import Any, Self, cast
@@ -39,7 +40,20 @@ from .effector import Effector, RigidBodyState
 from .frames import eci_attitude_from_lvlh
 from .orbit_dynamics import SGP4
 from .quaternion import Quaternion, QuaternionRK4
-from .signals import BASE_STATES, STATE
+
+
+@dataclasses.dataclass(frozen=True)
+class _StateLayout:
+    """Rigid-body base state (length ``BASE_STATES`` + effector states): ``[r(3), v(3), q(4), omega(3)]``."""
+
+    r: slice = slice(0, 3)
+    v: slice = slice(3, 6)
+    q: slice = slice(6, 10)
+    omega: slice = slice(10, 13)
+
+
+STATE = _StateLayout()
+BASE_STATES = 13  # effector internal states begin here, in composition order
 
 
 def _load_class(class_path: str) -> type:

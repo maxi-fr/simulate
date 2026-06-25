@@ -1,16 +1,19 @@
 import datetime
+import importlib
 
 import numpy as np
 
 from simulate.integrator import rk4
 from spacecraft.estimator import (
     AttitudeMEKF,
-    FullStateEstimator,
     MeasurementLayout,
     OrbitKalmanFilter,
 )
 from spacecraft.frames import eci_to_geodedic
 from spacecraft.quaternion import Quaternion
+
+_est_mod = importlib.import_module("examples.03_satellite.estimator")
+FullStateEstimator = _est_mod.FullStateEstimator
 
 _EPOCH = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
 _R0 = np.array([7.0e6, 0.0, 0.0])

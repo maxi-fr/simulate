@@ -1,11 +1,12 @@
-"""Central named-slice layouts for the flat signal vectors passed between components.
+"""Example-specific signal layouts for the satellite simulation.
 
-Each layout is a frozen-dataclass singleton mapping a component name to the ``slice`` that
-selects it from a flat vector, so the index conventions live in exactly one place. Signals
-stay plain numpy / CasADi ``ca.SX`` arrays -- the slices simply index into them.
+Defines layouts for estimating, referencing, control inputs, and model dynamics
+for the 3 reaction wheel + 3 magnetorquer satellite configuration.
 """
 
 import dataclasses
+
+from spacecraft.rigid_body import BASE_STATES, STATE
 
 __all__ = [
     "BASE_STATES",
@@ -15,20 +16,6 @@ __all__ = [
     "REFERENCE",
     "STATE",
 ]
-
-
-@dataclasses.dataclass(frozen=True)
-class _StateLayout:
-    """Rigid-body base state (length ``BASE_STATES`` + effector states): ``[r(3), v(3), q(4), omega(3)]``."""
-
-    r: slice = slice(0, 3)
-    v: slice = slice(3, 6)
-    q: slice = slice(6, 10)
-    omega: slice = slice(10, 13)
-
-
-STATE = _StateLayout()
-BASE_STATES = 13  # effector internal states begin here, in composition order
 
 
 @dataclasses.dataclass(frozen=True)

@@ -10,8 +10,6 @@ from scipy.spatial.transform import Rotation
 
 from simulate.integrator import rk4
 
-from .signals import STATE
-
 FloatArray = NDArray[np.float64]
 Vec3 = Annotated[FloatArray, Literal[3]]
 Vec4 = Annotated[FloatArray, Literal[4]]
@@ -366,7 +364,7 @@ class QuaternionRK4:
     def __init__(self, quat_slice: tuple[int, int] | None = None) -> None:
         """Store the half-open ``[start, stop)`` index range of the quaternion within the state."""
         if quat_slice is None:
-            self._sl = STATE.q
+            self._sl = slice(6, 10)
         else:
             self._sl = slice(*quat_slice)
 
