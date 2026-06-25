@@ -6,10 +6,6 @@
 
 t_end: 5673.5  # short period for profiling [s]
 
-# Initial orbit + attitude, shared (via the &init anchor) by the dynamics truth and the estimator's
-# initial guess so they start consistent. SGP4 propagates the TLE to the epoch for r/v; the attitude
-# is given relative to the orbital (LVLH) frame -- 15 deg yaw off nadir, at rest wrt LVLH -- and
-# converted to the inertial q/omega by rigid_body.frames.eci_attitude_from_lvlh.
 initial_state: &init
   epoch: &epoch "2024-01-01T12:00:00"
   tle: &tle
@@ -105,7 +101,7 @@ reference:
   step_value: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
 
 estimator:
-  class_path: spacecraft.estimator.FullStateEstimator
+  class_path: examples.03_satellite.estimator.FullStateEstimator
   dt: 0.2
   # Epoch and the initial orbit/attitude guess come from the shared anchor (same as the truth).
   initial_state: *init
@@ -129,7 +125,7 @@ estimator:
     tach_channel: tachometer
 
 controller:
-  class_path: spacecraft.controller.AdaptiveLQR
+  class_path: examples.03_satellite.controller.AdaptiveLQR
   dt: 0.2
   tle: *tle
   epoch: *epoch

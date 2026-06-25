@@ -227,7 +227,7 @@ class Logger:
         if arrays_to_save:
             save_fn(
                 dir_path / f"{prefix}_chunk_{self._chunk_idx:04d}.npz",
-                **arrays_to_save,  # type: ignore[arg-type]
+                **arrays_to_save,  # ty:ignore[invalid-argument-type]
             )
 
         self._chunk_idx += 1
