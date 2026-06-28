@@ -24,7 +24,7 @@ def test_nadir_config_builds_and_runs() -> None:
 
     sim.run()
 
-    logs = sim.logger.universal_logs
+    logs = sim.logger.core_logs
     assert len(logs) > 0
     x_hat = np.asarray(logs[-1]["x_hat"])
     assert x_hat.shape == (19,)  # [r, v, q, omega, b_body, h_wheel]
@@ -39,7 +39,7 @@ def test_nadir_config_drives_toward_nadir() -> None:
 
     sim.run()
 
-    logs = sim.logger.universal_logs
+    logs = sim.logger.core_logs
     angle0 = _nadir_angle(np.asarray(logs[0]["x"]))
     angle_end = _nadir_angle(np.asarray(logs[-1]["x"]))
     assert angle0 > np.deg2rad(10.0)  # starts well off nadir

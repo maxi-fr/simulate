@@ -90,7 +90,7 @@ def _(Path, Simulation, controller_select, load_config, np):
             "2 25544 097.6000 010.0000 0001000 000.0000 000.0000 15.25000000000009",
         ]
         _sim_config["controller"] = {
-            "class_path": "spacecraft.controller.AdaptiveLQR",
+            "class_path": "examples.03_satellite.controller.AdaptiveLQR",
             "dt": 0.2,
             "Q": np.diag([5, 5, 5, 2, 2, 2, 700, 700, 700]).tolist(),
             "R": (1e7 * np.diag([70, 70, 70, 7, 7, 7])).tolist(),
@@ -102,7 +102,7 @@ def _(Path, Simulation, controller_select, load_config, np):
         }
     elif controller_select.value == "MPC":
         _sim_config["controller"] = {
-            "class_path": "spacecraft.controller.MPC",
+            "class_path": "examples.03_satellite.controller.MPC",
             "dt": 0.2,
             "n_steps": 20,
             "Q": np.diag([8.0, 8.0, 8.0, 2.0, 2.0, 2.0, 20.0, 20.0, 20.0]).tolist(),
@@ -132,8 +132,8 @@ def _(Path, Simulation, controller_select, load_config, np):
 @app.cell
 def _(Quaternion, euler_from_quaternion, lvlh_from_orbit, np, orbital_rate):
     def extract(sim_obj) -> dict[str, np.ndarray]:
-        """Pull the universal/component logs of a run into plain numpy arrays for plotting."""
-        logs = sim_obj.logger.universal_logs
+        """Pull the core/component logs of a run into plain numpy arrays for plotting."""
+        logs = sim_obj.logger.core_logs
         t = np.array([row["t"] for row in logs])
         x = np.array([np.asarray(row["x"]) for row in logs])
         x_hat = np.array([np.asarray(row["x_hat"]) for row in logs])
@@ -315,7 +315,7 @@ def _(Simulation, config, controller_select, d, extract, np, plt):
         ]
         _lqr_config = dict(config)
         _lqr_config["controller"] = {
-            "class_path": "spacecraft.controller.AdaptiveLQR",
+            "class_path": "examples.03_satellite.controller.AdaptiveLQR",
             "dt": 0.2,
             "Q": np.diag([5, 5, 5, 2, 2, 2, 700, 700, 700]).tolist(),
             "R": (1e7 * np.diag([70, 70, 70, 7, 7, 7])).tolist(),

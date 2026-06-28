@@ -122,7 +122,7 @@ def _(mo):
 
 @app.cell
 def _(np, plt, sim):
-    logs = sim.logger.universal_logs
+    logs = sim.logger.core_logs
     t = np.array([row["t"] for row in logs])
     x = np.array([np.asarray(row["x"]) for row in logs])  # true [omega, i]
     x_hat = np.array([np.asarray(row["x_hat"]) for row in logs])  # observed [omega, i]

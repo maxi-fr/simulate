@@ -7,7 +7,7 @@ import numpy as np
 from tqdm import tqdm
 
 from .config import build_component, load_config
-from .logger import Logger, UniversalLog
+from .logger import CoreLog, Logger
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -165,7 +165,7 @@ class Simulation:
 
                 y_mea_val = sensor_logs[0][0] if len(self.sensors) == 1 else y_mea
 
-                uni_log = UniversalLog(
+                core_log = CoreLog(
                     t=t,
                     x=x_k,
                     x_hat=x_hat,
@@ -181,7 +181,7 @@ class Simulation:
                 }
                 for i, (_, sen_log) in enumerate(sensor_logs):
                     comp_logs[f"sensor_{i}"] = sen_log
-                self.logger.log(uni_log, comp_logs)
+                self.logger.log(core_log, comp_logs)
                 step_count += 1
 
                 if output_dir is not None and chunk_size is not None and step_count % chunk_size == 0:

@@ -13,7 +13,7 @@ from spacecraft.measurement import (
     rigid_body_rate,
 )
 from spacecraft.quaternion import Quaternion
-from spacecraft.signals import BASE_STATES, STATE
+from spacecraft.rigid_body import BASE_STATES, STATE
 
 _EPOCH = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
 _RADIUS = 7.0e6  # m, low Earth orbit

@@ -1,7 +1,6 @@
 # ruff: noqa: FBT001, FBT002
 from collections.abc import Callable
 from dataclasses import dataclass
-from functools import cached_property
 from typing import Annotated, Literal
 
 import numpy as np
@@ -10,8 +9,6 @@ from scipy.spatial.transform import Rotation
 
 from simulate.integrator import rk4
 
-from .signals import STATE
-
 FloatArray = NDArray[np.float64]
 Vec3 = Annotated[FloatArray, Literal[3]]
 Vec4 = Annotated[FloatArray, Literal[4]]
@@ -19,7 +16,6 @@ Mat3x3 = Annotated[FloatArray, Literal[3]]
 Mat4x3 = Annotated[FloatArray, Literal[4, 3]]
 
 
-# TODO: remove scalar_first option, its not used. Or fix bug: xi depends on if its scalar_first or not
 @dataclass(frozen=True)
 class Quaternion:
     """A unit quaternion representing 3D rotations, following the JPL convention."""
@@ -286,10 +282,7 @@ class Quaternion:
         np.ndarray
             The time derivative of the quaternion.
         """
-        if scalar_first:
-            return 0.5 * np.roll(self.xi @ omega, 1)
-
-        return 0.5 * self.xi @ omega
+        return 0.5 * self.xi(scalar_first=scalar_first) @ omega
 
     def exact_integration(self, omega: Vec3, dt: float) -> "Quaternion":
         """
@@ -320,8 +313,7 @@ class Quaternion:
 
         return self * delta_q
 
-    @cached_property
-    def xi(self) -> Mat4x3:
+    def xi(self, scalar_first: bool = False) -> Mat4x3:
         r"""
         Compute the xi matrix for JPL quaternion kinematics.
 
@@ -343,6 +335,13 @@ class Quaternion:
                 -q_1 & -q_2 & -q_3
             \end{bmatrix}
 
+        Parameters
+        ----------
+        scalar_first : bool, optional
+            If True, the matrix is organized for [scalar, v1, v2, v3] layout.
+            If False, the matrix is organized for [v1, v2, v3, scalar] layout.
+            Default is False.
+
         Returns
         -------
         np.ndarray
@@ -351,7 +350,10 @@ class Quaternion:
         qw = self.scalar
         qx, qy, qz = self.vec
 
-        return np.array([[qw, -qz, qy], [qz, qw, -qx], [-qy, qx, qw], [-qx, -qy, -qz]])
+        res = np.array([[qw, -qz, qy], [qz, qw, -qx], [-qy, qx, qw], [-qx, -qy, -qz]])
+        if scalar_first:
+            return np.roll(res, 1, axis=0)
+        return res
 
 
 class QuaternionRK4:
@@ -363,12 +365,9 @@ class QuaternionRK4:
     :class:`Integrator` protocol.
     """
 
-    def __init__(self, quat_slice: tuple[int, int] | None = None) -> None:
-        """Store the half-open ``[start, stop)`` index range of the quaternion within the state."""
-        if quat_slice is None:
-            self._sl = STATE.q
-        else:
-            self._sl = slice(*quat_slice)
+    def __init__(self, quat_slice: slice) -> None:
+        """Store the slice object of the quaternion within the state."""
+        self._sl = quat_slice
 
     def __call__(
         self,
@@ -381,5 +380,11 @@ class QuaternionRK4:
         """Integrate one step with RK4, then renormalize the quaternion slice."""
         x_next = rk4(f, t, dt, x, u).copy()
         q = x_next[self._sl]
+
+        if q.size != 4:  # noqa: PLR2004
+            msg = f"Quaternion slice must have a length of 4, got {q.size}."
+            raise ValueError(msg)
+
         x_next[self._sl] = q / np.linalg.norm(q)
+
         return x_next

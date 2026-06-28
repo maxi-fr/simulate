@@ -21,7 +21,7 @@ import numpy as np
 from .environment import is_in_shadow, magnetic_field_vector, sun_position
 from .frames import eci_to_geodedic
 from .quaternion import Quaternion
-from .signals import BASE_STATES, STATE
+from .rigid_body import BASE_STATES, STATE
 
 
 def _ensure_utc(epoch: datetime.datetime) -> datetime.datetime:

@@ -1,22 +1,23 @@
 """Tests for the Phase-5 attitude controllers and their supporting linearization."""
 
+import importlib
 import warnings
 
 import numpy as np
 from scipy.linalg import LinAlgWarning
 
-from spacecraft.controller import (
-    MPC,
-    AdaptiveLQR,
-    QuaternionFeedbackController,
-    allocation_matrix,
-    to_current_commands,
-)
 from spacecraft.effector import EarthGravity, MagnetorquerArray, ReactionWheelArray
 from spacecraft.frames import lvlh_from_orbit
 from spacecraft.orbit_dynamics import MU
 from spacecraft.quaternion import Quaternion
 from spacecraft.rigid_body import RigidBodyDynamics
+
+_ctrl_mod = importlib.import_module("examples.03_satellite.controller")
+MPC = _ctrl_mod.MPC
+AdaptiveLQR = _ctrl_mod.AdaptiveLQR
+QuaternionFeedbackController = _ctrl_mod.QuaternionFeedbackController
+allocation_matrix = _ctrl_mod.allocation_matrix
+to_current_commands = _ctrl_mod.to_current_commands
 
 _AXES = np.eye(3)
 _KT = 0.02  # reaction-wheel torque constant

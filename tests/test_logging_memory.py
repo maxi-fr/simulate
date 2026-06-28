@@ -10,7 +10,7 @@ import numpy as np
 from simulate.controller import PIController
 from simulate.dynamics import LinearDynamics
 from simulate.estimator import IdentityEstimator
-from simulate.logger import Logger, UniversalLog
+from simulate.logger import CoreLog, Logger
 from simulate.reference import StepReference
 from simulate.sensor import GaussianSensor, LinearMeasurement
 from simulate.simulation import Simulation
@@ -36,15 +36,15 @@ def _create_simulation(steps: int) -> Simulation:
 
 
 class TrackingLogger(Logger):
-    """A Logger subclass that tracks the maximum size of the universal log buffer."""
+    """A Logger subclass that tracks the maximum size of the core log buffer."""
 
     def __init__(self) -> None:
         super().__init__()
-        self.max_universal_logs_size = 0
+        self.max_core_logs_size = 0
 
-    def log(self, universal: UniversalLog, components: Mapping[str, Any]) -> None:
-        super().log(universal, components)
-        self.max_universal_logs_size = max(self.max_universal_logs_size, len(self.universal_logs))
+    def log(self, core: CoreLog, components: Mapping[str, Any]) -> None:
+        super().log(core, components)
+        self.max_core_logs_size = max(self.max_core_logs_size, len(self.core_logs))
 
 
 def test_sequential_simulations_memory_leak() -> None:
@@ -122,11 +122,11 @@ def test_chunked_vs_unchunked_memory() -> None:
     sim_unchunked.run(output_dir=None, chunk_size=None)
 
     # In-memory size assertions
-    assert tracking_logger.max_universal_logs_size <= chunk_size, (
-        f"Chunked run exceeded chunk_size bound: {tracking_logger.max_universal_logs_size}"
+    assert tracking_logger.max_core_logs_size <= chunk_size, (
+        f"Chunked run exceeded chunk_size bound: {tracking_logger.max_core_logs_size}"
     )
-    assert tracking_logger_unchunked.max_universal_logs_size == steps + 1, (
-        f"Unchunked run did not accumulate all logs in memory: {tracking_logger_unchunked.max_universal_logs_size}"
+    assert tracking_logger_unchunked.max_core_logs_size == steps + 1, (
+        f"Unchunked run did not accumulate all logs in memory: {tracking_logger_unchunked.max_core_logs_size}"
     )
 
 
@@ -140,7 +140,7 @@ def test_merge_chunks_memory_peak(tmp_path: Path) -> None:
     for chunk_idx in range(10):
         for t_idx in range(100):
             t = chunk_idx * 100.0 + t_idx * 1.0
-            universal = UniversalLog(
+            core = CoreLog(
                 t=t,
                 x=np.array([1.0, 2.0]),
                 y_mea=np.array([1.1, 2.1]),
@@ -148,7 +148,7 @@ def test_merge_chunks_memory_peak(tmp_path: Path) -> None:
                 u=np.array([0.5]),
                 ref=np.array([1.0]),
             )
-            logger.log(universal, {})
+            logger.log(core, {})
         logger.flush_chunk(tmp_path, prefix=prefix)
 
     # Verify 10 chunk files exist
@@ -170,8 +170,8 @@ def test_merge_chunks_memory_peak(tmp_path: Path) -> None:
 
     # Load and verify content integrity
     data = np.load(merged_file)
-    assert len(data["universal_t"]) == 1000
-    assert data["universal_t"][0] == 0.0
-    assert data["universal_t"][-1] == 999.0
+    assert len(data["core_t"]) == 1000
+    assert data["core_t"][0] == 0.0
+    assert data["core_t"][-1] == 999.0
 
     # Print or log peak memory for informational purposes
