@@ -13,7 +13,8 @@
       "Bash(Remove-Item random_stuff.ipynb -Force)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git checkout *)"
+      "Bash(git checkout *)",
+      "Bash(echo \"EXIT CODE: $?\")"
     ]
   }
 }

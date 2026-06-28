@@ -109,6 +109,16 @@ convention = "numpy"
     "ANN401",  # legacy/duck-typed objects from the old repo are necessarily typed `Any`
 ]
 "examples/*" = ["INP001"]
+# Operational scripts (not importable library code): they print, shell out to
+# git/uv, and defer the `simulate` import until after sys.path is rewired.
+"benchmarks/*" = [
+    "INP001",   # No __init__.py (these are run as scripts, not imported)
+    "T201",     # print is the intended output channel
+    "S404",     # subprocess is required to drive git/uv
+    "S603",     # untrusted subprocess input (args are program-controlled)
+    "S607",     # partial executable path ("git"/"uv" resolved from PATH)
+    "PLC0415",  # `simulate` import is deferred until after sys.path is set
+]
 "examples/01_dc_motor/dc_motor.py" = ["N803", "PLR0913"]
 # Marimo notebooks: cells are functions, imports live in cells, and the final
 # expression of a cell is the displayed output.
@@ -140,7 +150,9 @@ testpaths = ["tests"]
 [tool.ty]
 
 [tool.ty.src]
-exclude = ["examples/[0-9]*/notebook.py", "tests/differential/adaptive-satellite-control"]
+# benchmarks/ are operational scripts (sibling-module imports, deferred engine
+# import after sys.path rewiring) rather than importable library code.
+exclude = ["examples/[0-9]*/notebook.py", "tests/differential/adaptive-satellite-control", "benchmarks"]
 
 [tool.ty.rules]
 # In ty, you control strictness by setting individual rules to "error", "warn", or "ignore".
