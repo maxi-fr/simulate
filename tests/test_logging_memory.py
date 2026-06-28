@@ -170,8 +170,8 @@ def test_merge_chunks_memory_peak(tmp_path: Path) -> None:
 
     # Load and verify content integrity
     data = np.load(merged_file)
-    assert len(data["core_t"]) == 1000
-    assert data["core_t"][0] == 0.0
-    assert data["core_t"][-1] == 999.0
+    assert len(data["t"]) == 1000
+    assert data["t"][0] == 0.0
+    assert data["t"][-1] == 999.0
 
     # Print or log peak memory for informational purposes

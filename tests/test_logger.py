@@ -58,8 +58,8 @@ def test_logger_flush_chunk(tmp_path: Path) -> None:
     assert npz_file.exists()
 
     data = np.load(npz_file)
-    assert "core_t" in data
-    assert data["core_t"][0] == 0.1
+    assert "t" in data
+    assert data["t"][0] == 0.1
     assert "comp1_value" in data
     assert data["comp1_value"][0] == 42.0
     assert "comp1_t" in data
@@ -98,9 +98,9 @@ def test_logger_merge_chunks(tmp_path: Path) -> None:
     assert not (tmp_path / "test_chunk_0001.npz").exists()
 
     data = np.load(merged_file)
-    assert len(data["core_t"]) == 2
-    assert data["core_t"][0] == 0.0
-    assert data["core_t"][1] == 1.0
+    assert len(data["t"]) == 2
+    assert data["t"][0] == 0.0
+    assert data["t"][1] == 1.0
 
 
 def test_logger_multiple_chunks(tmp_path: Path) -> None:
@@ -118,10 +118,10 @@ def test_logger_multiple_chunks(tmp_path: Path) -> None:
     chunk0 = np.load(tmp_path / "test_chunk_0000.npz")
     chunk1 = np.load(tmp_path / "test_chunk_0001.npz")
 
-    assert chunk0["core_t"][0] == 0.0
-    assert chunk1["core_t"][0] == 1.0
-    assert len(chunk0["core_t"]) == 1
-    assert len(chunk1["core_t"]) == 1
+    assert chunk0["t"][0] == 0.0
+    assert chunk1["t"][0] == 1.0
+    assert len(chunk0["t"]) == 1
+    assert len(chunk1["t"]) == 1
 
 
 def test_logger_merge_chunks_memory_efficient(tmp_path: Path) -> None:
@@ -162,9 +162,9 @@ def test_logger_merge_chunks_memory_efficient(tmp_path: Path) -> None:
     assert not chunk_files
 
     data = np.load(merged_file)
-    assert "core_x" in data
+    assert "x" in data
 
-    x_merged = data["core_x"]
+    x_merged = data["x"]
     assert x_merged.shape == (6, 6, 76)
 
     # Verify the contents
