@@ -34,14 +34,14 @@ def test_two_channels_log_per_channel() -> None:
     sim.run()
 
     logs = sim.logger.component_logs
-    n = len(sim.logger.universal_logs)
+    n = len(sim.logger.core_logs)
     for name in ("sensor_0", "sensor_1"):
         assert len(logs[name]) == n
         assert "truth" in logs[name][0]
 
-    # Truth is per-channel only; the universal log carries the merged measurement.
-    assert "y_mea" in sim.logger.universal_logs[0]
-    assert "y" not in sim.logger.universal_logs[0]
+    # Truth is per-channel only; the core log carries the merged measurement.
+    assert "y_mea" in sim.logger.core_logs[0]
+    assert "y" not in sim.logger.core_logs[0]
 
 
 def test_estimator_receives_concatenated_measurement() -> None:
@@ -49,7 +49,7 @@ def test_estimator_receives_concatenated_measurement() -> None:
     sim = _two_channel_sim(t_end=0.03, sensor1_dt=0.01)
     sim.run()
     # IdentityEstimator passes the (2,) concatenated measurement through as x_hat.
-    x_hat = sim.logger.universal_logs[-1]["x_hat"]
+    x_hat = sim.logger.core_logs[-1]["x_hat"]
     assert np.asarray(x_hat).shape == (2,)
 
 
@@ -58,8 +58,8 @@ def test_slow_sensor_is_zoh_held() -> None:
     sim = _two_channel_sim(t_end=0.06, sensor1_dt=0.02)
     sim.run()
 
-    fast = [e["y_mea"][0] for e in sim.logger.universal_logs]
-    slow = [e["y_mea"][1] for e in sim.logger.universal_logs]
+    fast = [e["y_mea"][0] for e in sim.logger.core_logs]
+    slow = [e["y_mea"][1] for e in sim.logger.core_logs]
 
     # The fast channel updates every base step once the truth starts moving.
     assert fast[2] != fast[1]

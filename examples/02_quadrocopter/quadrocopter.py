@@ -8,6 +8,9 @@ from numpy.typing import ArrayLike
 from simulate.component import NoLog
 from simulate.controller import Controller
 from spacecraft.effector import Effector, RigidBodyState
+from spacecraft.frames import euler_from_quaternion
+from spacecraft.quaternion import Quaternion
+from spacecraft.rigid_body import STATE
 
 
 class FlatGravity(Effector):
@@ -157,67 +160,138 @@ class AerodynamicDragQuad(Effector):
         )
 
 
-class OpenLoopPitchController(Controller[NoLog]):
-    """Open-loop controller that commands unequal thrust to pitch the vehicle."""
+class CascadedController(Controller[NoLog]):
+    """Linear cascaded PID controller for quadrocopter position and attitude."""
 
-    def __init__(self, dt: float, f_hover: float) -> None:
-        super().__init__(dt)
-        self.f_hover = f_hover
-
-    def update(
+    def __init__(  # noqa: PLR0913
         self,
-        t: float,
-        ref: float | np.ndarray,  # noqa: ARG002
-        x_hat: float | np.ndarray,  # noqa: ARG002
-    ) -> tuple[np.ndarray, NoLog]:
-        """Compute open loop thrust commands to pitch the vehicle forward."""
-        if 1.0 <= t < 2.0:  # noqa: PLR2004
-            u = np.array([self.f_hover + 0.5, self.f_hover - 0.5, self.f_hover + 0.5, self.f_hover - 0.5])
-        else:
-            u = np.array([self.f_hover, self.f_hover, self.f_hover, self.f_hover])
-        return u, NoLog()
+        dt: float,
+        mass: float,
+        inertia: ArrayLike,
+        k_p_pos: ArrayLike,
+        k_d_pos: ArrayLike,
+        k_p_att: ArrayLike,
+        k_d_att: ArrayLike,
+        thrust_axis: ArrayLike = (0.0, 0.0, 1.0),
+        rotor_positions: ArrayLike = ((0.2, 0.2, 0.0), (-0.2, -0.2, 0.0), (0.2, -0.2, 0.0), (-0.2, 0.2, 0.0)),
+        rotor_directions: ArrayLike = (-1, -1, 1, 1),
+        torque_to_thrust_ratio: float = 0.015,
+        max_thrust_per_rotor: float = 10.0,
+    ) -> None:
+        """Initialize the cascaded controller."""
+        super().__init__(dt)
+        self.mass = float(mass)
+        inertia_arr = np.asarray(inertia, dtype=float)
+        self.inertia = np.diag(inertia_arr) if inertia_arr.ndim == 1 else inertia_arr
 
-    @classmethod
-    def from_config(cls, config: dict[str, Any]) -> Self:
-        """Instantiate the component from a raw configuration dictionary."""
-        return cls(dt=float(config["dt"]), f_hover=float(config["f_hover"]))
+        self.k_p_pos = np.asarray(k_p_pos, dtype=float)
+        self.k_d_pos = np.asarray(k_d_pos, dtype=float)
+        self.k_p_att = np.asarray(k_p_att, dtype=float)
+        self.k_d_att = np.asarray(k_d_att, dtype=float)
 
+        self.g = 9.81
+        self.thrust_axis = np.asarray(thrust_axis, dtype=float)
+        self.thrust_axis = self.thrust_axis / np.linalg.norm(self.thrust_axis)
 
-class ZeroController(Controller[NoLog]):
-    """Open-loop controller that commands zero/no inputs (e.g. for drag simulation)."""
+        self.max_thrust_per_rotor = float(max_thrust_per_rotor)
+
+        # Build mixer matrix
+        m_mat = np.zeros((4, 4), dtype=float)
+        positions = np.asarray(rotor_positions, dtype=float)
+        directions = np.asarray(rotor_directions, dtype=float)
+
+        for i in range(4):
+            r_i = positions[i]
+            d_i = directions[i]
+
+            # F_total is sum of forces
+            m_mat[0, i] = 1.0
+
+            # Torques: r_i x (thrust_axis * f_i) + reaction_torque
+            tau_thrust_dir = np.cross(r_i, self.thrust_axis)
+            tau_react_dir = -d_i * torque_to_thrust_ratio * self.thrust_axis
+            tau_dir = tau_thrust_dir + tau_react_dir
+
+            m_mat[1:4, i] = tau_dir
+
+        self.mixer_inv = np.linalg.inv(m_mat)
 
     def update(
         self,
         t: float,  # noqa: ARG002
-        ref: float | np.ndarray,  # noqa: ARG002
-        x_hat: float | np.ndarray,  # noqa: ARG002
+        ref: float | np.ndarray,
+        x_hat: float | np.ndarray,
     ) -> tuple[np.ndarray, NoLog]:
-        """Return a zero-length command vector."""
-        return np.zeros(0), NoLog()
+        """Compute the rotor thrust commands."""
+        x = np.asarray(x_hat)
+        r = x[STATE.r]
+        v = x[STATE.v]
+        q = Quaternion.from_array(x[STATE.q])
+        omega = x[STATE.omega]
+
+        ref_pos = np.asarray(ref) if isinstance(ref, np.ndarray) else np.array([ref, ref, ref])
+
+        # 1. Outer loop: Position control
+        pos_error = ref_pos - r
+        vel_error = -v  # assume reference velocity is 0
+
+        # Desired acceleration
+        a_des = self.k_p_pos * pos_error + self.k_d_pos * vel_error
+
+        # Add gravity compensation (assuming Z is up, gravity is -9.81 in Z)
+        a_des[2] += self.g
+
+        # Desired thrust force vector in inertial frame
+        f_des_inertial = self.mass * a_des
+
+        # Map desired inertial force to body frame
+        f_des_body = q.apply(f_des_inertial)
+
+        t_des = np.dot(f_des_body, self.thrust_axis)
+        t_des = np.clip(t_des, 0.0, 4 * self.max_thrust_per_rotor)
+
+        pitch, roll, yaw = euler_from_quaternion(q)
+
+        theta_des = (-a_des[0] * np.cos(yaw) + a_des[1] * np.sin(yaw)) / self.g
+        phi_des = (a_des[0] * np.sin(yaw) + a_des[1] * np.cos(yaw)) / self.g
+        psi_des = 0.0  # command zero yaw
+
+        phi_des = np.clip(phi_des, -0.5, 0.5)
+        theta_des = np.clip(theta_des, -0.5, 0.5)
+
+        # 2. Inner loop: Attitude control
+        phi_err = phi_des - roll
+        theta_err = theta_des - pitch
+        psi_err = psi_des - yaw
+
+        att_err = np.array([phi_err, theta_err, psi_err])
+
+        # Desired body torque (roll -> x, pitch -> y, yaw -> z)
+        # Note: Euler angle rates and body rates have opposite signs with this convention!
+        tau_des = self.inertia @ (-self.k_p_att * att_err - self.k_d_att * omega)
+
+        wrench = np.array([t_des, tau_des[0], tau_des[1], tau_des[2]])
+        f_rotors = self.mixer_inv @ wrench
+
+        f_rotors = np.clip(f_rotors, 0.0, self.max_thrust_per_rotor)
+
+        return f_rotors, NoLog()
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> Self:
         """Instantiate the component from a raw configuration dictionary."""
-        return cls(dt=float(config["dt"]))
-
-
-class HoverController(Controller[NoLog]):
-    """Controller that commands constant hover thrust on all rotors."""
-
-    def __init__(self, dt: float, f_hover: float) -> None:
-        super().__init__(dt)
-        self.f_hover = f_hover
-
-    def update(
-        self,
-        t: float,  # noqa: ARG002
-        ref: float | np.ndarray,  # noqa: ARG002
-        x_hat: float | np.ndarray,  # noqa: ARG002
-    ) -> tuple[np.ndarray, NoLog]:
-        """Compute constant hover thrust commands for all rotors."""
-        return np.array([self.f_hover, self.f_hover, self.f_hover, self.f_hover]), NoLog()
-
-    @classmethod
-    def from_config(cls, config: dict[str, Any]) -> Self:
-        """Instantiate the component from a raw configuration dictionary."""
-        return cls(dt=float(config["dt"]), f_hover=float(config["f_hover"]))
+        return cls(
+            dt=float(config["dt"]),
+            mass=float(config["mass"]),
+            inertia=config["inertia"],
+            k_p_pos=config["k_p_pos"],
+            k_d_pos=config["k_d_pos"],
+            k_p_att=config["k_p_att"],
+            k_d_att=config["k_d_att"],
+            rotor_positions=config.get(
+                "rotor_positions", ((0.2, 0.2, 0.0), (-0.2, -0.2, 0.0), (0.2, -0.2, 0.0), (-0.2, 0.2, 0.0))
+            ),
+            rotor_directions=config.get("rotor_directions", (-1, -1, 1, 1)),
+            torque_to_thrust_ratio=config.get("torque_to_thrust_ratio", 0.015),
+            max_thrust_per_rotor=config.get("max_thrust_per_rotor", 10.0),
+        )

@@ -206,7 +206,7 @@ def test_simulation_execution_and_logging() -> None:
     )
     sim.run()
 
-    assert len(sim.logger.universal_logs) == 11
+    assert len(sim.logger.core_logs) == 11
 
     assert len(sim.logger.component_logs["dynamics"]) == 11
     assert len(sim.logger.component_logs["reference"]) == 11
@@ -214,11 +214,11 @@ def test_simulation_execution_and_logging() -> None:
     assert len(sim.logger.component_logs["estimator"]) == 11
     assert len(sim.logger.component_logs["controller"]) == 11
 
-    assert sim.logger.universal_logs[0]["t"] == 0.0
-    assert np.allclose(sim.logger.universal_logs[0]["u"], 0.0)
+    assert sim.logger.core_logs[0]["t"] == 0.0
+    assert np.allclose(sim.logger.core_logs[0]["u"], 0.0)
 
-    assert math.isclose(sim.logger.universal_logs[-1]["t"], 1.0, rel_tol=1e-9)
-    assert not np.allclose(sim.logger.universal_logs[-1]["u"], 0.0)
+    assert math.isclose(sim.logger.core_logs[-1]["t"], 1.0, rel_tol=1e-9)
+    assert not np.allclose(sim.logger.core_logs[-1]["u"], 0.0)
 
 
 def test_simulation_single_sensor() -> None:
@@ -239,7 +239,7 @@ def test_simulation_single_sensor() -> None:
     )
     sim.run()
 
-    assert len(sim.logger.universal_logs) == 11
+    assert len(sim.logger.core_logs) == 11
     assert len(sim.sensors) == 1
     assert sim.sensors[0] is sensor
 

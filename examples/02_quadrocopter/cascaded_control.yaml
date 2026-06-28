@@ -1,4 +1,4 @@
-t_end: 5.0
+t_end: 10.0
 
 dynamics:
   class_path: spacecraft.rigid_body.RigidBodyDynamics
@@ -17,31 +17,26 @@ dynamics:
 reference:
   class_path: simulate.reference.StepReference
   dt: 0.01
-  step_value: 0.0
-
-sensors:
-  - class_path: simulate.sensor.GaussianSensor
-    dt: 0.01
-    std_dev: 0.002
-    measurement:
-      class_path: spacecraft.measurement.rigid_body_rate
-  - class_path: simulate.sensor.GaussianSensor
-    dt: 0.05
-    std_dev: 0.01
-    measurement:
-      class_path: spacecraft.measurement.GpsMeasurement
-      include_velocity: false
-  - class_path: simulate.sensor.GaussianSensor
-    dt: 0.10
-    std_dev: 0.002
-    measurement:
-      class_path: spacecraft.measurement.rigid_body_attitude
+  step_value: [1.0, 1.0, 1.0]
+  start_time: 1.0
 
 estimator:
   class_path: simulate.estimator.IdentityEstimator
   dt: 0.01
 
+sensors:
+  - class_path: simulate.sensor.GaussianSensor
+    dt: 0.01
+    std_dev: 0.0
+    measurement:
+      class_path: simulate.sensor.full_state_measurement
+
 controller:
-  class_path: examples.02_quadrocopter.quadrocopter.HoverController
+  class_path: examples.02_quadrocopter.quadrocopter.CascadedController
   dt: 0.01
-  f_hover: 3.67875
+  mass: 1.5
+  inertia: [0.015, 0.015, 0.03]
+  k_p_pos: [2.0, 2.0, 2.0]
+  k_d_pos: [2.0, 2.0, 2.0]
+  k_p_att: [50.0, 50.0, 50.0]
+  k_d_att: [10.0, 10.0, 10.0]

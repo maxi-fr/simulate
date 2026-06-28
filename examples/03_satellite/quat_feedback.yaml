@@ -110,7 +110,7 @@ reference:
   step_value: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
 
 estimator:
-  class_path: spacecraft.estimator.FullStateEstimator
+  class_path: examples.03_satellite.estimator.FullStateEstimator
   dt: 0.2
   # Epoch and the initial orbit/attitude guess come from the shared anchor (same as the truth).
   initial_state: *init
@@ -134,7 +134,7 @@ estimator:
     tach_channel: tachometer
 
 controller:
-  class_path: spacecraft.controller.QuaternionFeedbackController
+  class_path: examples.03_satellite.controller.QuaternionFeedbackController
   dt: 0.2
   kp: [0.02, 0.02, 0.01]
   kd: [0.15, 0.15, 0.08]

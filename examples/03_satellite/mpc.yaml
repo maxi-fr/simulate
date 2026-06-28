@@ -105,7 +105,7 @@ reference:
   step_value: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
 
 estimator:
-  class_path: spacecraft.estimator.FullStateEstimator
+  class_path: examples.03_satellite.estimator.FullStateEstimator
   dt: 0.2
   # Epoch and the initial orbit/attitude guess come from the shared anchor (same as the truth).
   initial_state: *init
@@ -129,12 +129,11 @@ estimator:
     tach_channel: tachometer
 
 controller:
-  class_path: spacecraft.controller.MPC
+  class_path: examples.03_satellite.controller.MPC
   dt: 0.2
   n_steps: 20  # prediction horizon (steps); horizon length = n_steps * dt = 4 s
   inertia: *inertia
-  # Stage/terminal state weight on the reduced error [q_err(3), omega(3), h_w(3)] -- same layout and
-  # values as the AdaptiveLQR example, so the two controllers' Q/R are interchangeable.
+  # Stage/terminal state weight on the reduced error [q_err(3), omega(3), h_w(3)]
   Q:
     - [8.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     - [0.0, 8.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -162,8 +161,7 @@ controller:
     - [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 400.0, 0.0, 0.0]
     - [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 400.0, 0.0]
     - [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 400.0]
-  # Actuator limits -- the MPC's constraint advantage over the feedback laws -- mirroring the
-  # effector config above. Omit `max_current`/`max_rpm` for an unconstrained tracker.
+
   reaction_wheels:
     axes: [[-1, 0, 0], [0, 1, 0], [0, 0, 1]]
     torque_constant: [0.01, 0.01, 0.01]

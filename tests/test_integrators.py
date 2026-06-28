@@ -2,6 +2,7 @@
 import math
 
 import numpy as np
+import pytest
 
 from simulate.dynamics import LinearDynamics
 from simulate.integrator import euler, midpoint, rk4
@@ -107,9 +108,21 @@ def test_quaternion_rk4_normalizes_quat_slice() -> None:
     u = np.zeros(1)
 
     plain = rk4(f, 0.0, 0.1, x0, u)
-    integ = QuaternionRK4((6, 10))
+    integ = QuaternionRK4(slice(6, 10))
     out = integ(f, 0.0, 0.1, x0, u)
 
     assert math.isclose(float(np.linalg.norm(out[6:10])), 1.0)
     assert np.allclose(out[0:6], plain[0:6])
     assert np.allclose(out[10:], plain[10:])
+
+
+def test_quaternion_rk4_validates_slice_length() -> None:
+    """QuaternionRK4 raises ValueError if the slice length is not 4 or 0."""
+
+    # Invalid slice length at call time
+    def f(t: float, x: np.ndarray, u: np.ndarray) -> np.ndarray:
+        return x
+
+    integ = QuaternionRK4(slice(None, 3))  # start/stop are None, so no init check
+    with pytest.raises(ValueError, match="Quaternion slice must have a length of 4"):
+        integ(f, 0.0, 0.1, np.zeros(13), np.zeros(1))

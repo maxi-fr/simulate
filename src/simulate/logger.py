@@ -13,7 +13,7 @@ from .component import NoLog
 
 
 @dataclasses.dataclass(frozen=True)
-class UniversalLog:
+class CoreLog:
     """Standardized signal vectors logged universally across all simulations."""
 
     t: float
@@ -36,7 +36,7 @@ def _determine_dtype(val: object) -> np.dtype | type:
 
 
 class Logger:
-    """Centralized logger handling both universal signals and component-specific logs."""
+    """Centralized logger handling both core signals and component-specific logs."""
 
     def __init__(self, *, compress: bool = False) -> None:
         """Initialize the logger."""
@@ -46,21 +46,21 @@ class Logger:
         self._write_idx: int = 0
         self._buffers_initialized: bool = False
 
-        self._universal_buffers: dict[str, np.ndarray] = {}
+        self._core_buffers: dict[str, np.ndarray] = {}
         self._component_buffers: dict[str, dict[str, np.ndarray]] = {}
         self._component_fields: dict[str, list[str]] = {}
 
-        self._universal_list: list[dict[str, Any]] = []
+        self._core_list: list[dict[str, Any]] = []
         self._component_lists: dict[str, list[dict[str, Any]]] = {}
 
     @property
-    def universal_logs(self) -> list[dict[str, Any]]:
-        """Return the universal logs as a list of dictionaries (constructed on demand)."""
-        logs = list(self._universal_list)
+    def core_logs(self) -> list[dict[str, Any]]:
+        """Return the core logs as a list of dictionaries (constructed on demand)."""
+        logs = list(self._core_list)
         if self._buffers_initialized and self._write_idx > 0:
             for i in range(self._write_idx):
                 entry = {}
-                for key, arr in self._universal_buffers.items():
+                for key, arr in self._core_buffers.items():
                     val = arr[i]
                     if isinstance(val, np.ndarray) and val.ndim == 0:
                         entry[key] = val.item()
@@ -97,11 +97,11 @@ class Logger:
 
     def _resize_buffers(self, new_size: int) -> None:
         """Resize all pre-allocated buffers to a new size."""
-        for key, arr in self._universal_buffers.items():
+        for key, arr in self._core_buffers.items():
             new_shape = (new_size, *arr.shape[1:])
             new_arr = np.zeros(new_shape, dtype=arr.dtype)
             new_arr[: self._buffer_size] = arr
-            self._universal_buffers[key] = new_arr
+            self._core_buffers[key] = new_arr
 
         for fields in self._component_buffers.values():
             for key, arr in fields.items():
@@ -121,17 +121,17 @@ class Logger:
             shape = (self._buffer_size,)
         return np.zeros(shape, dtype=dtype)
 
-    def _init_buffers(self, universal: UniversalLog, components: Mapping[str, Any]) -> None:
+    def _init_buffers(self, core: CoreLog, components: Mapping[str, Any]) -> None:
         """Initialize the pre-allocated buffers based on incoming data shapes and types."""
-        self._universal_buffers = {}
+        self._core_buffers = {}
         self._component_buffers = {}
         self._component_fields = {}
 
         # Universal signals
         for key in ("t", "x", "y_mea", "x_hat", "u", "ref"):
-            val = getattr(universal, key, None)
+            val = getattr(core, key, None)
             if val is not None:
-                self._universal_buffers[key] = self._create_buffer_array(val)
+                self._core_buffers[key] = self._create_buffer_array(val)
 
         # Component signals
         for name, log_model in components.items():
@@ -154,28 +154,28 @@ class Logger:
 
         self._buffers_initialized = True
 
-    def log(self, universal: UniversalLog, components: Mapping[str, Any]) -> None:  # noqa: C901
+    def log(self, core: CoreLog, components: Mapping[str, Any]) -> None:  # noqa: C901
         """
         Record a snapshot of the simulation state.
 
         Parameters
         ----------
-        universal : UniversalLog
-            The universal log signals for this step.
+        core : CoreLog
+            The core log signals for this step.
         components : Mapping
             A dictionary mapping component names to their log models.
         """
         if not self._buffers_initialized:
-            self._init_buffers(universal, components)
+            self._init_buffers(core, components)
 
         if self._write_idx >= self._buffer_size:
             self._resize_buffers(self._buffer_size * 2)
 
-        # Write universal signals
-        for key in self._universal_buffers:
-            val = getattr(universal, key, None)
+        # Write core signals
+        for key in self._core_buffers:
+            val = getattr(core, key, None)
             if val is not None:
-                self._universal_buffers[key][self._write_idx] = val
+                self._core_buffers[key][self._write_idx] = val
 
         # Write component signals
         for name, log_model in components.items():
@@ -185,7 +185,7 @@ class Logger:
             # Fast path for NoLog
             if isinstance(log_model, NoLog):
                 if "t" in self._component_buffers[name]:
-                    self._component_buffers[name]["t"][self._write_idx] = universal.t
+                    self._component_buffers[name]["t"][self._write_idx] = core.t
                 continue
 
             # Write fields cached at initialization
@@ -194,7 +194,7 @@ class Logger:
                 self._component_buffers[name][key][self._write_idx] = getattr(log_model, key)
 
             if "t" in self._component_buffers[name]:
-                self._component_buffers[name]["t"][self._write_idx] = universal.t
+                self._component_buffers[name]["t"][self._write_idx] = core.t
 
         self._write_idx += 1
 
@@ -213,9 +213,9 @@ class Logger:
 
         arrays_to_save: dict[str, np.ndarray] = {}
 
-        if self._universal_buffers:
-            for key, arr in self._universal_buffers.items():
-                arrays_to_save[f"universal_{key}"] = arr[: self._write_idx]
+        if self._core_buffers:
+            for key, arr in self._core_buffers.items():
+                arrays_to_save[f"core_{key}"] = arr[: self._write_idx]
 
         for name, fields in self._component_buffers.items():
             for key, arr in fields.items():
@@ -227,12 +227,12 @@ class Logger:
         if arrays_to_save:
             save_fn(
                 dir_path / f"{prefix}_chunk_{self._chunk_idx:04d}.npz",
-                **arrays_to_save,  # type: ignore[arg-type]
+                **arrays_to_save,  # ty:ignore[invalid-argument-type]
             )
 
         self._chunk_idx += 1
         self._write_idx = 0
-        self._universal_list.clear()
+        self._core_list.clear()
         self._component_lists.clear()
 
     @staticmethod

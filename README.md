@@ -65,19 +65,21 @@ simulate/
 │   │   ├── controller.py    #   Controller, PIController
 │   │   ├── reference.py     #   Reference + StepReference
 │   │   ├── integrator.py    #   euler / midpoint / rk4
-│   │   ├── logger.py        #   Universal + per-component logging
+│   │   ├── logger.py        #   Core + per-component logging
 │   │   ├── experiment.py    #   Parallel batch runner
 │   │   └── simulation.py    #   Simulation orchestrator
 │   └── spacecraft/          #   Aerospace domain extension
 │       ├── rigid_body.py    #   RigidBodyDynamics
 │       ├── effector.py      #   Effector base + actuators/environment
-│       ├── controller.py    #   QuaternionFeedbackController, AdaptiveLQR
-│       ├── estimator.py     #   FullStateEstimator (orbit KF + attitude MEKF)
+│       ├── estimator.py     #   OrbitKalmanFilter, AttitudeMEKF
 │       ├── measurement.py   #   Magnetometer / sun / GPS truth measurements etc.
-│       ├── signals.py       #   Named-slice layouts for the signal vectors
-│       └── ...              #   coordinate frames, quaternion, environment, disturbances
+│       ├── frames.py        #   Coordinate frames and rate transformations
+│       ├── quaternion.py    #   JPL quaternion algebra and RK4 integration
+│       ├── environment.py   #   Atmosphere, IGRF magnetic field, and planetary ephemerides
+│       ├── disturbances.py  #   Aero drag, solar radiation, and gravity gradient torques
+│       └── surface.py       #   Spacecraft flat panel geometry definition
 ├── examples/                #   Marimo notebooks + runnable YAML configs
-├── tests/                   #   Test suite (incl. differential tests)
+├── tests/                   #   Test suite
 └── main.py                  #   CLI entry point
 ```
 
@@ -103,7 +105,7 @@ sim = Simulation.from_yaml("examples/03_satellite/quat_feedback.yaml")
 sim.run(output_dir="results")
 
 # Results are available in-memory after the run:
-sim.logger.universal_logs   # t, x, x_hat, u, ref, y, y_mea
+sim.logger.core_logs   # t, x, x_hat, u, ref, y, y_mea
 sim.logger.component_logs   # per-component internal logs
 ```
 
@@ -186,28 +188,14 @@ to distinct mathematical operations:
 - **Dynamics** — system state transition
   - Discrete-time: $x_{k+1} = f(t_k, x_k, u_k)$
   - Continuous-time: $\dot{x} = f(t, x, u)$ (solved via a numerical integrator)
-- **Sensor** — a measurement model (truth $y_k = h(t_k, x_k, u_k)$) plus a hardware
-  error model: $\tilde{y}_k = h(t_k, x_k, u_k) + \text{noise}$
+- **Sensor** — a measurement model (truth $y_k = g(t_k, x_k, u_k)$) plus a hardware
+  error model: $y_{\text{mea},k} = y_k + \text{noise}$
 - **Estimator** — state reconstruction: $\hat{x}_k = e(t_k, \tilde{y}_k, u_{k-1})$
 - **Controller** — control law: $u_k = c(t_k, r_k, \hat{x}_k)$
 
-```mermaid
-graph LR
-    %% Forward path (Left to Right)
-    Ref[Reference] -->|r_k| C[Controller]
-    C -->|u_k| D[Dynamics]
-    D -->|x_k| S[Sensor]
-    C -->|u_k| S
+![block_diagram](block_diagram.png)
 
-    %% Feedback path (Right to Left, underneath)
-    S -->|y_mea_k| E[Estimator]
-    E -->|x_hat_k| C
-
-    C -.->|u_k| E
-
-    %% Invisible links to force vertical alignment into columns
-    C ~~~ E
-```
+This block diagram shows the different compoents of the setup.
 
 **Multi-rate & Zero-Order Hold.** Each component runs at its own `dt` (an integer
 multiple of the dynamics' base step). The base `Component._execute_zoh` recomputes a
@@ -224,7 +212,7 @@ slow sensors/controllers compose with fast dynamics automatically.
 | Sensor | `RandomWalkBiasSensor` — Gaussian noise + random-walk bias | [`sensor.py`](src/simulate/sensor.py) |
 | Estimator | `IdentityEstimator` — pass-through $\hat{x}_k=\tilde{y}_k$ | [`estimator.py`](src/simulate/estimator.py) |
 | Estimator | `LuenbergerObserver` — model-based $\dot{\hat{x}}=A\hat{x}+Bu+L(y-C\hat{x})$ | [`estimator.py`](src/simulate/estimator.py) |
-| Controller | `PIController` — matrix-gain PI | [`controller.py`](src/simulate/controller.py) |
+| Controller | `PIController` — Linear controller with integral component | [`controller.py`](src/simulate/controller.py) |
 | Reference | `StepReference` — step at a start time | [`reference.py`](src/simulate/reference.py) |
 | Integrators | `euler`, `midpoint`, `rk4` | [`integrator.py`](src/simulate/integrator.py) |
 
@@ -243,12 +231,12 @@ handed to the estimator, and each sensor logs its own clean `truth`.
 
 ### Logging
 
-Every step records a `UniversalLog` ([`src/simulate/logger.py`](src/simulate/logger.py))
+Every step records a `CoreLog` ([`src/simulate/logger.py`](src/simulate/logger.py))
 of the standard signals — `t, x, x_hat, u, ref, y_mea` — plus each component's own
 log dataclass. Component logs are keyed by role (`dynamics`, `reference`, `estimator`,
 `controller`, and `sensor_0`, … per channel; each sensor log carries its clean `truth`)
-and hold **only** internal state not already in the universal log. After a run, read them in memory via
-`sim.logger.universal_logs` and `sim.logger.component_logs`; when `run(output_dir=...)`
+and hold **only** internal state not already in the core log. After a run, read them in memory via
+`sim.logger.core_logs` and `sim.logger.component_logs`; when `run(output_dir=...)`
 is given, logs stream to chunked `.npz` files (optionally `--compress`ed) and are merged
 on `export_results`.
 
@@ -270,7 +258,7 @@ A **measurement model** is the exception: it is not a component but a plain call
 parameters), owned by a `Sensor` and built from config via `build_measurement`.
 
 The log is a frozen dataclass holding **only** internal state not already captured by
-the universal logs; use `simulate.component.NoLog` when there is nothing extra to log.
+the core logs; use `simulate.component.NoLog` when there is nothing extra to log.
 
 For complete, idiomatic references see
 [`examples/01_dc_motor/dc_motor.py`](examples/01_dc_motor/dc_motor.py) (a custom continuous-time `Dynamics`
@@ -291,18 +279,6 @@ forces and torques come from a list of composable **effectors** — actuators
 (reaction wheels, magnetorquers) and environmental effects (gravity, drag, SRP) are
 the same interface, integrated together so state-dependent forces are evaluated at
 every integrator substage.
-
-Controllers and estimators exchange flat numpy vectors whose index conventions live
-in one place: [`src/spacecraft/signals.py`](src/spacecraft/signals.py). Rather than
-hard-coding offsets, read state through these named slices:
-
-| Layout | Length | Fields |
-| --- | --- | --- |
-| `STATE` | 13 (+ effector states) | `r(3), v(3), q(4), omega(3)` |
-| `ESTIMATE` | 19 | `r, v, q, omega, b_body(3), h_wheel(3)` |
-| `REFERENCE` | 7 | `q_des(4), omega_des(3)` (LVLH-relative) |
-| `CONTROL` | 6 | `tau_mtq(3), tau_rw(3)` |
-| `MODEL` | 10 / 6 | model state `q, omega, h_w` and input `u_mag, u_rw` |
 
 ### Prebuilt catalog
 
@@ -327,13 +303,17 @@ command-free.
 | `SolarRadiationPressure` | SRP over body surfaces | [`effector.py`](src/spacecraft/effector.py) |
 | `AerodynamicDrag` | Atmospheric drag over body surfaces | [`effector.py`](src/spacecraft/effector.py) |
 
-#### Controllers, estimators & measurements
+#### Estimators
 
 | Class | Role | File |
 | --- | --- | --- |
-| `QuaternionFeedbackController` | Quaternion PD + magnetorquer momentum dumping | [`controller.py`](src/spacecraft/controller.py) |
-| `AdaptiveLQR` | Discrete LQR re-solved each step from the live field | [`controller.py`](src/spacecraft/controller.py) |
-| `FullStateEstimator` | Orbit KF + attitude MEKF + exposed environment | [`estimator.py`](src/spacecraft/estimator.py) |
+| `OrbitKalmanFilter` | Linear KF over orbit state `[r, v]` driven by GPS | [`estimator.py`](src/spacecraft/estimator.py) |
+| `AttitudeMEKF` | Multiplicative EKF over attitude error and gyro bias | [`estimator.py`](src/spacecraft/estimator.py) |
+
+#### Measurements
+
+| Class | Role | File |
+| --- | --- | --- |
 | `MagneticFieldMeasurement` | IGRF field truth in body frame [T] | [`measurement.py`](src/spacecraft/measurement.py) |
 | `SunDirectionMeasurement` | Unit sun direction (zeroed in eclipse) | [`measurement.py`](src/spacecraft/measurement.py) |
 | `GpsMeasurement` | Inertial position and/or velocity | [`measurement.py`](src/spacecraft/measurement.py) |
@@ -342,19 +322,16 @@ command-free.
 
 All four extension points follow the `simulate` component contract (`__init__` →
 `from_config` → update method + log dataclass); the notes below add only what is
-spacecraft-specific. Read inputs and write outputs through `spacecraft.signals` so
+spacecraft-specific. Read inputs and write outputs through the signal layouts so
 index conventions stay in one place.
 
-**A new controller** — subclass `simulate.controller.Controller[L]`. Slice the
-estimate and reference with `signals.ESTIMATE` / `signals.REFERENCE`, and emit a
-`signals.CONTROL` vector. `QuaternionFeedbackController` in
-[`controller.py`](src/spacecraft/controller.py) is the reference; reuse the
+**A new controller** — subclass `simulate.controller.Controller[L]`. `QuaternionFeedbackController` in
+[`examples/03_satellite/controller.py`](examples/03_satellite/controller.py) is a complete reference; reuse the
 `_attitude_error`, `allocation_matrix`, and `to_current_commands` helpers there to
 turn desired torques into actuator currents.
 
-**A new estimator** — subclass `simulate.estimator.Estimator[L]` and output an
-`ESTIMATE`-shaped `x_hat`. `FullStateEstimator` in
-[`estimator.py`](src/spacecraft/estimator.py) shows how to compose sub-filters
+**A new estimator** — subclass `simulate.estimator.Estimator[L]` and output your state estimate. `FullStateEstimator` in
+[`examples/03_satellite/estimator.py`](examples/03_satellite/estimator.py) shows how to compose sub-filters
 (`OrbitKalmanFilter`, `AttitudeMEKF`) and map a concatenated measurement vector to
 named channels via `MeasurementLayout`.
 
@@ -373,8 +350,12 @@ and pass it as a sensor's `measurement` in the `sensors` list.
 
 ### End-to-end example
 
-[`examples/03_satellite/quat_feedback.yaml`](examples/03_satellite/quat_feedback.yaml) is a full ADCS
-run: a 3U CubeSat holding nadir pointing in LEO with reaction wheels and magnetorquer
-momentum dumping, real disturbances, a full-state estimator, and a quaternion-feedback
-controller. Drive it with `main.py` or via the notebook
-[`examples/03_satellite/notebook.py`](examples/03_satellite/notebook.py).
+The [`examples/03_satellite/`](examples/03_satellite/) directory contains a complete ADCS stack for a 3U CubeSat in LEO holding nadir pointing. It includes realistic disturbances, a full-state estimator (orbit KF + attitude MEKF), and multiple attitude control strategies:
+
+- [`quat_feedback.yaml`](examples/03_satellite/quat_feedback.yaml): A baseline quaternion-feedback PD controller with magnetorquer momentum dumping.
+- [`adaptive_lqr.yaml`](examples/03_satellite/adaptive_lqr.yaml): A discrete LQR that re-solves the Riccati equation at each step to adapt to the changing magnetic field.
+- [`mpc.yaml`](examples/03_satellite/mpc.yaml): A nonlinear model-predictive controller built on CasADi that explicitly handles actuator saturation limits.
+
+This example contatins the implementations for the Adaptive Satelite Control project, see [Adaptive_Satellite_Control_Report.pdf](examples/03_satellite/Adaptive_Satellite_Control_Report.pdf)
+
+Drive the simulations from the command line using `main.py` or explore them interactively in the notebook at [`examples/03_satellite/notebook.py`](examples/03_satellite/notebook.py). The domain-specific components like the `FullStateEstimator` and the various controllers reside directly in the example package, demonstrating how to build a complete custom ADCS application on top of the generic `simulate` engine.
