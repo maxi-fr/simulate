@@ -215,7 +215,7 @@ class Logger:
 
         if self._core_buffers:
             for key, arr in self._core_buffers.items():
-                arrays_to_save[f"core_{key}"] = arr[: self._write_idx]
+                arrays_to_save[key] = arr[: self._write_idx]
 
         for name, fields in self._component_buffers.items():
             for key, arr in fields.items():
