@@ -135,8 +135,8 @@ t_end: 10.0
 dynamics:
   class_path: "simulate.dynamics.LinearDynamics"
   dt: 0.01
-  a: [[0, 1], [-10, -1]]
-  b: [[0], [1]]
+  A: [[0, 1], [-10, -1]]
+  B: [[0], [1]]
   integrator: "simulate.integrator.rk4"
 reference:
   class_path: "simulate.reference.StepReference"
@@ -149,8 +149,8 @@ sensors:
   std_dev: 0.05
   measurement:
     class_path: "simulate.sensor.LinearMeasurement"
-    c: [[1, 0]]
-    d: [[0]]
+    C: [[1, 0]]
+    D: [[0]]
 estimator:
   class_path: "simulate.estimator.IdentityEstimator"
   dt: 0.01
