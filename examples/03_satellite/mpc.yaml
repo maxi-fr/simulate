@@ -89,15 +89,7 @@ sensors:
   - class_path: simulate.sensor.GaussianSensor
     dt: 0.2
     std_dev: 1.0e-3
-    measurement: {class_path: spacecraft.measurement.ReactionWheelTelemetry, index: 19}
-  - class_path: simulate.sensor.GaussianSensor
-    dt: 0.2
-    std_dev: 1.0e-3
-    measurement: {class_path: spacecraft.measurement.ReactionWheelTelemetry, index: 20}
-  - class_path: simulate.sensor.GaussianSensor
-    dt: 0.2
-    std_dev: 1.0e-3
-    measurement: {class_path: spacecraft.measurement.ReactionWheelTelemetry, index: 21}
+    measurement: {class_path: spacecraft.measurement.ReactionWheelTelemetry, base_index: 19, n_wheels: 3}
 
 reference:
   class_path: simulate.reference.StepReference

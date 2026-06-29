@@ -5,16 +5,14 @@ These models read the orbit state (and, where needed, the environment evaluated 
 :class:`~simulate.sensor.Sensor` that adds noise. They mirror the epoch and coordinate
 handling used by the environmental effectors in :mod:`spacecraft.effector`.
 
-A measurement model is a plain callable ``(t, x, u) -> y`` (see
+A measurement model is a callable ``(t, x, u) -> y`` (see
 :data:`simulate.sensor.MeasurementModel`). The dynamics-only measurements (rate
-gyro, star tracker, reaction-wheel tachometer) live in :mod:`spacecraft.rigid_body`
-(:func:`~spacecraft.rigid_body.rigid_body_rate`,
-:func:`~spacecraft.rigid_body.rigid_body_attitude`,
-:class:`~spacecraft.rigid_body.ReactionWheelTelemetry`); this module adds the ones that
-need the environment models.
+gyro, star tracker, reaction-wheel tachometer) are :func:`rigid_body_rate`,
+:func:`rigid_body_attitude`, and :class:`ReactionWheelTelemetry`.
 """
 
 import datetime
+from typing import Any, Self
 
 import numpy as np
 
@@ -43,6 +41,11 @@ class MagneticFieldMeasurement:
         if isinstance(epoch, str):
             epoch = datetime.datetime.fromisoformat(epoch)
         self.epoch = _ensure_utc(epoch)
+
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> Self:
+        """Instantiate from a configuration dictionary."""
+        return cls(**config)
 
     def __call__(
         self,
@@ -75,6 +78,11 @@ class SunDirectionMeasurement:
             epoch = datetime.datetime.fromisoformat(epoch)
         self.epoch = _ensure_utc(epoch)
 
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> Self:
+        """Instantiate from a configuration dictionary."""
+        return cls(**config)
+
     def __call__(
         self,
         t: float,
@@ -105,6 +113,11 @@ class GpsMeasurement:
     def __init__(self, *, include_velocity: bool = True) -> None:
         """Initialize with whether to also report velocity."""
         self.include_velocity = include_velocity
+
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> Self:
+        """Instantiate from a configuration dictionary."""
+        return cls(**config)
 
     def __call__(
         self,
@@ -146,17 +159,23 @@ def rigid_body_rate(_t: float, x: np.ndarray, _u: np.ndarray) -> np.ndarray:
 
 
 class ReactionWheelTelemetry:
-    """Effector telemetry: a single effector internal state (e.g. a wheel's momentum ``h_w``).
+    """Effector telemetry: an array of effector internal states (e.g. wheel momenta or speeds).
 
-    ``index`` is the absolute position of the effector state in the rigid body state vector;
-    effector states begin at :data:`BASE_STATES` in composition order, so the first effector's
-    first state is ``BASE_STATES``.
+    ``base_index`` is the absolute position of the first effector state in the rigid body state vector;
+    effector states begin at :data:`BASE_STATES` in composition order. ``n_wheels`` is the number
+    of wheels in the array.
     """
 
-    def __init__(self, index: int = BASE_STATES) -> None:
-        """Initialize with the absolute state-vector index of the effector state to report."""
-        self.index = index
+    def __init__(self, base_index: int = BASE_STATES, n_wheels: int = 1) -> None:
+        """Initialize with the absolute state-vector base index and the number of wheels."""
+        self.base_index = base_index
+        self.n_wheels = n_wheels
+
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> Self:
+        """Instantiate from a configuration dictionary."""
+        return cls(**config)
 
     def __call__(self, _t: float, x: np.ndarray, _u: np.ndarray) -> np.ndarray:
-        """Select the effector internal state at ``index`` from the full rigid body state."""
-        return x[self.index : self.index + 1]
+        """Select the array of effector internal states starting at ``base_index``."""
+        return x[self.base_index : self.base_index + self.n_wheels]
