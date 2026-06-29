@@ -39,7 +39,10 @@ class DCMotorDynamics(Dynamics[NoLog]):
     def from_config(cls, config: dict[str, Any]) -> Self:
         """Load parameters from configuration dictionary."""
         integrator = config.get("integrator")
-        if isinstance(integrator, str):
+        if integrator is not None:
+            if not isinstance(integrator, str):
+                msg = f"Integrator: {integrator} should be a string"
+                raise ValueError(msg)
             module_name, func_name = integrator.rsplit(".", 1)
             module = importlib.import_module(module_name)
             integrator = getattr(module, func_name)

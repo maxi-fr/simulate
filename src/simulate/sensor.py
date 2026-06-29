@@ -1,7 +1,7 @@
 import abc
 import dataclasses
 from collections.abc import Callable
-from typing import Any, Self, cast
+from typing import Any, Self
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -23,6 +23,11 @@ class LinearMeasurement:
         self.c = np.atleast_2d(C)
         self.d = np.atleast_2d(D)
 
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> Self:
+        """Instantiate from a configuration dictionary."""
+        return cls(**config)
+
     def __call__(
         self,
         _t: float,
@@ -30,9 +35,7 @@ class LinearMeasurement:
         u: np.ndarray,
     ) -> np.ndarray:
         """Compute the output from the current state and input."""
-        x_arr = x
-        u_arr = u
-        return cast("np.ndarray", self.c @ x_arr + self.d @ u_arr)
+        return self.c @ x + self.d @ u
 
 
 def full_state_measurement(
@@ -42,9 +45,6 @@ def full_state_measurement(
 ) -> np.ndarray:
     """Return the full state vector."""
     return x
-
-
-# --------------------------------------------------------------------------
 
 
 class Sensor[L](Component[L], abc.ABC):

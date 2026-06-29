@@ -111,16 +111,16 @@ def test_gyro_pairing_adds_bias_and_noise() -> None:
 
 def test_tachometer_pairing_adds_noise() -> None:
     # RW tachometer = ReactionWheelTelemetry truth + GaussianSensor noise.
-    wheel_speed = 250.0
-    x = np.zeros(BASE_STATES + 1)
-    x[BASE_STATES] = wheel_speed
+    wheel_speeds = np.array([250.0, -100.0, 50.0])
+    x = np.zeros(BASE_STATES + 3)
+    x[BASE_STATES : BASE_STATES + 3] = wheel_speeds
 
-    measure = ReactionWheelTelemetry(index=BASE_STATES)
+    measure = ReactionWheelTelemetry(base_index=BASE_STATES, n_wheels=3)
     truth = measure(0.0, x, np.array([0.0]))
-    np.testing.assert_array_equal(np.asarray(truth), np.array([wheel_speed]))
+    np.testing.assert_array_equal(np.asarray(truth), wheel_speeds)
 
     y_clean, _ = GaussianSensor(dt=1.0, measurement=measure, std_dev=0.0).evaluate(0.0, x, np.array([0.0]))
-    np.testing.assert_array_equal(np.asarray(y_clean), np.array([wheel_speed]))
+    np.testing.assert_array_equal(np.asarray(y_clean), wheel_speeds)
 
     y_noisy, _ = GaussianSensor(dt=1.0, measurement=measure, std_dev=1.0).evaluate(0.0, x, np.array([0.0]))
-    assert not np.allclose(np.asarray(y_noisy), np.array([wheel_speed]))
+    assert not np.allclose(np.asarray(y_noisy), wheel_speeds)

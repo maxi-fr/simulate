@@ -26,9 +26,6 @@ def _angle_between(qa: np.ndarray, qb: np.ndarray) -> float:
     return float(2.0 * np.arctan2(np.linalg.norm(rel.vec), abs(rel.scalar)))
 
 
-# --------------------------------------------------------------------------------------------- #
-# Step 4.1 - MeasurementLayout
-# --------------------------------------------------------------------------------------------- #
 def test_measurement_layout_split() -> None:
     layout = MeasurementLayout((("gps", 6), ("gyro", 3), ("magnetometer", 3)))
     y = np.arange(12, dtype=float)
@@ -41,9 +38,6 @@ def test_measurement_layout_split() -> None:
     np.testing.assert_array_equal(channels["magnetometer"], np.array([9.0, 10.0, 11.0]))
 
 
-# --------------------------------------------------------------------------------------------- #
-# Step 4.2 - OrbitKalmanFilter
-# --------------------------------------------------------------------------------------------- #
 def test_orbit_kf_beats_raw_gps_noise() -> None:
     dt = 10.0
     n_steps = 200
@@ -74,9 +68,6 @@ def test_orbit_kf_beats_raw_gps_noise() -> None:
     assert rms < noise_std  # smoothing beats the raw measurement noise
 
 
-# --------------------------------------------------------------------------------------------- #
-# Step 4.3 - AttitudeMEKF
-# --------------------------------------------------------------------------------------------- #
 def test_mekf_converges_and_tracks_bias() -> None:
     dt = 0.5
     n_steps = 800
@@ -130,9 +121,6 @@ def test_mekf_star_tracker_update_reduces_attitude_error() -> None:
     assert after < 0.1 * before
 
 
-# --------------------------------------------------------------------------------------------- #
-# Steps 4.4 / 4.5 - FullStateEstimator
-# --------------------------------------------------------------------------------------------- #
 def _make_estimator() -> FullStateEstimator:
     layout = MeasurementLayout((("gps", 6), ("gyro", 3), ("star_tracker", 4)))
     h = np.eye(6)

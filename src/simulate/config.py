@@ -68,7 +68,11 @@ def build_measurement(spec: dict[str, Any]) -> MeasurementModel:
     module = importlib.import_module(module_name)
     target = getattr(module, attr_name)
     if isinstance(target, type):
-        return target(**cfg)
+        if not hasattr(target, "from_config"):
+            msg = f"Measurement class {class_path} must implement 'from_config'"
+            raise TypeError(msg)
+        return target.from_config(cfg)
+
     if cfg:
         msg = f"Measurement function {class_path} takes no parameters, got {sorted(cfg)}"
         raise ValueError(msg)

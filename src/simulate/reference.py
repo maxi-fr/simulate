@@ -46,7 +46,7 @@ class StepReference(Reference[NoLog]):
         """Instantiate the component from a raw configuration dictionary."""
         return cls(
             dt=float(config["dt"]),
-            step_value=config.get("step_value", 1.0),
+            step_value=config.get("step_value"),
             start_time=float(config.get("start_time", 0.0)),
             horizon=int(config.get("horizon", 1)),
         )

@@ -40,12 +40,10 @@ class Dynamics[L](Component[L], abc.ABC):
         log : L
             The component log snapshot for the new state.
         """
-        u_arr = u
-
         if self.integrator is not None:
-            self.x = self.integrator(self.dynamics, t, self.dt, self.x, u_arr)
+            self.x = self.integrator(self.dynamics, t, self.dt, self.x, u)
         else:
-            self.x = self.dynamics(t, self.x, u_arr)
+            self.x = self.dynamics(t, self.x, u)
 
         return self.x, self._make_log()
 

@@ -33,16 +33,17 @@ def test_rate_measurement_selects_angular_velocity() -> None:
 
 def test_wheel_telemetry_reads_effector_slice() -> None:
     """ReactionWheelTelemetry reads the effector internal state at BASE_STATES."""
-    measure = ReactionWheelTelemetry()  # default index == BASE_STATES
+    measure = ReactionWheelTelemetry()  # default base_index == BASE_STATES, n_wheels == 1
     x = _state()
     y = measure(0.0, x, np.array([0.0]))
     assert np.allclose(y, np.array([7.5]))
 
 
-def test_wheel_telemetry_honours_index() -> None:
-    """A non-default index selects a later effector state slot."""
-    measure = ReactionWheelTelemetry(index=BASE_STATES + 2)
-    x = np.zeros(BASE_STATES + 3)
-    x[BASE_STATES + 2] = -2.0
+def test_wheel_telemetry_honours_base_index_and_n_wheels() -> None:
+    """A non-default base_index and n_wheels selects an array slice."""
+    measure = ReactionWheelTelemetry(base_index=BASE_STATES + 1, n_wheels=2)
+    x = np.zeros(BASE_STATES + 4)
+    x[BASE_STATES + 1] = -2.0
+    x[BASE_STATES + 2] = 4.5
     y = measure(0.0, x, np.array([0.0]))
-    assert np.allclose(y, np.array([-2.0]))
+    assert np.allclose(y, np.array([-2.0, 4.5]))

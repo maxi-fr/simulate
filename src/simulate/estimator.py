@@ -62,8 +62,7 @@ class IdentityEstimator(Estimator[NoLog]):
         log : NoLog
             Empty log placeholder.
         """
-        res = y_mea.copy() if isinstance(y_mea, np.ndarray) else y_mea
-        return res, NoLog()
+        return y_mea.copy(), NoLog()
 
 
 class LuenbergerObserver(Estimator[NoLog]):
@@ -144,11 +143,10 @@ class LuenbergerObserver(Estimator[NoLog]):
             Empty log placeholder.
         """
         self._y = y_mea
-        u_arr = u
 
         if self.integrator is not None:
-            self.x_hat = self.integrator(self._rhs, t, self.dt, self.x_hat, u_arr)
+            self.x_hat = self.integrator(self._rhs, t, self.dt, self.x_hat, u)
         else:
-            self.x_hat = self._rhs(t, self.x_hat, u_arr)
+            self.x_hat = self._rhs(t, self.x_hat, u)
 
         return self.x_hat, NoLog()
