@@ -152,7 +152,7 @@ def test_merge_chunks_memory_peak(tmp_path: Path) -> None:
         logger.flush_chunk(tmp_path, prefix=prefix)
 
     # Verify 10 chunk files exist
-    chunks = list(tmp_path.glob(f"{prefix}_chunk_*.npz"))
+    chunks = list(tmp_path.glob(f".{prefix}_chunks/{prefix}_chunk_*.npz"))
     assert len(chunks) == 10
 
     # Start tracemalloc to measure memory peak of the merge operation
@@ -166,7 +166,7 @@ def test_merge_chunks_memory_peak(tmp_path: Path) -> None:
     # The merged file should exist, and chunks should be deleted
     merged_file = tmp_path / f"{prefix}.npz"
     assert merged_file.exists()
-    assert not any(tmp_path.glob(f"{prefix}_chunk_*.npz"))
+    assert not any(tmp_path.glob(f".{prefix}_chunks/{prefix}_chunk_*.npz"))
 
     # Load and verify content integrity
     data = np.load(merged_file)

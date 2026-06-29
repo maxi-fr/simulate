@@ -50,13 +50,10 @@ class Logger:
         self._component_buffers: dict[str, dict[str, np.ndarray]] = {}
         self._component_fields: dict[str, list[str]] = {}
 
-        self._core_list: list[dict[str, Any]] = []
-        self._component_lists: dict[str, list[dict[str, Any]]] = {}
-
     @property
     def core_logs(self) -> list[dict[str, Any]]:
         """Return the core logs as a list of dictionaries (constructed on demand)."""
-        logs = list(self._core_list)
+        logs = []
         if self._buffers_initialized and self._write_idx > 0:
             for i in range(self._write_idx):
                 entry = {}
@@ -72,7 +69,7 @@ class Logger:
     @property
     def component_logs(self) -> dict[str, list[dict[str, Any]]]:
         """Return the component logs as a dictionary of lists of dictionaries (constructed on demand)."""
-        result = {name: list(lst) for name, lst in self._component_lists.items()}
+        result = {}
         if self._buffers_initialized and self._write_idx > 0:
             for name, fields in self._component_buffers.items():
                 if name not in result:
@@ -209,7 +206,8 @@ class Logger:
             return
 
         dir_path = Path(directory)
-        dir_path.mkdir(parents=True, exist_ok=True)
+        chunk_dir = dir_path / f".{prefix}_chunks"
+        chunk_dir.mkdir(parents=True, exist_ok=True)
 
         arrays_to_save: dict[str, np.ndarray] = {}
 
@@ -226,14 +224,12 @@ class Logger:
 
         if arrays_to_save:
             save_fn(
-                dir_path / f"{prefix}_chunk_{self._chunk_idx:04d}.npz",
+                chunk_dir / f"{prefix}_chunk_{self._chunk_idx:04d}.npz",
                 **arrays_to_save,  # ty:ignore[invalid-argument-type]
             )
 
         self._chunk_idx += 1
         self._write_idx = 0
-        self._core_list.clear()
-        self._component_lists.clear()
 
     @staticmethod
     def merge_chunks(directory: str | Path, prefix: str = "log", *, compress: bool = False) -> None:  # noqa: C901
@@ -243,7 +239,8 @@ class Logger:
         after a successful merge.
         """
         dir_path = Path(directory)
-        chunk_files = sorted(dir_path.glob(f"{prefix}_chunk_*.npz"))
+        chunk_dir = dir_path / f".{prefix}_chunks"
+        chunk_files = sorted(chunk_dir.glob(f"{prefix}_chunk_*.npz"))
         if not chunk_files:
             return
 
@@ -267,7 +264,7 @@ class Logger:
         try:
             for key in keys:
                 total_shape = (total_lengths[key], *sub_shapes[key])
-                temp_path = dir_path / f"{prefix}_merge_{key}.npy.tmp"
+                temp_path = chunk_dir / f"{prefix}_merge_{key}.npy.tmp"
                 temp_files[key] = temp_path
 
                 # Create the memory-mapped file with the proper NPY header
@@ -307,3 +304,7 @@ class Logger:
         # 6. Delete the chunk files after a successful merge
         for chunk_file in chunk_files:
             chunk_file.unlink()
+
+        # 7. Delete the chunks directory if empty
+        with contextlib.suppress(OSError):
+            chunk_dir.rmdir()
