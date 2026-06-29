@@ -44,6 +44,10 @@ def _ensure_importable(path: Path) -> None:
     if entry not in sys.path:
         sys.path.insert(0, entry)
 
+    repo_entry = str(REPO_ROOT)
+    if repo_entry not in sys.path:
+        sys.path.insert(0, repo_entry)
+
 
 def _load_simulation(config: Path) -> Simulation:
     """Build a fresh simulation from a YAML config.
@@ -75,7 +79,7 @@ def _time_workload(config: Path, chunk_size: int, repeats: int) -> dict[str, flo
     """
     run_times: list[float] = []
     export_times: list[float] = []
-    for _ in range(repeats):
+    for i in range(repeats + 1):
         sim = _load_simulation(config)
         with tempfile.TemporaryDirectory() as tmp:
             start = time.perf_counter()
@@ -83,6 +87,10 @@ def _time_workload(config: Path, chunk_size: int, repeats: int) -> dict[str, flo
             after_run = time.perf_counter()
             sim.export_results(tmp, prefix=PREFIX)
             after_export = time.perf_counter()
+
+        if i == 0:
+            continue
+
         run_times.append(after_run - start)
         export_times.append(after_export - after_run)
 

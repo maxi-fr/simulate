@@ -19,8 +19,8 @@ def main() -> None:
     parser.add_argument(
         "--chunk-size",
         type=int,
-        default=10_000,
-        help="Steps per output chunk file (default: 10000). Use 0 to disable chunking.",
+        default=0,
+        help="Steps per output chunk file (default: 0). Use 0 to disable chunking.",
     )
     parser.add_argument(
         "--output-dir",
@@ -31,7 +31,7 @@ def main() -> None:
     parser.add_argument(
         "--compress",
         action="store_true",
-        help="Enable zlib compression for output files (default: False/uncompressed).",
+        help="Enable zlib compression for the logs (default: False/uncompressed).",
     )
 
     args = parser.parse_args()

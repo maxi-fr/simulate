@@ -54,7 +54,7 @@ def test_logger_flush_chunk(tmp_path: Path) -> None:
     export_dir = tmp_path / "export_npz"
     logger.flush_chunk(export_dir, prefix="test")
 
-    npz_file = export_dir / "test_chunk_0000.npz"
+    npz_file = export_dir / ".test_chunks" / "test_chunk_0000.npz"
     assert npz_file.exists()
 
     data = np.load(npz_file)
@@ -94,8 +94,8 @@ def test_logger_merge_chunks(tmp_path: Path) -> None:
 
     merged_file = tmp_path / "test.npz"
     assert merged_file.exists()
-    assert not (tmp_path / "test_chunk_0000.npz").exists()
-    assert not (tmp_path / "test_chunk_0001.npz").exists()
+    assert not (tmp_path / ".test_chunks" / "test_chunk_0000.npz").exists()
+    assert not (tmp_path / ".test_chunks" / "test_chunk_0001.npz").exists()
 
     data = np.load(merged_file)
     assert len(data["t"]) == 2
@@ -115,8 +115,8 @@ def test_logger_multiple_chunks(tmp_path: Path) -> None:
     logger.log(core, {})
     logger.flush_chunk(tmp_path, prefix="test")
 
-    chunk0 = np.load(tmp_path / "test_chunk_0000.npz")
-    chunk1 = np.load(tmp_path / "test_chunk_0001.npz")
+    chunk0 = np.load(tmp_path / ".test_chunks" / "test_chunk_0000.npz")
+    chunk1 = np.load(tmp_path / ".test_chunks" / "test_chunk_0001.npz")
 
     assert chunk0["t"][0] == 0.0
     assert chunk1["t"][0] == 1.0
@@ -154,11 +154,11 @@ def test_logger_merge_chunks_memory_efficient(tmp_path: Path) -> None:
     assert merged_file.exists()
 
     # Ensure temporary files were deleted
-    temp_files = list(tmp_path.glob("*.npy.tmp"))
+    temp_files = list(tmp_path.glob("**/*.npy.tmp"))
     assert not temp_files
 
     # Ensure chunk files were deleted
-    chunk_files = list(tmp_path.glob("test_chunk_*.npz"))
+    chunk_files = list(tmp_path.glob("**/*chunk_*.npz"))
     assert not chunk_files
 
     data = np.load(merged_file)

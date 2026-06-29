@@ -73,7 +73,6 @@ def _run_benchmark(repo: Path, src: Path, out: Path, workloads: list[str], repea
     cmd = [
         "uv",
         "run",
-        "python",
         "benchmarks/benchmark.py",
         "--src",
         str(src),
