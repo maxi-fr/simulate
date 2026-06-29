@@ -138,7 +138,7 @@ class Simulation:
         t = 0.0
         step_count: int = 0
 
-        u_k: float | np.ndarray = np.zeros(self.dynamics.n_inputs)
+        u_k: np.ndarray = np.zeros(self.dynamics.n_inputs)
 
         total_steps = round(self.t_end / self.dt) + 1
         buffer_size = chunk_size if (chunk_size is not None and output_dir is not None) else total_steps
@@ -153,7 +153,7 @@ class Simulation:
                 ref_k, ref_log = self.reference.evaluate(t)
 
                 sensor_logs = [sensor.evaluate(t, x_k, u_k) for sensor in self.sensors]
-                y_mea_list = [np.atleast_1d(res) for res, _ in sensor_logs]
+                y_mea_list = [res for res, _ in sensor_logs]
                 y_mea = np.concatenate(y_mea_list) if y_mea_list else np.zeros(0)
 
                 x_hat, estim_log = self.estimator.evaluate(t, y_mea, u_k)

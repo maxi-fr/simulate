@@ -20,14 +20,14 @@ def _state() -> np.ndarray:
 def test_attitude_measurement_selects_quaternion() -> None:
     """rigid_body_attitude projects the quaternion slice as the truth measurement."""
     x = _state()
-    y = rigid_body_attitude(0.0, x, 0.0)
+    y = rigid_body_attitude(0.0, x, np.array([0.0]))
     assert np.allclose(y, x[STATE.q])
 
 
 def test_rate_measurement_selects_angular_velocity() -> None:
     """rigid_body_rate projects the body-frame angular velocity slice."""
     x = _state()
-    y = rigid_body_rate(0.0, x, 0.0)
+    y = rigid_body_rate(0.0, x, np.array([0.0]))
     assert np.allclose(y, x[STATE.omega])
 
 
@@ -35,7 +35,7 @@ def test_wheel_telemetry_reads_effector_slice() -> None:
     """ReactionWheelTelemetry reads the effector internal state at BASE_STATES."""
     measure = ReactionWheelTelemetry()  # default index == BASE_STATES
     x = _state()
-    y = measure(0.0, x, 0.0)
+    y = measure(0.0, x, np.array([0.0]))
     assert np.allclose(y, np.array([7.5]))
 
 
@@ -44,5 +44,5 @@ def test_wheel_telemetry_honours_index() -> None:
     measure = ReactionWheelTelemetry(index=BASE_STATES + 2)
     x = np.zeros(BASE_STATES + 3)
     x[BASE_STATES + 2] = -2.0
-    y = measure(0.0, x, 0.0)
+    y = measure(0.0, x, np.array([0.0]))
     assert np.allclose(y, np.array([-2.0]))

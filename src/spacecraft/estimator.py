@@ -1,4 +1,3 @@
-# ruff: noqa: N803, N806
 """Full nonlinear state estimator: orbit Kalman filter + attitude MEKF + environment exposure.
 
 The framework feeds the estimator the concatenated measurement vector ``y_mea`` (every sensor

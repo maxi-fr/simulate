@@ -19,7 +19,7 @@ class Component[L](abc.ABC):
         """Initialize the component."""
         self.dt = dt
         self.next_update_time: float = 0.0
-        self.last_output: float | np.ndarray | None = None
+        self.last_output: np.ndarray | None = None
         self.last_log: L | None = None
 
     @classmethod
@@ -35,10 +35,10 @@ class Component[L](abc.ABC):
     def _execute_zoh(
         self,
         t: float,
-        update_fn: Callable[..., tuple[float | np.ndarray, L]],
+        update_fn: Callable[..., tuple[np.ndarray, L]],
         *args: Any,  # noqa: ANN401
         **kwargs: Any,  # noqa: ANN401
-    ) -> tuple[float | np.ndarray, L]:
+    ) -> tuple[np.ndarray, L]:
         """
         Encapsulate Zero-Order Hold logic, delegating to the provided update function.
 
@@ -47,7 +47,7 @@ class Component[L](abc.ABC):
 
         Returns
         -------
-        output : float or np.ndarray
+        output : numpy.ndarray
             The primary output, refreshed on update steps and held otherwise.
         log : L
             The component log paired with ``output``.

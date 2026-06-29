@@ -1,4 +1,3 @@
-# ruff: noqa: N806
 """Example-specific full state estimator for the satellite simulation.
 
 Composes the orbit KF, attitude MEKF, and environment exposure into one estimator,
@@ -163,9 +162,9 @@ class FullStateEstimator(Estimator[FullStateEstimatorLog]):
     def update(
         self,
         t: float,
-        y_mea: float | np.ndarray,
-        u: float | np.ndarray,  # noqa: ARG002
-    ) -> tuple[float | np.ndarray, FullStateEstimatorLog]:
+        y_mea: np.ndarray,
+        u: np.ndarray,  # noqa: ARG002
+    ) -> tuple[np.ndarray, FullStateEstimatorLog]:
         """Run both sub-filters on the split measurements and assemble ``[r, v, q, omega]``."""
         # The simulation seeds the first measurement from scalar zeros before any Output has produced
         # real truth, so y_mea is undersized on the warm-up step; skip the updates (predict only) and

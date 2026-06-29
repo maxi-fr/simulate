@@ -1,4 +1,3 @@
-# ruff: noqa: N806, N803
 import numpy as np
 
 from .environment import solar_radiation_pressure_constant

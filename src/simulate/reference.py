@@ -13,12 +13,12 @@ class Reference[L](Component[L], abc.ABC):
         """Initialize the reference generator."""
         super().__init__(dt)
 
-    def evaluate(self, t: float) -> tuple[float | np.ndarray, L]:
+    def evaluate(self, t: float) -> tuple[np.ndarray, L]:
         """Generate the reference signal (or trajectory) for the current time (with ZOH)."""
         return self._execute_zoh(t, self.update)
 
     @abc.abstractmethod
-    def update(self, t: float) -> tuple[float | np.ndarray, L]:
+    def update(self, t: float) -> tuple[np.ndarray, L]:
         """Execute internal update dynamics to generate reference. Must be implemented by subclasses."""
 
 
@@ -28,7 +28,7 @@ class StepReference(Reference[NoLog]):
     def __init__(
         self,
         dt: float,
-        step_value: float | np.ndarray = 1.0,
+        step_value: np.ndarray | None = None,
         start_time: float = 0.0,
         horizon: int = 1,
     ) -> None:
@@ -37,7 +37,7 @@ class StepReference(Reference[NoLog]):
         if isinstance(step_value, (list, tuple)):
             self.step_value = np.array(step_value)
         else:
-            self.step_value = step_value
+            self.step_value = step_value if step_value is not None else np.array([1.0])
         self.start_time = start_time
         self.horizon = horizon
 
@@ -51,7 +51,7 @@ class StepReference(Reference[NoLog]):
             horizon=int(config.get("horizon", 1)),
         )
 
-    def update(self, t: float) -> tuple[float | np.ndarray, NoLog]:
+    def update(self, t: float) -> tuple[np.ndarray, NoLog]:
         """
         Generate a step signal or trajectory.
 
@@ -62,7 +62,7 @@ class StepReference(Reference[NoLog]):
 
         Returns
         -------
-        reference : float or numpy.ndarray
+        reference : numpy.ndarray
             Step value (or horizon trajectory) evaluated at time ``t``.
         log : NoLog
             Empty log placeholder.
@@ -76,4 +76,4 @@ class StepReference(Reference[NoLog]):
             future_times = t + np.arange(self.horizon) * self.dt
             res = np.where(future_times >= self.start_time, self.step_value, 0.0)
 
-        return res, NoLog()
+        return np.asarray(res), NoLog()

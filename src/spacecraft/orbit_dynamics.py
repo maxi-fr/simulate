@@ -1,4 +1,3 @@
-# ruff: noqa: N803, N806
 import datetime
 
 import numpy as np

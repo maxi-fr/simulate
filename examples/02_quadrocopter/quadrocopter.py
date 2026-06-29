@@ -219,8 +219,8 @@ class CascadedController(Controller[NoLog]):
     def update(
         self,
         t: float,  # noqa: ARG002
-        ref: float | np.ndarray,
-        x_hat: float | np.ndarray,
+        ref: np.ndarray,
+        x_hat: np.ndarray,
     ) -> tuple[np.ndarray, NoLog]:
         """Compute the rotor thrust commands."""
         x = np.asarray(x_hat)

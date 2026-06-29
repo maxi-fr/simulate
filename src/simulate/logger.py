@@ -8,6 +8,7 @@ from typing import Any
 import numpy as np
 import numpy.typing as npt
 from numpy.lib.format import open_memmap
+from numpy.typing import ArrayLike
 
 from .component import NoLog
 
@@ -17,22 +18,11 @@ class CoreLog:
     """Standardized signal vectors logged universally across all simulations."""
 
     t: float
-    x: float | npt.NDArray[np.float64]
-    x_hat: float | npt.NDArray[np.float64]
-    u: float | npt.NDArray[np.float64]
-    ref: float | npt.NDArray[np.float64]
-    y_mea: float | npt.NDArray[np.float64] | None = None
-
-
-def _determine_dtype(val: object) -> np.dtype | type:
-    """Determine the NumPy dtype or Python type for a given value."""
-    if isinstance(val, np.ndarray):
-        return val.dtype  # type: ignore[no-any-return]
-    if isinstance(val, bool):
-        return bool
-    if isinstance(val, int):
-        return np.int64
-    return np.float64
+    x: npt.NDArray[Any]
+    x_hat: npt.NDArray[Any]
+    u: npt.NDArray[Any]
+    ref: npt.NDArray[Any]
+    y_mea: npt.NDArray[Any] | None = None
 
 
 class Logger:
@@ -59,10 +49,7 @@ class Logger:
                 entry = {}
                 for key, arr in self._core_buffers.items():
                     val = arr[i]
-                    if isinstance(val, np.ndarray) and val.ndim == 0:
-                        entry[key] = val.item()
-                    else:
-                        entry[key] = val
+                    entry[key] = val
                 logs.append(entry)
         return logs
 
@@ -78,10 +65,7 @@ class Logger:
                     entry = {}
                     for key, arr in fields.items():
                         val = arr[i]
-                        if isinstance(val, np.ndarray) and val.ndim == 0:
-                            entry[key] = val.item()
-                        else:
-                            entry[key] = val
+                        entry[key] = val
                     result[name].append(entry)
         return result
 
@@ -109,13 +93,11 @@ class Logger:
 
         self._buffer_size = new_size
 
-    def _create_buffer_array(self, val: object) -> np.ndarray:
+    def _create_buffer_array(self, val: ArrayLike) -> np.ndarray:
         """Create a pre-allocated NumPy array of the correct shape and dtype."""
-        dtype = _determine_dtype(val)
-        if isinstance(val, np.ndarray) and val.ndim > 0:
-            shape = (self._buffer_size, *val.shape)
-        else:
-            shape = (self._buffer_size,)
+        arr = np.asarray(val)
+        dtype = arr.dtype
+        shape = (self._buffer_size, *arr.shape)
         return np.zeros(shape, dtype=dtype)
 
     def _init_buffers(self, core: CoreLog, components: Mapping[str, Any]) -> None:
@@ -125,10 +107,13 @@ class Logger:
         self._component_fields = {}
 
         # Universal signals
-        for key in ("t", "x", "y_mea", "x_hat", "u", "ref"):
-            val = getattr(core, key, None)
+        for field in dataclasses.fields(core):
+            if field.name == "t":
+                self._core_buffers["t"] = np.zeros((self._buffer_size,), dtype=np.float64)
+                continue
+            val = getattr(core, field.name)
             if val is not None:
-                self._core_buffers[key] = self._create_buffer_array(val)
+                self._core_buffers[field.name] = self._create_buffer_array(val)
 
         # Component signals
         for name, log_model in components.items():

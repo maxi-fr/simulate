@@ -1,4 +1,3 @@
-# ruff: noqa: N806
 import math
 
 import numpy as np
@@ -57,8 +56,8 @@ def test_linear_dynamics_continuous() -> None:
     dynamics = LinearDynamics(dt, A, B, integrator=rk4)
     measurement = LinearMeasurement(C, D)
 
-    x, _log = dynamics.evaluate(0.0, 1.0)
-    y = measurement(0.0, x, 1.0)
+    x, _log = dynamics.evaluate(0.0, np.array([1.0]))
+    y = measurement(0.0, x, np.array([1.0]))
     assert math.isclose(float(np.asarray(y).item()), 1 - math.exp(-0.1), rel_tol=1e-5)
     assert math.isclose(float(np.asarray(x).item()), 1 - math.exp(-0.1), rel_tol=1e-5)
 
@@ -74,8 +73,8 @@ def test_linear_dynamics_discrete_fallback() -> None:
     dynamics = LinearDynamics(dt, A, B)
     measurement = LinearMeasurement(C, D)
 
-    x, _log = dynamics.evaluate(0.0, 1.0)
-    y = measurement(0.0, x, 1.0)
+    x, _log = dynamics.evaluate(0.0, np.array([1.0]))
+    y = measurement(0.0, x, np.array([1.0]))
     assert float(np.asarray(y).item()) == 1.0
     assert float(np.asarray(x).item()) == 1.0
 
@@ -92,8 +91,8 @@ def test_linear_dynamics_from_config_dynamic_integrator() -> None:
     dynamics = LinearDynamics.from_config(config)
     assert dynamics.integrator == rk4
 
-    x, _ = dynamics.evaluate(0.0, 1.0)
-    y = measurement(0.0, x, 1.0)
+    x, _ = dynamics.evaluate(0.0, np.array([1.0]))
+    y = measurement(0.0, x, np.array([1.0]))
     assert math.isclose(float(np.asarray(y).item()), 1 - math.exp(-0.1), rel_tol=1e-5)
 
 

@@ -1,4 +1,3 @@
-# ruff: noqa: N803, N806
 """Attitude controllers driving 3 reaction wheels and 3 magnetorquers for nadir pointing.
 
 These controllers consume the estimator's ``x_hat`` and the nadir reference and return the control
@@ -242,9 +241,9 @@ class QuaternionFeedbackController(Controller[QuaternionFeedbackControllerLog]):
     def update(
         self,
         t: float,  # noqa: ARG002
-        ref: float | np.ndarray,
-        x_hat: float | np.ndarray,
-    ) -> tuple[float | np.ndarray, QuaternionFeedbackControllerLog]:
+        ref: np.ndarray,
+        x_hat: np.ndarray,
+    ) -> tuple[np.ndarray, QuaternionFeedbackControllerLog]:
         """Compute the quaternion-feedback control current commands."""
         x = np.asarray(x_hat)
 
@@ -474,9 +473,9 @@ class AdaptiveLQR(Controller[AdaptiveLQRLog]):
     def update(
         self,
         t: float,  # noqa: ARG002
-        ref: float | np.ndarray,
-        x_hat: float | np.ndarray,
-    ) -> tuple[float | np.ndarray, AdaptiveLQRLog]:
+        ref: np.ndarray,
+        x_hat: np.ndarray,
+    ) -> tuple[np.ndarray, AdaptiveLQRLog]:
         """Re-solve the gain at the current field, then compute the LQR current commands."""
         ref_arr = np.asarray(ref)
         x = np.asarray(x_hat)
@@ -752,9 +751,9 @@ class MPC(Controller[MPCLog]):
     def update(
         self,
         t: float,  # noqa: ARG002
-        ref: float | np.ndarray,
-        x_hat: float | np.ndarray,
-    ) -> tuple[float | np.ndarray, MPCLog]:
+        ref: np.ndarray,
+        x_hat: np.ndarray,
+    ) -> tuple[np.ndarray, MPCLog]:
         """Re-solve the MPC program at the current state and return the first input as currents."""
         ref_arr = np.asarray(ref)
         x = np.asarray(x_hat)
