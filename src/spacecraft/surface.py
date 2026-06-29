@@ -1,4 +1,3 @@
-# ruff: noqa: N806, N803
 from typing import Any
 
 import numpy as np

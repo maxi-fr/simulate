@@ -15,12 +15,12 @@ class Controller[L](Component[L], abc.ABC):
         """Initialize the controller."""
         super().__init__(dt)
 
-    def evaluate(self, t: float, ref: float | np.ndarray, x_hat: float | np.ndarray) -> tuple[float | np.ndarray, L]:
+    def evaluate(self, t: float, ref: np.ndarray, x_hat: np.ndarray) -> tuple[np.ndarray, L]:
         """Compute control action based on reference and estimated state (with ZOH)."""
         return self._execute_zoh(t, self.update, ref, x_hat)
 
     @abc.abstractmethod
-    def update(self, t: float, ref: float | np.ndarray, x_hat: float | np.ndarray) -> tuple[float | np.ndarray, L]:
+    def update(self, t: float, ref: np.ndarray, x_hat: np.ndarray) -> tuple[np.ndarray, L]:
         """Execute internal update dynamics based on reference (or trajectory). Must be implemented by subclasses."""
 
 
@@ -28,8 +28,8 @@ class Controller[L](Component[L], abc.ABC):
 class PIControllerLog:
     """Dataclass for internal PIController logging."""
 
-    error: float | np.ndarray
-    integral: float | np.ndarray
+    error: np.ndarray
+    integral: np.ndarray
 
 
 class PIController(Controller[PIControllerLog]):
@@ -67,11 +67,11 @@ class PIController(Controller[PIControllerLog]):
     def update(
         self,
         t: float,  # noqa: ARG002
-        ref: float | np.ndarray,
-        x_hat: float | np.ndarray,
-    ) -> tuple[float | np.ndarray, PIControllerLog]:
+        ref: np.ndarray,
+        x_hat: np.ndarray,
+    ) -> tuple[np.ndarray, PIControllerLog]:
         """Compute control action based on reference and estimated state."""
-        error = np.atleast_1d(ref) - np.atleast_1d(x_hat)
+        error = ref - x_hat
 
         if self.integral is None:
             self.integral = np.zeros_like(error)

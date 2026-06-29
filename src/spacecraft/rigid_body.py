@@ -2,7 +2,7 @@
 
 RigidBodyState layout (single shared column vector)::
 
-    x = [ r(3) | v(3) | q(4) | omega(3) | actuator internal states... ]
+    x = [ r(3) | v(3) | q(4) | omega(3) | effector internal states... ]
 
 with position ``r`` and velocity ``v`` in the inertial frame, attitude quaternion ``q``
 (scalar-last, inertial->body, unit norm), and angular velocity ``omega`` in the body

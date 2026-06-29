@@ -17,11 +17,11 @@ def test_logger_log_storage() -> None:
     logger = Logger()
     core = CoreLog(
         t=0.1,
-        x=1.0,
-        y_mea=1.1,
-        x_hat=1.2,
-        u=0.5,
-        ref=1.0,
+        x=np.array([1.0]),
+        y_mea=np.array([1.1]),
+        x_hat=np.array([1.2]),
+        u=np.array([0.5]),
+        ref=np.array([1.0]),
     )
     components = {"comp1": MockComponentLog(value=42.0)}
 
@@ -84,10 +84,30 @@ def test_logger_merge_chunks(tmp_path: Path) -> None:
     """Test that merge_chunks concatenates chunk files into one and deletes the originals."""
     logger = Logger()
 
-    logger.log(CoreLog(t=0.0, x=1.0, y_mea=1.0, x_hat=1.0, u=0.0, ref=1.0), {})
+    logger.log(
+        CoreLog(
+            t=0.0,
+            x=np.array([1.0]),
+            y_mea=np.array([1.0]),
+            x_hat=np.array([1.0]),
+            u=np.array([0.0]),
+            ref=np.array([1.0]),
+        ),
+        {},
+    )
     logger.flush_chunk(tmp_path, prefix="test")
 
-    logger.log(CoreLog(t=1.0, x=2.0, y_mea=2.0, x_hat=2.0, u=1.0, ref=2.0), {})
+    logger.log(
+        CoreLog(
+            t=1.0,
+            x=np.array([2.0]),
+            y_mea=np.array([2.0]),
+            x_hat=np.array([2.0]),
+            u=np.array([1.0]),
+            ref=np.array([2.0]),
+        ),
+        {},
+    )
     logger.flush_chunk(tmp_path, prefix="test")
 
     Logger.merge_chunks(tmp_path, prefix="test")
@@ -107,11 +127,15 @@ def test_logger_multiple_chunks(tmp_path: Path) -> None:
     """Test that consecutive flush_chunk calls write distinct chunk files."""
     logger = Logger()
 
-    core = CoreLog(t=0.0, x=1.0, y_mea=1.0, x_hat=1.0, u=0.0, ref=1.0)
+    core = CoreLog(
+        t=0.0, x=np.array([1.0]), y_mea=np.array([1.0]), x_hat=np.array([1.0]), u=np.array([0.0]), ref=np.array([1.0])
+    )
     logger.log(core, {})
     logger.flush_chunk(tmp_path, prefix="test")
 
-    core = CoreLog(t=1.0, x=2.0, y_mea=2.0, x_hat=2.0, u=1.0, ref=2.0)
+    core = CoreLog(
+        t=1.0, x=np.array([2.0]), y_mea=np.array([2.0]), x_hat=np.array([2.0]), u=np.array([1.0]), ref=np.array([2.0])
+    )
     logger.log(core, {})
     logger.flush_chunk(tmp_path, prefix="test")
 
@@ -134,12 +158,24 @@ def test_logger_merge_chunks_memory_efficient(tmp_path: Path) -> None:
 
     for i in range(3):
         x_val = np.full(x_shape, float(i))
-        core = CoreLog(t=float(i), x=x_val, y_mea=float(i), x_hat=float(i), u=float(i), ref=float(i))
+        core = CoreLog(
+            t=float(i),
+            x=x_val,
+            y_mea=np.array([float(i)]),
+            x_hat=np.array([float(i)]),
+            u=np.array([float(i)]),
+            ref=np.array([float(i)]),
+        )
         logger.log(core, {})
         # Log another point to make chunk length > 1
         x_val2 = np.full(x_shape, float(i) + 0.5)
         core2 = CoreLog(
-            t=float(i) + 0.5, x=x_val2, y_mea=float(i) + 0.5, x_hat=float(i) + 0.5, u=float(i) + 0.5, ref=float(i) + 0.5
+            t=float(i) + 0.5,
+            x=x_val2,
+            y_mea=np.array([float(i)]) + 0.5,
+            x_hat=np.array([float(i)]) + 0.5,
+            u=np.array([float(i)]) + 0.5,
+            ref=np.array([float(i)]) + 0.5,
         )
         logger.log(core2, {})
 

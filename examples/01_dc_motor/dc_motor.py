@@ -71,7 +71,7 @@ class DCMotorDynamics(Dynamics[NoLog]):
         return NoLog()
 
 
-def dc_motor_measurement(_t: float, x: float | np.ndarray, _u: float | np.ndarray) -> float | np.ndarray:
+def dc_motor_measurement(_t: float, x: np.ndarray, _u: np.ndarray) -> np.ndarray:
     """DC motor measurement model: only the angular velocity ``omega`` (the first state) is observed.
 
     The armature current ``i`` is left unmeasured; a :class:`~simulate.estimator.LuenbergerObserver`

@@ -47,16 +47,16 @@ class MagneticFieldMeasurement:
     def __call__(
         self,
         t: float,
-        x: float | np.ndarray,
-        _u: float | np.ndarray,
+        x: np.ndarray,
+        _u: np.ndarray,
     ) -> np.ndarray:
         """Compute the body-frame IGRF magnetic field from position and attitude."""
         dt_utc = self.epoch + datetime.timedelta(seconds=t)
-        r_eci = np.asarray(x[STATE.r], dtype=float)  # ty:ignore[not-subscriptable]
+        r_eci = np.asarray(x[STATE.r], dtype=float)
         lat_deg, lon_deg, alt_m = eci_to_geodedic(r_eci)
 
         b_eci = magnetic_field_vector(dt_utc, float(lat_deg), float(lon_deg), float(alt_m))
-        q_bi = Quaternion.from_array(x[STATE.q])  # ty:ignore[not-subscriptable]
+        q_bi = Quaternion.from_array(x[STATE.q])
         return q_bi.apply(b_eci)
 
 
@@ -78,12 +78,12 @@ class SunDirectionMeasurement:
     def __call__(
         self,
         t: float,
-        x: float | np.ndarray,
-        _u: float | np.ndarray,
+        x: np.ndarray,
+        _u: np.ndarray,
     ) -> np.ndarray:
         """Compute the body-frame unit sun direction, or zeros when in eclipse."""
         dt_utc = self.epoch + datetime.timedelta(seconds=t)
-        r_eci = np.asarray(x[STATE.r], dtype=float)  # ty:ignore[not-subscriptable]
+        r_eci = np.asarray(x[STATE.r], dtype=float)
         sun_pos = sun_position(dt_utc)
 
         if is_in_shadow(r_eci, sun_pos):
@@ -91,7 +91,7 @@ class SunDirectionMeasurement:
 
         sc_to_sun = sun_pos - r_eci
         sun_dir_eci = sc_to_sun / np.linalg.norm(sc_to_sun)
-        q_bi = Quaternion.from_array(x[STATE.q])  # ty:ignore[not-subscriptable]
+        q_bi = Quaternion.from_array(x[STATE.q])
         return q_bi.apply(sun_dir_eci)
 
 
@@ -109,16 +109,16 @@ class GpsMeasurement:
     def __call__(
         self,
         _t: float,
-        x: float | np.ndarray,
-        _u: float | np.ndarray,
+        x: np.ndarray,
+        _u: np.ndarray,
     ) -> np.ndarray:
         """Select the inertial position (and optionally velocity) from the state."""
         if self.include_velocity:
-            return np.concatenate([x[STATE.r], x[STATE.v]])  # ty:ignore[not-subscriptable]
-        return x[STATE.r]  # ty:ignore[not-subscriptable]
+            return np.concatenate([x[STATE.r], x[STATE.v]])
+        return x[STATE.r]
 
 
-def rigid_body_attitude(_t: float, x: float | np.ndarray, _u: float | np.ndarray) -> np.ndarray:
+def rigid_body_attitude(_t: float, x: np.ndarray, _u: np.ndarray) -> np.ndarray:
     """Attitude measurement: the body->inertial unit quaternion ``q`` ``(4, 1)``.
 
     Pair with a :class:`~simulate.sensor.GaussianSensor` to model a star tracker. Note that
@@ -129,10 +129,10 @@ def rigid_body_attitude(_t: float, x: float | np.ndarray, _u: float | np.ndarray
     np.ndarray
         The body->inertial unit quaternion ``q``, shape ``(4,)``.
     """
-    return x[STATE.q]  # ty:ignore[not-subscriptable]
+    return x[STATE.q]
 
 
-def rigid_body_rate(_t: float, x: float | np.ndarray, _u: float | np.ndarray) -> np.ndarray:
+def rigid_body_rate(_t: float, x: np.ndarray, _u: np.ndarray) -> np.ndarray:
     """Angular-rate measurement: the body-frame angular velocity ``omega`` ``(3, 1)``.
 
     Pair with a :class:`~simulate.sensor.GaussianSensor` to model a rate gyro.
@@ -142,7 +142,7 @@ def rigid_body_rate(_t: float, x: float | np.ndarray, _u: float | np.ndarray) ->
     np.ndarray
         The body-frame angular velocity ``omega``, shape ``(3,)``.
     """
-    return x[STATE.omega]  # ty:ignore[not-subscriptable]
+    return x[STATE.omega]
 
 
 class ReactionWheelTelemetry:
@@ -157,6 +157,6 @@ class ReactionWheelTelemetry:
         """Initialize with the absolute state-vector index of the effector state to report."""
         self.index = index
 
-    def __call__(self, _t: float, x: float | np.ndarray, _u: float | np.ndarray) -> np.ndarray:
+    def __call__(self, _t: float, x: np.ndarray, _u: np.ndarray) -> np.ndarray:
         """Select the effector internal state at ``index`` from the full rigid body state."""
-        return x[self.index : self.index + 1]  # ty:ignore[not-subscriptable]
+        return x[self.index : self.index + 1]

@@ -12,13 +12,13 @@ from .config import build_measurement
 # A measurement model maps (t, state, input) to a truth output ``y = h(t, x, u)``. Simple
 # models can be plain functions; parametrized ones are classes implementing ``__call__``. The
 # owning :class:`~simulate.sensor.Sensor` provides the sample rate (``dt``), ZOH and noise.
-type MeasurementModel = Callable[[float, float | np.ndarray, float | np.ndarray], float | np.ndarray]
+type MeasurementModel = Callable[[float, np.ndarray, np.ndarray], np.ndarray]
 
 
 class LinearMeasurement:
     """Generic linear measurement model using state space matrices C and D (``y = C x + D u``)."""
 
-    def __init__(self, C: ArrayLike, D: ArrayLike) -> None:  # noqa: N803
+    def __init__(self, C: ArrayLike, D: ArrayLike) -> None:
         """Initialize the linear measurement with the output matrices C and D."""
         self.c = np.atleast_2d(C)
         self.d = np.atleast_2d(D)
@@ -26,20 +26,20 @@ class LinearMeasurement:
     def __call__(
         self,
         _t: float,
-        x: float | np.ndarray,
-        u: float | np.ndarray,
+        x: np.ndarray,
+        u: np.ndarray,
     ) -> np.ndarray:
         """Compute the output from the current state and input."""
-        x_arr = np.atleast_1d(x)
-        u_arr = np.atleast_1d(u)
+        x_arr = x
+        u_arr = u
         return cast("np.ndarray", self.c @ x_arr + self.d @ u_arr)
 
 
 def full_state_measurement(
     t: float,  # noqa: ARG001
-    x: float | np.ndarray,
-    u: float | np.ndarray,  # noqa: ARG001
-) -> float | np.ndarray:
+    x: np.ndarray,
+    u: np.ndarray,  # noqa: ARG001
+) -> np.ndarray:
     """Return the full state vector."""
     return x
 
@@ -61,12 +61,12 @@ class Sensor[L](Component[L], abc.ABC):
         """Initialize the sensor with its sample time."""
         super().__init__(dt)
 
-    def evaluate(self, t: float, x: float | np.ndarray, u: float | np.ndarray) -> tuple[float | np.ndarray, L]:
+    def evaluate(self, t: float, x: np.ndarray, u: np.ndarray) -> tuple[np.ndarray, L]:
         """Measure the plant state (with ZOH)."""
         return self._execute_zoh(t, self.update, x, u)
 
     @abc.abstractmethod
-    def update(self, t: float, x: float | np.ndarray, u: float | np.ndarray) -> tuple[float | np.ndarray, L]:
+    def update(self, t: float, x: np.ndarray, u: np.ndarray) -> tuple[np.ndarray, L]:
         """Execute internal update dynamics. Must be implemented by subclasses."""
 
 
@@ -74,8 +74,8 @@ class Sensor[L](Component[L], abc.ABC):
 class GaussianSensorLog:
     """Dataclass for internal GaussianSensor logging."""
 
-    truth: float | np.ndarray
-    noise: float | np.ndarray
+    truth: np.ndarray
+    noise: np.ndarray
 
 
 class GaussianSensor(Sensor[GaussianSensorLog]):
@@ -97,9 +97,7 @@ class GaussianSensor(Sensor[GaussianSensorLog]):
             std_dev=float(config.get("std_dev", 0.0)),
         )
 
-    def update(
-        self, t: float, x: float | np.ndarray, u: float | np.ndarray
-    ) -> tuple[float | np.ndarray, GaussianSensorLog]:
+    def update(self, t: float, x: np.ndarray, u: np.ndarray) -> tuple[np.ndarray, GaussianSensorLog]:
         """
         Measure the plant state and add Gaussian noise.
 
@@ -107,14 +105,14 @@ class GaussianSensor(Sensor[GaussianSensorLog]):
         ----------
         t : float
             Simulation time.
-        x : float or numpy.ndarray
+        x : numpy.ndarray
             State vector.
-        u : float or numpy.ndarray
+        u : numpy.ndarray
             Control input vector.
 
         Returns
         -------
-        y_mea : float or numpy.ndarray
+        y_mea : numpy.ndarray
             Measured output with additive Gaussian noise.
         log : GaussianSensorLog
             Snapshot of the noise-free truth and the sampled noise.
@@ -129,9 +127,9 @@ class GaussianSensor(Sensor[GaussianSensorLog]):
 class RandomWalkBiasSensorLog:
     """Dataclass for internal RandomWalkBiasSensor logging."""
 
-    truth: float | np.ndarray
-    noise: float | np.ndarray
-    bias: float | np.ndarray
+    truth: np.ndarray
+    noise: np.ndarray
+    bias: np.ndarray
 
 
 class RandomWalkBiasSensor(Sensor[RandomWalkBiasSensorLog]):
@@ -192,18 +190,18 @@ class RandomWalkBiasSensor(Sensor[RandomWalkBiasSensorLog]):
     def update(
         self,
         t: float,
-        x: float | np.ndarray,
-        u: float | np.ndarray,
-    ) -> tuple[float | np.ndarray, RandomWalkBiasSensorLog]:
+        x: np.ndarray,
+        u: np.ndarray,
+    ) -> tuple[np.ndarray, RandomWalkBiasSensorLog]:
         """Measure the plant state and add Gaussian noise and a random walk bias.
 
         Parameters
         ----------
         t : float
             Simulation time.
-        x : float or numpy.ndarray
+        x : numpy.ndarray
             State vector.
-        u : float or numpy.ndarray
+        u : numpy.ndarray
             Control input vector.
 
         Returns

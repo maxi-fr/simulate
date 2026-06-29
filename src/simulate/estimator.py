@@ -16,12 +16,12 @@ class Estimator[L](Component[L], abc.ABC):
         """Initialize the estimator."""
         super().__init__(dt)
 
-    def evaluate(self, t: float, y_mea: float | np.ndarray, u: float | np.ndarray) -> tuple[float | np.ndarray, L]:
+    def evaluate(self, t: float, y_mea: np.ndarray, u: np.ndarray) -> tuple[np.ndarray, L]:
         """Estimate the state based on measurement and control input (with ZOH)."""
         return self._execute_zoh(t, self.update, y_mea, u)
 
     @abc.abstractmethod
-    def update(self, t: float, y_mea: float | np.ndarray, u: float | np.ndarray) -> tuple[float | np.ndarray, L]:
+    def update(self, t: float, y_mea: np.ndarray, u: np.ndarray) -> tuple[np.ndarray, L]:
         """Execute internal update dynamics. Must be implemented by subclasses."""
 
 
@@ -40,9 +40,9 @@ class IdentityEstimator(Estimator[NoLog]):
     def update(
         self,
         t: float,  # noqa: ARG002
-        y_mea: float | np.ndarray,
-        u: float | np.ndarray,  # noqa: ARG002
-    ) -> tuple[float | np.ndarray, NoLog]:
+        y_mea: np.ndarray,
+        u: np.ndarray,  # noqa: ARG002
+    ) -> tuple[np.ndarray, NoLog]:
         """
         Return the measurement as the state estimate.
 
@@ -50,14 +50,14 @@ class IdentityEstimator(Estimator[NoLog]):
         ----------
         t : float
             Simulation time.
-        y_mea : float or numpy.ndarray
+        y_mea : numpy.ndarray
             Measured output vector.
-        u : float or numpy.ndarray
+        u : numpy.ndarray
             Control input vector.
 
         Returns
         -------
-        x_hat : float or numpy.ndarray
+        x_hat : numpy.ndarray
             State estimate, equal to the measurement.
         log : NoLog
             Empty log placeholder.
@@ -79,10 +79,10 @@ class LuenbergerObserver(Estimator[NoLog]):
     def __init__(  # noqa: PLR0913
         self,
         dt: float,
-        A: ArrayLike,  # noqa: N803
-        B: ArrayLike,  # noqa: N803
-        C: ArrayLike,  # noqa: N803
-        L: ArrayLike,  # noqa: N803
+        A: ArrayLike,
+        B: ArrayLike,
+        C: ArrayLike,
+        L: ArrayLike,
         integrator: Integrator | None = None,
     ) -> None:
         """Initialize the observer from the model matrices, observer gain and optional integrator."""
@@ -121,9 +121,9 @@ class LuenbergerObserver(Estimator[NoLog]):
     def update(
         self,
         t: float,
-        y_mea: float | np.ndarray,
-        u: float | np.ndarray,
-    ) -> tuple[float | np.ndarray, NoLog]:
+        y_mea: np.ndarray,
+        u: np.ndarray,
+    ) -> tuple[np.ndarray, NoLog]:
         """
         Advance the observer one step and return the state estimate.
 
@@ -131,9 +131,9 @@ class LuenbergerObserver(Estimator[NoLog]):
         ----------
         t : float
             Simulation time.
-        y_mea : float or numpy.ndarray
+        y_mea : numpy.ndarray
             Measured output vector.
-        u : float or numpy.ndarray
+        u : numpy.ndarray
             Control input vector.
 
         Returns
@@ -143,8 +143,8 @@ class LuenbergerObserver(Estimator[NoLog]):
         log : NoLog
             Empty log placeholder.
         """
-        self._y = np.atleast_1d(y_mea)
-        u_arr = np.atleast_1d(u)
+        self._y = y_mea
+        u_arr = u
 
         if self.integrator is not None:
             self.x_hat = self.integrator(self._rhs, t, self.dt, self.x_hat, u_arr)

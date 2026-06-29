@@ -34,7 +34,7 @@ def test_magnetic_field_identity_attitude_matches_eci_truth() -> None:
     r_eci = np.array([_RADIUS, 0.0, 0.0])
     measure = MagneticFieldMeasurement(epoch=_EPOCH)
 
-    y = measure(0.0, _state(r_eci), 0.0)
+    y = measure(0.0, _state(r_eci), np.array([0.0]))
 
     lat, lon, alt = eci_to_geodedic(r_eci)
     b_eci = magnetic_field_vector(_EPOCH.replace(tzinfo=None), float(lat), float(lon), float(alt))
@@ -48,8 +48,8 @@ def test_magnetic_field_rotates_with_attitude() -> None:
     measure = MagneticFieldMeasurement(epoch=_EPOCH)
     q = quaternion_from_euler(np.array([0.3, -0.7, 1.1]))
 
-    y_identity = measure(0.0, _state(r_eci), 0.0)
-    y_rotated = measure(0.0, _state(r_eci, q.to_array()), 0.0)
+    y_identity = measure(0.0, _state(r_eci), np.array([0.0]))
+    y_rotated = measure(0.0, _state(r_eci, q.to_array()), np.array([0.0]))
 
     # Rotating the body re-expresses the same inertial field; norm is preserved.
     np.testing.assert_allclose(np.linalg.norm(y_rotated), np.linalg.norm(y_identity), rtol=1e-9)
@@ -62,7 +62,7 @@ def test_sun_direction_unit_in_sunlight() -> None:
     r_eci = _RADIUS * sun_unit  # sub-solar point: fully illuminated
 
     measure = SunDirectionMeasurement(epoch=_EPOCH)
-    y = measure(0.0, _state(r_eci), 0.0)
+    y = measure(0.0, _state(r_eci), np.array([0.0]))
 
     np.testing.assert_allclose(np.linalg.norm(y), 1.0, rtol=1e-9)
 
@@ -73,7 +73,7 @@ def test_sun_direction_zero_in_eclipse() -> None:
     r_eci = -_RADIUS * sun_unit  # anti-solar point: behind the Earth
 
     measure = SunDirectionMeasurement(epoch=_EPOCH)
-    y = measure(0.0, _state(r_eci), 0.0)
+    y = measure(0.0, _state(r_eci), np.array([0.0]))
 
     np.testing.assert_array_equal(np.asarray(y), np.zeros(3))
 
@@ -83,10 +83,10 @@ def test_gps_position_and_velocity() -> None:
     v_eci = np.array([10.0, 7.5e3, 3.0])
     state = _state(r_eci, v_eci=v_eci)
 
-    y_full = GpsMeasurement()(0.0, state, 0.0)
+    y_full = GpsMeasurement()(0.0, state, np.array([0.0]))
     np.testing.assert_array_equal(np.asarray(y_full), np.concatenate([r_eci, v_eci]))
 
-    y_pos = GpsMeasurement(include_velocity=False)(0.0, state, 0.0)
+    y_pos = GpsMeasurement(include_velocity=False)(0.0, state, np.array([0.0]))
     np.testing.assert_array_equal(np.asarray(y_pos), r_eci)
 
 
@@ -96,15 +96,15 @@ def test_gyro_pairing_adds_bias_and_noise() -> None:
     x = np.zeros(BASE_STATES)
     x[STATE.omega] = omega
 
-    truth = rigid_body_rate(0.0, x, 0.0)
+    truth = rigid_body_rate(0.0, x, np.array([0.0]))
     np.testing.assert_array_equal(np.asarray(truth), omega)
 
     noiseless = RandomWalkBiasSensor(dt=1.0, measurement=rigid_body_rate)
-    y_clean, _ = noiseless.evaluate(0.0, x, 0.0)
+    y_clean, _ = noiseless.evaluate(0.0, x, np.array([0.0]))
     np.testing.assert_array_equal(np.asarray(y_clean), omega)
 
     noisy = RandomWalkBiasSensor(dt=1.0, measurement=rigid_body_rate, std_dev_noise=1e-3, std_dev_bias=1e-4)
-    y_noisy, log = noisy.evaluate(0.0, x, 0.0)
+    y_noisy, log = noisy.evaluate(0.0, x, np.array([0.0]))
     assert not np.allclose(np.asarray(y_noisy), omega)
     assert np.asarray(log.noise).shape == omega.shape
 
@@ -116,11 +116,11 @@ def test_tachometer_pairing_adds_noise() -> None:
     x[BASE_STATES] = wheel_speed
 
     measure = ReactionWheelTelemetry(index=BASE_STATES)
-    truth = measure(0.0, x, 0.0)
+    truth = measure(0.0, x, np.array([0.0]))
     np.testing.assert_array_equal(np.asarray(truth), np.array([wheel_speed]))
 
-    y_clean, _ = GaussianSensor(dt=1.0, measurement=measure, std_dev=0.0).evaluate(0.0, x, 0.0)
+    y_clean, _ = GaussianSensor(dt=1.0, measurement=measure, std_dev=0.0).evaluate(0.0, x, np.array([0.0]))
     np.testing.assert_array_equal(np.asarray(y_clean), np.array([wheel_speed]))
 
-    y_noisy, _ = GaussianSensor(dt=1.0, measurement=measure, std_dev=1.0).evaluate(0.0, x, 0.0)
+    y_noisy, _ = GaussianSensor(dt=1.0, measurement=measure, std_dev=1.0).evaluate(0.0, x, np.array([0.0]))
     assert not np.allclose(np.asarray(y_noisy), np.array([wheel_speed]))

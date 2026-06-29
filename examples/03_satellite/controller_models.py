@@ -1,4 +1,4 @@
-# ruff: noqa: N803, N806, ANN401
+# ruff: noqa: ANN401
 """Symbolic dynamics and linearization helpers using CasADi.
 
 Ported from the legacy `flight_software.controller_models`. This module defines the

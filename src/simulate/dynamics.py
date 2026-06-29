@@ -20,11 +20,11 @@ class Dynamics[L](Component[L], abc.ABC):
         super().__init__(dt)
         self.integrator = integrator
 
-    def evaluate(self, t: float, u: float | np.ndarray) -> tuple[float | np.ndarray, L]:
+    def evaluate(self, t: float, u: np.ndarray) -> tuple[np.ndarray, L]:
         """Evaluate the dynamics at time t. Returns the new state x."""
         return self._execute_zoh(t, self.update, u)
 
-    def update(self, t: float, u: float | np.ndarray) -> tuple[float | np.ndarray, L]:
+    def update(self, t: float, u: np.ndarray) -> tuple[np.ndarray, L]:
         """
         Advance the dynamics by one time step.
 
@@ -35,12 +35,12 @@ class Dynamics[L](Component[L], abc.ABC):
 
         Returns
         -------
-        x : float or np.ndarray
+        x : numpy.ndarray
             The state after advancing one time step.
         log : L
             The component log snapshot for the new state.
         """
-        u_arr = np.atleast_1d(u)
+        u_arr = u
 
         if self.integrator is not None:
             self.x = self.integrator(self.dynamics, t, self.dt, self.x, u_arr)
@@ -75,8 +75,8 @@ class LinearDynamics(Dynamics[NoLog]):
     def __init__(
         self,
         dt: float,
-        A: ArrayLike,  # noqa: N803
-        B: ArrayLike,  # noqa: N803
+        A: ArrayLike,
+        B: ArrayLike,
         integrator: Integrator | None = None,
     ) -> None:
         """Initialize the linear dynamics."""

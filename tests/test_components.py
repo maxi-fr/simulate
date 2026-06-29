@@ -21,13 +21,13 @@ def test_plant_step_logic() -> None:
 
     assert dynamics.x[0] == 0.0
 
-    u1 = 1.0
-    x, _dynamics_log = dynamics.evaluate(0.0, 1.0)
+    u1 = np.array([1.0])
+    x, _dynamics_log = dynamics.evaluate(0.0, np.array([1.0]))
     y = measurement(0.0, x, u1)
     assert np.allclose(y, 1.0)
     assert np.allclose(x, 1.0)
 
-    u2 = 0.5
+    u2 = np.array([0.5])
     x, _dynamics_log = dynamics.evaluate(0.1, u2)
     y = measurement(0.1, x, u2)
     assert np.allclose(y, 1.4)
@@ -37,14 +37,14 @@ def test_plant_step_logic() -> None:
 def test_sensor_step_logic() -> None:
     """Test sensor behavior with Gaussian noise."""
     sensor = GaussianSensor(dt=0.1, measurement=full_state_measurement, std_dev=0.0)
-    y = 1.0
-    y_mea, log = sensor.evaluate(0.0, y, 0.0)
+    y = np.array([1.0])
+    y_mea, log = sensor.evaluate(0.0, y, np.array([0.0]))
     assert np.allclose(y_mea, 1.0)
     assert np.allclose(log.truth, 1.0)
     assert np.allclose(log.noise, 0.0)
 
     sensor_noise = GaussianSensor(dt=0.1, measurement=full_state_measurement, std_dev=0.1)
-    y_mea2, log2 = sensor_noise.evaluate(0.0, y, 0.0)
+    y_mea2, log2 = sensor_noise.evaluate(0.0, y, np.array([0.0]))
     assert not np.allclose(y_mea2, 1.0)
     assert not np.allclose(log2.noise, 0.0)
 
@@ -52,8 +52,8 @@ def test_sensor_step_logic() -> None:
 def test_estimator_step_logic() -> None:
     """Test identity estimator behavior."""
     estimator = IdentityEstimator(dt=0.1)
-    y_mea = 1.2
-    u = 0.5
+    y_mea = np.array([1.2])
+    u = np.array([0.5])
     x_hat, _log = estimator.evaluate(0.0, y_mea, u)
     assert np.allclose(x_hat, 1.2)
 
@@ -72,7 +72,7 @@ def test_luenberger_observer_reconstructs_unmeasured_state() -> None:
     observer = LuenbergerObserver(dt=dt, A=a, B=b, C=c, L=gain_l, integrator=rk4)
 
     u = np.array([0.2])
-    x_hat: float | np.ndarray = np.zeros(2)
+    x_hat: np.ndarray = np.zeros(2)
     for k in range(400):
         t = k * dt
         y_mea, _ = sensor.evaluate(t, plant.x, u)
@@ -87,8 +87,8 @@ def test_controller_step_logic() -> None:
     """Test PI controller behavior and integration accumulation."""
     controller = PIController(dt=0.1, kp=[[0.5]], ki=[[0.1]])
 
-    ref = 1.0
-    x_hat = 0.0
+    ref = np.array([1.0])
+    x_hat = np.array([0.0])
     u, log = controller.evaluate(0.0, ref, x_hat)
     assert np.isclose(float(np.asarray(u).item()), 0.51)
     assert np.allclose(log.error, 1.0)
@@ -114,12 +114,12 @@ def test_component_zoh_behavior() -> None:
     """Test that a component retains its last output between scheduled updates."""
     controller = PIController(dt=0.2, kp=[[0.5]], ki=[[0.1]])
 
-    ref1 = 1.0
-    x_hat1 = 0.0
+    ref1 = np.array([1.0])
+    x_hat1 = np.array([0.0])
     u1, log1 = controller.evaluate(0.0, ref1, x_hat1)
     assert np.isclose(float(np.asarray(u1).item()), 0.52)
 
-    ref2 = 5.0
+    ref2 = np.array([5.0])
     u2, log2 = controller.evaluate(0.1, ref2, x_hat1)
     assert np.allclose(u2, u1)
     assert np.allclose(log2.error, log1.error)
@@ -173,7 +173,7 @@ def test_step_reference_trajectory() -> None:
     horizon = 5
     start_time = 0.5
     step_value = 2.0
-    ref_gen = StepReference(dt=dt, step_value=step_value, start_time=start_time, horizon=horizon)
+    ref_gen = StepReference(dt=dt, step_value=np.array([step_value]), start_time=start_time, horizon=horizon)
 
     res, _log = ref_gen.evaluate(0.0)
     assert isinstance(res, np.ndarray)
@@ -251,14 +251,14 @@ def test_random_walk_bias_sensor() -> None:
     y = np.array([1.0, 2.0])
 
     # First step (t=0)
-    y_mea, log = sensor.evaluate(0.0, y, 0.0)
+    y_mea, log = sensor.evaluate(0.0, y, np.array([0.0]))
     assert np.allclose(y_mea, y)
     assert np.allclose(log.truth, y)
     assert np.allclose(log.noise, 0.0)
     assert np.allclose(log.bias, 0.0)
 
     # Second step (t=0.1)
-    y_mea2, log2 = sensor.evaluate(0.1, y, 0.0)
+    y_mea2, log2 = sensor.evaluate(0.1, y, np.array([0.0]))
     assert np.allclose(y_mea2, y)
     assert np.allclose(log2.noise, 0.0)
     assert np.allclose(log2.bias, 0.0)
@@ -267,12 +267,12 @@ def test_random_walk_bias_sensor() -> None:
     sensor_noise = RandomWalkBiasSensor(
         dt=0.1, measurement=full_state_measurement, std_dev_noise=0.1, std_dev_bias=0.0, seed=123
     )
-    y_mea_n1, log_n1 = sensor_noise.evaluate(0.0, y, 0.0)
+    y_mea_n1, log_n1 = sensor_noise.evaluate(0.0, y, np.array([0.0]))
     assert not np.allclose(y_mea_n1, y)
     assert np.allclose(log_n1.bias, 0.0)
     assert not np.allclose(log_n1.noise, 0.0)
 
-    _y_mea_n2, log_n2 = sensor_noise.evaluate(0.1, y, 0.0)
+    _y_mea_n2, log_n2 = sensor_noise.evaluate(0.1, y, np.array([0.0]))
     assert np.allclose(log_n2.bias, 0.0)
 
     # 3. Bias only
@@ -281,20 +281,20 @@ def test_random_walk_bias_sensor() -> None:
     )
 
     # At t=0, bias is initialized to zero
-    y_mea_b1, log_b1 = sensor_bias.evaluate(0.0, y, 0.0)
+    y_mea_b1, log_b1 = sensor_bias.evaluate(0.0, y, np.array([0.0]))
     assert np.allclose(y_mea_b1, y)
     assert np.allclose(log_b1.bias, 0.0)
     assert np.allclose(log_b1.noise, 0.0)
 
     # At t=0.1, bias step is added
-    y_mea_b2, log_b2 = sensor_bias.evaluate(0.1, y, 0.0)
+    y_mea_b2, log_b2 = sensor_bias.evaluate(0.1, y, np.array([0.0]))
     assert not np.allclose(y_mea_b2, y)
     assert not np.allclose(log_b2.bias, 0.0)
     assert np.allclose(log_b2.noise, 0.0)
     assert np.allclose(y_mea_b2, y + log_b2.bias)
 
     # At t=0.2, bias step is added again, changing the bias
-    y_mea_b3, log_b3 = sensor_bias.evaluate(0.2, y, 0.0)
+    y_mea_b3, log_b3 = sensor_bias.evaluate(0.2, y, np.array([0.0]))
     assert not np.allclose(log_b3.bias, log_b2.bias)
     assert np.allclose(y_mea_b3, y + log_b3.bias)
 
