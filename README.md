@@ -93,7 +93,6 @@ uv run python main.py --config examples/03_satellite/quat_feedback.yaml
 
 - `--config` — path to the YAML configuration (required).
 - `--output-dir` — directory for results (default: `results`).
-- `--chunk-size` — steps per output chunk file (default: `10000`; `0` disables chunking).
 - `--compress` — enable zlib compression for output `.npz` files (default: off).
 
 **Programmatically**, build a `Simulation` from a file or a dict:
@@ -237,8 +236,9 @@ log dataclass. Component logs are keyed by role (`dynamics`, `reference`, `estim
 `controller`, and `sensor_0`, … per channel; each sensor log carries its clean `truth`)
 and hold **only** internal state not already in the core log. After a run, read them in memory via
 `sim.logger.core_logs` and `sim.logger.component_logs`; when `run(output_dir=...)`
-is given, logs stream to chunked `.npz` files (optionally `--compress`ed) and are merged
-on `export_results`.
+is given, each signal is logged straight into a memory-mapped `.npy` file sized to the
+known step count — so resident memory stays bounded for runs of any length — and
+`export_results` packs them into a single `{prefix}.npz` (optionally `--compress`ed).
 
 ### Extending it: writing a new component
 

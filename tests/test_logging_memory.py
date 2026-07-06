@@ -1,16 +1,13 @@
 import gc
 import tempfile
 import tracemalloc
-from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 
 from simulate.controller import PIController
 from simulate.dynamics import LinearDynamics
 from simulate.estimator import IdentityEstimator
-from simulate.logger import CoreLog, Logger
 from simulate.reference import StepReference
 from simulate.sensor import GaussianSensor, LinearMeasurement
 from simulate.simulation import Simulation
@@ -35,25 +32,13 @@ def _create_simulation(steps: int) -> Simulation:
     )
 
 
-class TrackingLogger(Logger):
-    """A Logger subclass that tracks the maximum size of the core log buffer."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.max_core_logs_size = 0
-
-    def log(self, core: CoreLog, components: Mapping[str, Any]) -> None:
-        super().log(core, components)
-        self.max_core_logs_size = max(self.max_core_logs_size, len(self.core_logs))
-
-
 def test_sequential_simulations_memory_leak() -> None:
     """Verify that repeatedly instantiating and running simulations does not leak memory."""
     # Warm up to initialize python imports, class mappings, Pydantic caches, and tqdm
     with tempfile.TemporaryDirectory() as tmpdir:
         # Run and export warmup simulation
         sim_warmup = _create_simulation(steps=100)
-        sim_warmup.run(output_dir=f"{tmpdir}/warmup", chunk_size=50)
+        sim_warmup.run(output_dir=f"{tmpdir}/warmup")
         sim_warmup.export_results(f"{tmpdir}/warmup")
         del sim_warmup
 
@@ -68,7 +53,7 @@ def test_sequential_simulations_memory_leak() -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             for i in range(5):
                 sim = _create_simulation(steps=500)
-                sim.run(output_dir=f"{tmpdir}/sim_{i}", chunk_size=100)
+                sim.run(output_dir=f"{tmpdir}/sim_{i}")
                 sim.export_results(f"{tmpdir}/sim_{i}")
                 # Explicitly delete simulation to encourage garbage collection
                 del sim
@@ -99,79 +84,53 @@ def test_sequential_simulations_memory_leak() -> None:
         tracemalloc.stop()
 
 
-def test_chunked_vs_unchunked_memory() -> None:
-    """Verify that chunking keeps in-memory log buffer size bounded compared to unchunked runs."""
-    steps = 1000
-    chunk_size = 200
+def test_memmap_run_uses_less_memory_than_ram(tmp_path: Path) -> None:
+    """Verify a disk-backed (memmap) run keeps resident memory well below an in-RAM run.
 
-    # 1. Chunked simulation run
-    sim_chunked = _create_simulation(steps=steps)
-    tracking_logger = TrackingLogger()
-    sim_chunked.logger = tracking_logger
+    The memory-mapped buffers live in the OS page cache rather than the Python heap,
+    so ``tracemalloc`` (which only sees heap allocations) reports a far lower peak than
+    the equivalent ``output_dir=None`` run that accumulates every step in RAM.
+    """
+    steps = 20_000
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        sim_chunked.run(output_dir=f"{tmpdir}/chunked", chunk_size=chunk_size)
-        sim_chunked.export_results(f"{tmpdir}/chunked")
-
-    # 2. Unchunked simulation run
-    sim_unchunked = _create_simulation(steps=steps)
-    tracking_logger_unchunked = TrackingLogger()
-    sim_unchunked.logger = tracking_logger_unchunked
-
-    # Run without chunking (chunk_size=None or output_dir=None)
-    sim_unchunked.run(output_dir=None, chunk_size=None)
-
-    # In-memory size assertions
-    assert tracking_logger.max_core_logs_size <= chunk_size, (
-        f"Chunked run exceeded chunk_size bound: {tracking_logger.max_core_logs_size}"
-    )
-    assert tracking_logger_unchunked.max_core_logs_size == steps + 1, (
-        f"Unchunked run did not accumulate all logs in memory: {tracking_logger_unchunked.max_core_logs_size}"
-    )
-
-
-def test_merge_chunks_memory_peak(tmp_path: Path) -> None:
-    """Benchmark and test that merge_chunks executes correctly and verify memory overhead."""
-    # Write multiple chunk files to disk
-    logger = Logger()
-    prefix = "benchmark_merge"
-
-    # Write 10 chunk files, each with 100 log entries
-    for chunk_idx in range(10):
-        for t_idx in range(100):
-            t = chunk_idx * 100.0 + t_idx * 1.0
-            core = CoreLog(
-                t=t,
-                x=np.array([1.0, 2.0]),
-                y_mea=np.array([1.1, 2.1]),
-                x_hat=np.array([1.2, 2.2]),
-                u=np.array([0.5]),
-                ref=np.array([1.0]),
-            )
-            logger.log(core, {})
-        logger.flush_chunk(tmp_path, prefix=prefix)
-
-    # Verify 10 chunk files exist
-    chunks = list(tmp_path.glob(f".{prefix}_chunks/{prefix}_chunk_*.npz"))
-    assert len(chunks) == 10
-
-    # Start tracemalloc to measure memory peak of the merge operation
+    sim_ram = _create_simulation(steps=steps)
     tracemalloc.start()
     try:
-        Logger.merge_chunks(tmp_path, prefix=prefix)
+        tracemalloc.reset_peak()
+        sim_ram.run(output_dir=None)
+        _, peak_ram = tracemalloc.get_traced_memory()
     finally:
-        _, _peak_memory = tracemalloc.get_traced_memory()
         tracemalloc.stop()
 
-    # The merged file should exist, and chunks should be deleted
+    sim_mmap = _create_simulation(steps=steps)
+    tracemalloc.start()
+    try:
+        tracemalloc.reset_peak()
+        sim_mmap.run(output_dir=tmp_path, prefix="mem")
+        _, peak_mmap = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    sim_mmap.export_results(tmp_path, prefix="mem")
+
+    assert peak_mmap < peak_ram, f"Memmap run peak ({peak_mmap} B) was not below the in-RAM run peak ({peak_ram} B)."
+
+
+def test_export_produces_single_npz(tmp_path: Path) -> None:
+    """Verify export_results yields exactly one {prefix}.npz with all logged rows and no leftovers."""
+    steps = 1000
+    prefix = "run"
+
+    sim = _create_simulation(steps=steps)
+    sim.run(output_dir=tmp_path, prefix=prefix)
+    sim.export_results(tmp_path, prefix=prefix)
+
     merged_file = tmp_path / f"{prefix}.npz"
     assert merged_file.exists()
-    assert not any(tmp_path.glob(f".{prefix}_chunks/{prefix}_chunk_*.npz"))
 
-    # Load and verify content integrity
+    # No temporary memmap directory or .npy files remain.
+    assert not (tmp_path / f".{prefix}_arrays").exists()
+    assert not list(tmp_path.glob("**/*.npy"))
+
     data = np.load(merged_file)
-    assert len(data["t"]) == 1000
+    assert len(data["t"]) == steps + 1
     assert data["t"][0] == 0.0
-    assert data["t"][-1] == 999.0
-
-    # Print or log peak memory for informational purposes

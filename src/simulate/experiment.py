@@ -6,24 +6,24 @@ from typing import Any
 from .simulation import Simulation
 
 
-def _run_worker(task: tuple[dict[str, Any], Path, str, int | None, bool]) -> bool:
+def _run_worker(task: tuple[dict[str, Any], Path, str, bool]) -> bool:
     """
     Worker function to run a single simulation.
 
     Parameters
     ----------
     task : tuple
-        A tuple containing (config_dict, output_dir, prefix, chunk_size, compress).
+        A tuple containing (config_dict, output_dir, prefix, compress).
 
     Returns
     -------
     bool
         True if successful, False otherwise.
     """
-    config, output_dir, prefix, chunk_size, compress = task
+    config, output_dir, prefix, compress = task
     try:
         sim = Simulation.from_config(config)
-        sim.run(output_dir=output_dir, prefix=prefix, chunk_size=chunk_size, compress=compress)
+        sim.run(output_dir=output_dir, prefix=prefix, compress=compress)
         sim.export_results(output_dir, prefix, compress=compress)
     except Exception as e:  # noqa: BLE001
         print(f"Error running simulation: {e}")  # noqa: T201
@@ -48,7 +48,6 @@ class ExperimentManager:
         configs: list[dict[str, Any]],
         prefixes: list[str] | None = None,
         max_num_processes: int = 1,
-        chunk_size: int | None = 10_000,
         *,
         compress: bool = False,
     ) -> list[bool]:
@@ -61,8 +60,6 @@ class ExperimentManager:
             A list of simulation configuration dictionaries.
         prefixes : list of str, optional
             Optional list of prefixes for result filenames.
-        chunk_size : int or None, optional
-            Steps per chunk file. None disables mid-run flushing.
         compress : bool, optional
             Enable compression for simulation logs.
 
@@ -78,10 +75,7 @@ class ExperimentManager:
             msg = "Number of configs and prefixes must match."
             raise ValueError(msg)
 
-        tasks = [
-            (config, self.output_dir, prefix, chunk_size, compress)
-            for config, prefix in zip(configs, prefixes, strict=True)
-        ]
+        tasks = [(config, self.output_dir, prefix, compress) for config, prefix in zip(configs, prefixes, strict=True)]
 
         num_processes = min(multiprocessing.cpu_count(), len(configs), max_num_processes)
 
