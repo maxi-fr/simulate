@@ -66,7 +66,7 @@ def _load_simulation(config: Path) -> Simulation:
     return Simulation.from_yaml(config)
 
 
-def _time_workload(config: Path, chunk_size: int, repeats: int) -> dict[str, float]:
+def _time_workload(config: Path, repeats: int) -> dict[str, float]:
     """Time the run and export phases across ``repeats`` fresh simulations.
 
     A new :class:`~simulate.simulation.Simulation` is built for every repeat
@@ -83,7 +83,7 @@ def _time_workload(config: Path, chunk_size: int, repeats: int) -> dict[str, flo
         sim = _load_simulation(config)
         with tempfile.TemporaryDirectory() as tmp:
             start = time.perf_counter()
-            sim.run(output_dir=tmp, prefix=PREFIX, chunk_size=chunk_size)
+            sim.run(output_dir=tmp, prefix=PREFIX)
             after_run = time.perf_counter()
             sim.export_results(tmp, prefix=PREFIX)
             after_export = time.perf_counter()
@@ -103,12 +103,12 @@ def _time_workload(config: Path, chunk_size: int, repeats: int) -> dict[str, flo
     }
 
 
-def _measure_memory(config: Path, chunk_size: int) -> dict[str, int]:
+def _measure_memory(config: Path) -> dict[str, int]:
     """Measure peak Python+numpy memory of the run and export phases.
 
     Memory is deterministic (sensors are seeded), so a single traced run
     suffices. ``tracemalloc`` totals all allocation domains, including numpy's,
-    so the logger's pre-allocated buffers and the chunk merge are captured.
+    so the logger's memory-mapped buffers and the final pack are captured.
 
     Returns
     -------
@@ -120,7 +120,7 @@ def _measure_memory(config: Path, chunk_size: int) -> dict[str, int]:
         tracemalloc.start()
         try:
             tracemalloc.reset_peak()
-            sim.run(output_dir=tmp, prefix=PREFIX, chunk_size=chunk_size)
+            sim.run(output_dir=tmp, prefix=PREFIX)
             _, peak_run = tracemalloc.get_traced_memory()
             tracemalloc.reset_peak()
             sim.export_results(tmp, prefix=PREFIX)
@@ -150,8 +150,8 @@ def _measure_workload(workload: Workload, repeats: int) -> dict[str, float]:
     # Memory is measured first, before the timing repeats warm numpy's
     # allocation pools, so the peak reflects a representative cold run.
     metrics: dict[str, float] = {}
-    metrics.update(_measure_memory(config, workload.chunk_size))
-    metrics.update(_time_workload(config, workload.chunk_size, repeats))
+    metrics.update(_measure_memory(config))
+    metrics.update(_time_workload(config, repeats))
     return metrics
 
 

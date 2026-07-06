@@ -7,7 +7,7 @@ import numpy as np
 from tqdm import tqdm
 
 from .config import build_component, load_config
-from .logger import CoreLog, Logger
+from .logger import BaseLogger, CoreLog, create_logger
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -68,7 +68,8 @@ class Simulation:
         self.sensors: list[Sensor] = sensors_list  # ty:ignore[invalid-assignment]
         self.estimator = estimator
         self.controller = controller
-        self.logger = Logger()
+        # The storage backend depends on run()'s output_dir, so the logger is built there.
+        self.logger: BaseLogger | None = None
 
         self.dt = self.dynamics.dt
 
@@ -129,25 +130,29 @@ class Simulation:
         self,
         output_dir: str | Path | None = None,
         prefix: str = "log",
-        chunk_size: int | None = 10_000,
         *,
         compress: bool = False,
     ) -> None:
-        """Run the simulation loop until t_end."""
-        self.logger.compress = compress
-        t = 0.0
-        step_count: int = 0
+        """Run the simulation loop until t_end.
 
+        When ``output_dir`` is given, each signal is logged straight into a
+        memory-mapped ``.npy`` file (sized to the known step count), so resident
+        memory stays bounded for runs of any length. Call :meth:`export_results` to
+        pack them into ``{prefix}.npz``. With ``output_dir=None`` the logs are kept
+        in RAM and exposed via ``self.logger.core_logs`` / ``component_logs``.
+        """
         u_k: np.ndarray = np.zeros(self.dynamics.n_inputs)
 
         total_steps = round(self.t_end / self.dt) + 1
-        buffer_size = chunk_size if (chunk_size is not None and output_dir is not None) else total_steps
-        self.logger.set_buffer_size(buffer_size)
+        self.logger = create_logger(total_steps, directory=output_dir, prefix=prefix, compress=compress)
 
         divisor, unit = _time_unit(self.t_end)
         bar_format = "{l_bar}{bar}| {n:.1f}/{total:.1f} {unit} [{elapsed}<{remaining}, {rate_fmt}{postfix}]"
         with tqdm(total=self.t_end / divisor, desc="Simulation time", unit=unit, bar_format=bar_format) as pbar:
-            while t <= self.t_end:
+            # Step by integer index so the run logs exactly total_steps rows; deriving t
+            # from t += dt drifts with floating point and can drop (or add) the final step.
+            for step in range(total_steps):
+                t = step * self.dt
                 x_k = self.dynamics.x
 
                 ref_k, ref_log = self.reference.evaluate(t)
@@ -182,15 +187,12 @@ class Simulation:
                 for i, (_, sen_log) in enumerate(sensor_logs):
                     comp_logs[f"sensor_{i}"] = sen_log
                 self.logger.log(core_log, comp_logs)
-                step_count += 1
 
-                if output_dir is not None and chunk_size is not None and step_count % chunk_size == 0:
-                    self.logger.flush_chunk(output_dir, prefix)
-
-                t += self.dt
                 pbar.update(min(self.dt / divisor, max(0.0, self.t_end / divisor - pbar.n)))
 
-    def export_results(self, directory: str | Path, prefix: str = "sim", *, compress: bool = False) -> None:
-        """Flush remaining in-memory data then merge all chunks into {prefix}.npz."""
-        self.logger.flush_chunk(directory, prefix, compress=compress)
-        Logger.merge_chunks(directory, prefix, compress=compress)
+    def export_results(self, directory: str | Path, prefix: str = "log", *, compress: bool = False) -> None:
+        """Pack the logged signals into a single {prefix}.npz archive."""
+        if self.logger is None:
+            msg = "run() must be called before export_results()."
+            raise RuntimeError(msg)
+        self.logger.finalize(directory, prefix, compress=compress)
