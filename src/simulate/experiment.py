@@ -23,7 +23,7 @@ def _run_worker(task: tuple[dict[str, Any], Path, str, bool, bool]) -> bool:
     config, output_dir, prefix, use_mmap, compress = task
     try:
         sim = Simulation.from_config(config)
-        sim.run(output_dir=output_dir, prefix=prefix, use_mmap=use_mmap, compress=compress)
+        sim.run(output_dir=output_dir, prefix=prefix, use_mmap=use_mmap)
         sim.export_results(output_dir, prefix, compress=compress)
     except Exception as e:  # noqa: BLE001
         print(f"Error running simulation: {e}")  # noqa: T201
@@ -78,7 +78,10 @@ class ExperimentManager:
             msg = "Number of configs and prefixes must match."
             raise ValueError(msg)
 
-        tasks = [(config, self.output_dir, prefix, use_mmap, compress) for config, prefix in zip(configs, prefixes, strict=True)]
+        tasks = [
+            (config, self.output_dir, prefix, use_mmap, compress)
+            for config, prefix in zip(configs, prefixes, strict=True)
+        ]
 
         num_processes = min(multiprocessing.cpu_count(), len(configs), max_num_processes)
 

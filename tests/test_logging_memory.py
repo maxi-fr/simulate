@@ -1,6 +1,7 @@
 import gc
 import tempfile
 import tracemalloc
+import zipfile
 from pathlib import Path
 
 import numpy as np
@@ -134,3 +135,25 @@ def test_export_produces_single_npz(tmp_path: Path) -> None:
     data = np.load(merged_file)
     assert len(data["t"]) == steps + 1
     assert data["t"][0] == 0.0
+
+
+def _archive_compress_types(npz_path: Path) -> set[int]:
+    """Return the set of zip compression methods used by the members of an ``.npz``."""
+    with zipfile.ZipFile(npz_path) as zf:
+        return {info.compress_type for info in zf.infolist()}
+
+
+def test_export_results_compress_flag_controls_archive(tmp_path: Path) -> None:
+    """Verify export_results is the single place that decides archive compression.
+
+    Compression is not a run/construction-time concern: ``run`` builds the logger and
+    ``export_results`` writes the archive. ``export_results(compress=True)`` must deflate
+    every member and the default (no argument) must store them uncompressed.
+    """
+    sim = _create_simulation(steps=200)
+    sim.run(output_dir=None)
+    sim.export_results(tmp_path, prefix="compressed", compress=True)
+    sim.export_results(tmp_path, prefix="stored")
+
+    assert _archive_compress_types(tmp_path / "compressed.npz") == {zipfile.ZIP_DEFLATED}
+    assert _archive_compress_types(tmp_path / "stored.npz") == {zipfile.ZIP_STORED}

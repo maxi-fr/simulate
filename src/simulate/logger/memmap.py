@@ -17,7 +17,7 @@ class MmapLogger(BaseLogger):
     packs those files into a single ``{prefix}.npz`` (a byte copy, no re-serialization).
     """
 
-    def __init__(self, total_steps: int, directory: str | Path, prefix: str = "log", *, compress: bool = False) -> None:
+    def __init__(self, total_steps: int, directory: str | Path, prefix: str = "log") -> None:
         """Initialize the logger, backing signal buffers with files under *directory*.
 
         Parameters
@@ -28,10 +28,8 @@ class MmapLogger(BaseLogger):
             Directory under which the temporary ``.{prefix}_arrays`` folder is created.
         prefix : str, optional
             Base name for the temporary array folder.
-        compress : bool, optional
-            Whether :meth:`finalize` compresses the archive by default.
         """
-        super().__init__(total_steps, compress=compress)
+        super().__init__(total_steps)
         self._directory = Path(directory)
         self._prefix = prefix
         self._array_dir = self._directory / f".{self._prefix}_arrays"

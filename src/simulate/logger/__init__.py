@@ -13,9 +13,11 @@ def create_logger(
     prefix: str = "log",
     *,
     use_mmap: bool = False,
-    compress: bool = False,
 ) -> BaseLogger:
     """Build the appropriate logger for a run of known length.
+
+    Compression is not decided here: it is chosen when the archive is written, via
+    the ``compress`` argument of :meth:`BaseLogger.finalize`.
 
     Parameters
     ----------
@@ -28,8 +30,6 @@ def create_logger(
     use_mmap : bool, optional
         If True, a :class:`MmapLogger` streams signals to memory-mapped files.
         If False, a :class:`RamLogger` keeps them in RAM.
-    compress : bool, optional
-        Whether the logger compresses its archive on :meth:`finalize` by default.
 
     Returns
     -------
@@ -40,5 +40,5 @@ def create_logger(
         if directory is None:
             msg = "MmapLogger requires a directory."
             raise ValueError(msg)
-        return MmapLogger(total_steps, directory, prefix, compress=compress)
-    return RamLogger(total_steps, compress=compress)
+        return MmapLogger(total_steps, directory, prefix)
+    return RamLogger(total_steps)
