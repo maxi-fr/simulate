@@ -65,7 +65,7 @@ simulate/
 │   │   ├── controller.py    #   Controller, PIController
 │   │   ├── reference.py     #   Reference + StepReference
 │   │   ├── integrator.py    #   euler / midpoint / rk4
-│   │   ├── logger.py        #   Core + per-component logging
+│   │   ├── logger/          #   Core + per-component logging (RAM + memmap backends)
 │   │   ├── experiment.py    #   Parallel batch runner
 │   │   └── simulation.py    #   Simulation orchestrator
 │   └── spacecraft/          #   Aerospace domain extension
@@ -230,15 +230,23 @@ handed to the estimator, and each sensor logs its own clean `truth`.
 
 ### Logging
 
-Every step records a `CoreLog` ([`src/simulate/logger.py`](src/simulate/logger.py))
+Every step records a `CoreLog` ([`src/simulate/logger/`](src/simulate/logger/))
 of the standard signals — `t, x, x_hat, u, ref, y_mea` — plus each component's own
 log dataclass. Component logs are keyed by role (`dynamics`, `reference`, `estimator`,
 `controller`, and `sensor_0`, … per channel; each sensor log carries its clean `truth`)
-and hold **only** internal state not already in the core log. After a run, read them in memory via
-`sim.logger.core_logs` and `sim.logger.component_logs`; when `run(output_dir=...)`
-is given, each signal is logged straight into a memory-mapped `.npy` file sized to the
-known step count — so resident memory stays bounded for runs of any length — and
-`export_results` packs them into a single `{prefix}.npz` (optionally `--compress`ed).
+and hold **only** internal state not already in the core log.
+
+Buffers are pre-allocated to the exact step count (`round(t_end / dt) + 1`), and two
+backends share one interface (`BaseLogger`), chosen automatically by `run`:
+
+- **`RamLogger`** (default, `output_dir=None`) keeps every signal in in-RAM arrays,
+  exposed after the run via `sim.logger.core_logs` and `sim.logger.component_logs`.
+- **`MmapLogger`** (`run(output_dir=...)`) streams each signal straight into a
+  memory-mapped `.npy` file, so resident memory stays bounded for runs of any length.
+
+Either way, `export_results` packs the signals into a single `{prefix}.npz` (optionally
+`--compress`ed). A run logs exactly the pre-allocated number of rows; `finalize` raises
+on a partial fill rather than silently emitting zero-padded rows.
 
 ### Extending it: writing a new component
 

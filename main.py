@@ -23,6 +23,11 @@ def main() -> None:
         help="Directory to save simulation results (default: simulation_<current_datetime>).",
     )
     parser.add_argument(
+        "--mmap",
+        action="store_true",
+        help="Use memory-mapped files for logging during simulation (default: RAM).",
+    )
+    parser.add_argument(
         "--compress",
         action="store_true",
         help="Enable zlib compression for the logs (default: False/uncompressed).",
@@ -33,6 +38,8 @@ def main() -> None:
     config_path = Path(args.config_file)
     if not config_path.exists():
         sys.exit(1)
+
+    sys.path.insert(0, str(config_path.parent.resolve()))
 
     config = load_config(config_path)
 
@@ -53,11 +60,11 @@ def main() -> None:
         for override in raw_configs[1:]:
             configs.append(deep_merge(configs[-1], override))
 
-        manager.run_batch(configs, compress=args.compress)
+        manager.run_batch(configs, use_mmap=args.mmap, compress=args.compress)
     else:
         output_dir = Path(output_dir_str)
         sim = Simulation.from_config(config)
-        sim.run(output_dir=output_dir, prefix="log", compress=args.compress)
+        sim.run(output_dir=output_dir, prefix="log", use_mmap=args.mmap, compress=args.compress)
         sim.export_results(output_dir, prefix="log", compress=args.compress)
 
 
