@@ -34,7 +34,7 @@ class BaseLogger(ABC):
     ``*_logs`` views, and the :meth:`finalize` entry point) lives here.
     """
 
-    def __init__(self, total_steps: int, *, compress: bool = False) -> None:
+    def __init__(self, total_steps: int) -> None:
         """Initialize the logger for a run of known length.
 
         Parameters
@@ -42,10 +42,7 @@ class BaseLogger(ABC):
         total_steps : int
             Number of log rows the run will produce; the pre-allocated arrays are
             sized to exactly this and logging beyond it raises ``RuntimeError``.
-        compress : bool, optional
-            Whether :meth:`finalize` compresses the archive by default.
         """
-        self.compress = compress
         self._total_steps = total_steps
         self._write_idx: int = 0
         self._buffers_initialized: bool = False
@@ -173,13 +170,22 @@ class BaseLogger(ABC):
 
         self._write_idx += 1
 
-    def finalize(self, directory: str | Path, prefix: str = "log", *, compress: bool | None = None) -> None:
+    def finalize(self, directory: str | Path, prefix: str = "log", *, compress: bool = False) -> None:
         """Write all accumulated logs to ``{directory}/{prefix}.npz``.
 
         Dispatches to the subclass' :meth:`_finalize`. Does nothing (beyond backend
         cleanup) when no data was logged. Raises ``RuntimeError`` if the run logged
         fewer rows than ``total_steps``: the buffers are sized for the full run, so a
         partial fill would otherwise emit zero-padded trailing rows.
+
+        Parameters
+        ----------
+        directory : str or Path
+            Directory to write ``{prefix}.npz`` into; created if missing.
+        prefix : str, optional
+            Base name of the archive file.
+        compress : bool, optional
+            If True, deflate the archive; otherwise store it uncompressed.
         """
         if not self._buffers_initialized or self._write_idx == 0:
             self._cleanup()
@@ -193,12 +199,11 @@ class BaseLogger(ABC):
             )
             raise RuntimeError(msg)
 
-        should_compress = compress if compress is not None else self.compress
         dir_path = Path(directory)
         dir_path.mkdir(parents=True, exist_ok=True)
         zip_path = dir_path / f"{prefix}.npz"
 
-        self._finalize(zip_path, compress=should_compress)
+        self._finalize(zip_path, compress=compress)
 
     def _iter_buffers(self) -> Iterator[tuple[str, np.ndarray]]:
         """Yield ``(archive_key, buffer)`` for every core and component signal."""

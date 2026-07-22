@@ -132,20 +132,20 @@ class Simulation:
         prefix: str = "log",
         *,
         use_mmap: bool = False,
-        compress: bool = False,
     ) -> None:
         """Run the simulation loop until t_end.
 
         When ``use_mmap`` is True, each signal is logged straight into a
         memory-mapped ``.npy`` file (sized to the known step count), so resident
         memory stays bounded for runs of any length. Call :meth:`export_results` to
-        pack them into ``{prefix}.npz``. With ``use_mmap=False`` the logs are kept
-        in RAM and exposed via ``self.logger.core_logs`` / ``component_logs``.
+        pack them into ``{prefix}.npz`` (compression is chosen there). With
+        ``use_mmap=False`` the logs are kept in RAM and exposed via
+        ``self.logger.core_logs`` / ``component_logs``.
         """
         u_k: np.ndarray = np.zeros(self.dynamics.n_inputs)
 
         total_steps = round(self.t_end / self.dt) + 1
-        self.logger = create_logger(total_steps, directory=output_dir, prefix=prefix, use_mmap=use_mmap, compress=compress)
+        self.logger = create_logger(total_steps, directory=output_dir, prefix=prefix, use_mmap=use_mmap)
 
         divisor, unit = _time_unit(self.t_end)
         bar_format = "{l_bar}{bar}| {n:.1f}/{total:.1f} {unit} [{elapsed}<{remaining}, {rate_fmt}{postfix}]"
@@ -192,7 +192,17 @@ class Simulation:
                 pbar.update(min(self.dt / divisor, max(0.0, self.t_end / divisor - pbar.n)))
 
     def export_results(self, directory: str | Path, prefix: str = "log", *, compress: bool = False) -> None:
-        """Pack the logged signals into a single {prefix}.npz archive."""
+        """Pack the logged signals into a single {prefix}.npz archive.
+
+        Parameters
+        ----------
+        directory : str or Path
+            Directory to write ``{prefix}.npz`` into.
+        prefix : str, optional
+            Base name of the archive file.
+        compress : bool, optional
+            If True, deflate the archive; otherwise store it uncompressed.
+        """
         if self.logger is None:
             msg = "run() must be called before export_results()."
             raise RuntimeError(msg)

@@ -64,7 +64,7 @@ def main() -> None:
     else:
         output_dir = Path(output_dir_str)
         sim = Simulation.from_config(config)
-        sim.run(output_dir=output_dir, prefix="log", use_mmap=args.mmap, compress=args.compress)
+        sim.run(output_dir=output_dir, prefix="log", use_mmap=args.mmap)
         sim.export_results(output_dir, prefix="log", compress=args.compress)
 
 
