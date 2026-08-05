@@ -16,3 +16,7 @@ __marimo__/
 *.npz
 results/
 AGENTS.md
+CONTEXT.md
+docs/agents
+docs/adr
+.env
