@@ -24,6 +24,7 @@ def test_nadir_config_builds_and_runs() -> None:
 
     sim.run()
 
+    assert sim.logger is not None
     logs = sim.logger.core_logs
     assert len(logs) > 0
     x_hat = np.asarray(logs[-1]["x_hat"])
@@ -39,6 +40,7 @@ def test_nadir_config_drives_toward_nadir() -> None:
 
     sim.run()
 
+    assert sim.logger is not None
     logs = sim.logger.core_logs
     angle0 = _nadir_angle(np.asarray(logs[0]["x"]))
     angle_end = _nadir_angle(np.asarray(logs[-1]["x"]))

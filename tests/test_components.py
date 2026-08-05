@@ -206,6 +206,7 @@ def test_simulation_execution_and_logging() -> None:
     )
     sim.run()
 
+    assert sim.logger is not None
     assert len(sim.logger.core_logs) == 11
 
     assert len(sim.logger.component_logs["dynamics"]) == 11
@@ -239,6 +240,7 @@ def test_simulation_single_sensor() -> None:
     )
     sim.run()
 
+    assert sim.logger is not None
     assert len(sim.logger.core_logs) == 11
     assert len(sim.sensors) == 1
     assert sim.sensors[0] is sensor

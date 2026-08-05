@@ -6,7 +6,7 @@ authors = [
     {name = "Max Frankenberg", email = "frankenbergmax57@gmail.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
     "ipython>=9.13.0",
     "matplotlib>=3.10.9",
@@ -56,7 +56,7 @@ module-name = ["simulate", "spacecraft"]
 
 [tool.ruff]
 line-length = 120
-target-version = "py313"
+target-version = "py312"
 
 
 [tool.ruff.lint]
