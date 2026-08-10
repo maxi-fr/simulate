@@ -1,11 +1,12 @@
 import abc
+import dataclasses
 import importlib
 from typing import Any, Self, cast
 
 import numpy as np
 from numpy.typing import ArrayLike
 
-from .component import Component, NoLog
+from .component import Component
 from .integrator import Integrator
 
 
@@ -25,7 +26,14 @@ class Estimator[L](Component[L], abc.ABC):
         """Execute internal update dynamics. Must be implemented by subclasses."""
 
 
-class IdentityEstimator(Estimator[NoLog]):
+@dataclasses.dataclass(frozen=True)
+class IdentityEstimatorLog:
+    """Log carrying the estimated state vector."""
+
+    x_hat: np.ndarray
+
+
+class IdentityEstimator(Estimator[IdentityEstimatorLog]):
     """Simple estimator that returns the measurement as the state estimate."""
 
     def __init__(self, dt: float) -> None:
@@ -42,7 +50,7 @@ class IdentityEstimator(Estimator[NoLog]):
         t: float,  # noqa: ARG002
         y_mea: np.ndarray,
         u: np.ndarray,  # noqa: ARG002
-    ) -> tuple[np.ndarray, NoLog]:
+    ) -> tuple[np.ndarray, IdentityEstimatorLog]:
         """
         Return the measurement as the state estimate.
 
@@ -59,13 +67,22 @@ class IdentityEstimator(Estimator[NoLog]):
         -------
         x_hat : numpy.ndarray
             State estimate, equal to the measurement.
-        log : NoLog
-            Empty log placeholder.
+        log : IdentityEstimatorLog
+            Log containing the estimated state vector.
         """
-        return y_mea.copy(), NoLog()
+        x_hat = y_mea.copy()
+        return x_hat, IdentityEstimatorLog(x_hat=x_hat.copy())
 
 
-class LuenbergerObserver(Estimator[NoLog]):
+@dataclasses.dataclass(frozen=True)
+class LuenbergerObserverLog:
+    """Log carrying the updated state estimate and the innovation that drove the step."""
+
+    x_hat: np.ndarray
+    innovation: np.ndarray
+
+
+class LuenbergerObserver(Estimator[LuenbergerObserverLog]):
     """Model-based linear observer ``x_hat_dot = A x_hat + B u + L (y - C x_hat)``.
 
     Reconstructs the full state from a (partial, noisy) measurement using a state-space model and
@@ -122,7 +139,7 @@ class LuenbergerObserver(Estimator[NoLog]):
         t: float,
         y_mea: np.ndarray,
         u: np.ndarray,
-    ) -> tuple[np.ndarray, NoLog]:
+    ) -> tuple[np.ndarray, LuenbergerObserverLog]:
         """
         Advance the observer one step and return the state estimate.
 
@@ -139,14 +156,17 @@ class LuenbergerObserver(Estimator[NoLog]):
         -------
         x_hat : numpy.ndarray
             Updated full-state estimate.
-        log : NoLog
-            Empty log placeholder.
+        log : LuenbergerObserverLog
+            Component log containing the updated state estimate and the innovation
+            ``y_mea - C x_hat`` evaluated against the *prior* estimate.
         """
         self._y = y_mea
+
+        innovation = y_mea - self.c @ self.x_hat
 
         if self.integrator is not None:
             self.x_hat = self.integrator(self._rhs, t, self.dt, self.x_hat, u)
         else:
             self.x_hat = self._rhs(t, self.x_hat, u)
 
-        return self.x_hat, NoLog()
+        return self.x_hat, LuenbergerObserverLog(x_hat=self.x_hat.copy(), innovation=innovation.copy())

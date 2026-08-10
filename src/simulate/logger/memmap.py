@@ -62,7 +62,7 @@ class MmapLogger(BaseLogger):
         for _, mmap_arr in buffers:
             self._release_memmap(mmap_arr)
         # Drop references to the (now closed) memmaps so the files are fully unlocked.
-        self._core_buffers = {}
+        self._t_buffer = np.empty(0, dtype=np.float64)
         self._component_buffers = {}
         del buffers
 

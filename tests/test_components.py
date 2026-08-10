@@ -83,6 +83,21 @@ def test_luenberger_observer_reconstructs_unmeasured_state() -> None:
     assert np.linalg.norm(np.asarray(x_hat) - plant.x) < 1e-2
 
 
+def test_luenberger_innovation_is_taken_against_the_prior_estimate() -> None:
+    """The logged innovation is the residual that drove the step, not the one left after it."""
+    a = np.array([[-1.0, 50.0], [-5.0, -100.0]])
+    c = np.array([[1.0, 0.0]])
+    observer = LuenbergerObserver(
+        dt=0.001, A=a, B=[[0.0], [100.0]], C=c, L=place_poles(a.T, c.T, [-200.0, -300.0]).gain_matrix.T
+    )
+
+    x_hat_prior = observer.x_hat.copy()
+    y_mea = np.array([1.0])
+    _, log = observer.evaluate(0.0, y_mea, np.array([0.2]))
+
+    assert np.allclose(log.innovation, y_mea - c @ x_hat_prior)
+
+
 def test_controller_step_logic() -> None:
     """Test PI controller behavior and integration accumulation."""
     controller = PIController(dt=0.1, kp=[[0.5]], ki=[[0.1]])
@@ -207,19 +222,19 @@ def test_simulation_execution_and_logging() -> None:
     sim.run()
 
     assert sim.logger is not None
-    assert len(sim.logger.core_logs) == 11
+    assert len(sim.logger.t) == 11
 
-    assert len(sim.logger.component_logs["dynamics"]) == 11
-    assert len(sim.logger.component_logs["reference"]) == 11
-    assert len(sim.logger.component_logs["sensor_0"]) == 11
-    assert len(sim.logger.component_logs["estimator"]) == 11
-    assert len(sim.logger.component_logs["controller"]) == 11
+    assert len(sim.logger.signal("dynamics", "x")) == 11
+    assert len(sim.logger.signal("reference", "ref")) == 11
+    assert len(sim.logger.signal("sensor_0", "y_mea")) == 11
+    assert len(sim.logger.signal("estimator", "x_hat")) == 11
+    assert len(sim.logger.signal("controller", "u")) == 11
 
-    assert sim.logger.core_logs[0]["t"] == 0.0
-    assert np.allclose(sim.logger.core_logs[0]["u"], 0.0)
+    assert sim.logger.t[0] == 0.0
+    assert np.allclose(sim.logger.signal("controller", "u")[0], 0.0)
 
-    assert math.isclose(sim.logger.core_logs[-1]["t"], 1.0, rel_tol=1e-9)
-    assert not np.allclose(sim.logger.core_logs[-1]["u"], 0.0)
+    assert math.isclose(sim.logger.t[-1], 1.0, rel_tol=1e-9)
+    assert not np.allclose(sim.logger.signal("controller", "u")[-1], 0.0)
 
 
 def test_simulation_single_sensor() -> None:
@@ -241,7 +256,7 @@ def test_simulation_single_sensor() -> None:
     sim.run()
 
     assert sim.logger is not None
-    assert len(sim.logger.core_logs) == 11
+    assert len(sim.logger.t) == 11
     assert len(sim.sensors) == 1
     assert sim.sensors[0] is sensor
 

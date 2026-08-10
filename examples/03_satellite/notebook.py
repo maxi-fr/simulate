@@ -132,12 +132,10 @@ def _(Path, Simulation, controller_select, load_config, np):
 @app.cell
 def _(Quaternion, euler_from_quaternion, lvlh_from_orbit, np, orbital_rate):
     def extract(sim_obj) -> dict[str, np.ndarray]:
-        """Pull the core/component logs of a run into plain numpy arrays for plotting."""
-        logs = sim_obj.logger.core_logs
-        t = np.array([row["t"] for row in logs])
-        x = np.array([np.asarray(row["x"]) for row in logs])
-        x_hat = np.array([np.asarray(row["x_hat"]) for row in logs])
-        u = np.array([np.asarray(row["u"]) for row in logs])
+        """Pull component signals of a run into plain numpy arrays for plotting."""
+        t = sim_obj.logger.t
+        x = sim_obj.logger.signal("dynamics", "x")
+        u = sim_obj.logger.signal("controller", "u")
 
         # Pointing error as the body-vs-LVLH (nadir) attitude, in Euler angles [deg].
         euler_err = np.zeros((len(t), 3))
@@ -147,7 +145,7 @@ def _(Quaternion, euler_from_quaternion, lvlh_from_orbit, np, orbital_rate):
             q_err = Quaternion.from_array(row[6:10]).error_to(q_li)  # desired q_bo = identity
             euler_err[k] = np.degrees(euler_from_quaternion(q_err))
             rate_ff[k] = orbital_rate(row[0:3], row[3:6])
-        return {"t": t, "x": x, "x_hat": x_hat, "u": u, "euler_err": euler_err, "rate_ff": rate_ff}
+        return {"t": t, "x": x, "u": u, "euler_err": euler_err, "rate_ff": rate_ff}
 
     return (extract,)
 
@@ -239,20 +237,21 @@ def _(mo):
 
 @app.cell
 def _(Quaternion, d, np, plt, sim):
-    elog = sim.logger.component_logs["estimator"]
-    bias = np.array([np.asarray(row["gyro_bias"]) for row in elog])
+    bias = sim.logger.signal("estimator", "gyro_bias")
+    r_est = sim.logger.signal("estimator", "r")
+    q_est = sim.logger.signal("estimator", "q")
 
-    pos_err = np.linalg.norm(d["x_hat"][:, 0:3] - d["x"][:, 0:3], axis=1)
+    pos_err = np.linalg.norm(r_est - d["x"][:, 0:3], axis=1)
     att_err = np.array(
         [
             np.degrees(
                 2.0
                 * np.arctan2(
-                    np.linalg.norm(Quaternion.from_array(xt[6:10]).error_to(Quaternion.from_array(xh[6:10])).vec),
+                    np.linalg.norm(Quaternion.from_array(xt[6:10]).error_to(Quaternion.from_array(qh)).vec),
                     1.0,
                 )
             )
-            for xt, xh in zip(d["x"], d["x_hat"], strict=True)
+            for xt, qh in zip(d["x"], q_est, strict=True)
         ]
     )
 

@@ -28,6 +28,7 @@ class Controller[L](Component[L], abc.ABC):
 class PIControllerLog:
     """Dataclass for internal PIController logging."""
 
+    u: np.ndarray
     error: np.ndarray
     integral: np.ndarray
 
@@ -79,4 +80,4 @@ class PIController(Controller[PIControllerLog]):
 
         u = self.kp @ error + self.ki @ self.integral
 
-        return u, PIControllerLog(error=error.copy(), integral=self.integral.copy())
+        return u, PIControllerLog(u=u.copy(), error=error.copy(), integral=self.integral.copy())

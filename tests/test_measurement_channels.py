@@ -29,20 +29,15 @@ def _two_channel_sim(t_end: float, sensor1_dt: float) -> Simulation:
 
 
 def test_two_channels_log_per_channel() -> None:
-    """Each sensor channel logs its own truth/noise under an indexed name; y_mea is merged."""
+    """Each sensor channel logs its own y_mea/truth/noise under an indexed name."""
     sim = _two_channel_sim(t_end=0.05, sensor1_dt=0.01)
     sim.run()
 
     assert sim.logger is not None
-    logs = sim.logger.component_logs
-    n = len(sim.logger.core_logs)
+    n = len(sim.logger.t)
     for name in ("sensor_0", "sensor_1"):
-        assert len(logs[name]) == n
-        assert "truth" in logs[name][0]
-
-    # Truth is per-channel only; the core log carries the merged measurement.
-    assert "y_mea" in sim.logger.core_logs[0]
-    assert "y" not in sim.logger.core_logs[0]
+        assert len(sim.logger.signal(name, "truth")) == n
+        assert len(sim.logger.signal(name, "y_mea")) == n
 
 
 def test_estimator_receives_concatenated_measurement() -> None:
@@ -51,7 +46,7 @@ def test_estimator_receives_concatenated_measurement() -> None:
     sim.run()
     # IdentityEstimator passes the (2,) concatenated measurement through as x_hat.
     assert sim.logger is not None
-    x_hat = sim.logger.core_logs[-1]["x_hat"]
+    x_hat = sim.logger.signal("estimator", "x_hat")[-1]
     assert np.asarray(x_hat).shape == (2,)
 
 
@@ -61,8 +56,8 @@ def test_slow_sensor_is_zoh_held() -> None:
     sim.run()
 
     assert sim.logger is not None
-    fast = [e["y_mea"][0] for e in sim.logger.core_logs]
-    slow = [e["y_mea"][1] for e in sim.logger.core_logs]
+    fast = sim.logger.signal("sensor_0", "y_mea")[:, 0]
+    slow = sim.logger.signal("sensor_1", "y_mea")[:, 0]
 
     # The fast channel updates every base step once the truth starts moving.
     assert fast[2] != fast[1]

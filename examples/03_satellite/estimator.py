@@ -34,10 +34,24 @@ def _as_matrix(value: Any, n: int) -> np.ndarray:  # noqa: ANN401
     return arr.reshape(n, n)
 
 
-@dataclasses.dataclass
-class FullStateEstimatorLog:
-    """Internal log: gyro bias plus the environment exposed at the estimated orbit."""
+@dataclasses.dataclass(frozen=True)
+class StateEstimate:
+    """The filtered state the two sub-filters agree on, before the environment is exposed at it."""
 
+    r: np.ndarray
+    v: np.ndarray
+    q: Quaternion
+    omega: np.ndarray
+
+
+@dataclasses.dataclass(frozen=True)
+class FullStateEstimatorLog:
+    """Internal log: gyro bias plus decomposed state estimate and environment exposed at estimated orbit."""
+
+    r: np.ndarray
+    v: np.ndarray
+    q: np.ndarray
+    omega: np.ndarray
     gyro_bias: np.ndarray
     b_field_body: np.ndarray
     sun_dir_body: np.ndarray
@@ -210,7 +224,8 @@ class FullStateEstimator(Estimator[FullStateEstimatorLog]):
         omega_est = omega_meas - self.attitude.b
 
         h_wheel = self._wheel_momentum(channels, omega_est)
-        log = self._expose_environment(r_est, q_est, dt_utc, h_wheel)
+        estimate = StateEstimate(r=r_est, v=v_est, q=q_est, omega=omega_est)
+        log = self._make_log(estimate, dt_utc, h_wheel)
         x_hat = np.concatenate([r_est, v_est, q_est.to_array(), omega_est, log.b_field_body, h_wheel])
         return x_hat, log
 
@@ -232,14 +247,14 @@ class FullStateEstimator(Estimator[FullStateEstimatorLog]):
         omega_abs = omega_rel + self.rw_axes @ omega_est
         return self.rw_axes.T @ (self.rw_inertia * omega_abs)
 
-    def _expose_environment(
+    def _make_log(
         self,
-        r_est: np.ndarray,
-        q_est: Quaternion,
+        estimate: StateEstimate,
         dt_utc: datetime.datetime,
         wheel_momentum: np.ndarray,
     ) -> FullStateEstimatorLog:
-        """Evaluate the environment at the estimated orbit and pack it into the log."""
+        """Evaluate the environment at the estimated orbit and pack it, with *estimate*, into the log."""
+        r_est, v_est, q_est, omega_est = estimate.r, estimate.v, estimate.q, estimate.omega
         lat, lon, alt = eci_to_geodedic(r_est)
         dt_naive = dt_utc.replace(tzinfo=None)
         b_field_body = q_est.apply(magnetic_field_vector(dt_naive, float(lat), float(lon), float(alt)))
@@ -253,6 +268,10 @@ class FullStateEstimator(Estimator[FullStateEstimatorLog]):
 
         density = atmosphere_density_msis(dt_utc, float(lat), float(lon), float(alt))
         return FullStateEstimatorLog(
+            r=r_est.copy(),
+            v=v_est.copy(),
+            q=q_est.to_array(),
+            omega=omega_est.copy(),
             gyro_bias=self.attitude.b.copy(),
             b_field_body=b_field_body,
             sun_dir_body=sun_dir_body,

@@ -14,6 +14,7 @@ from spacecraft.quaternion import Quaternion
 
 _est_mod = importlib.import_module("examples.03_satellite.estimator")
 FullStateEstimator = _est_mod.FullStateEstimator
+StateEstimate = _est_mod.StateEstimate
 
 _EPOCH = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
 _R0 = np.array([7.0e6, 0.0, 0.0])
@@ -147,7 +148,9 @@ def test_environment_exposure_matches_truth() -> None:
     est = _make_estimator()
     r = np.array([7.0e6, 1.0e5, -2.0e5])
 
-    log = est._expose_environment(r, Quaternion(np.zeros(3), 1.0), _EPOCH, np.zeros(3))  # noqa: SLF001
+    estimate = StateEstimate(r=r, v=np.zeros(3), q=Quaternion(np.zeros(3), 1.0), omega=np.zeros(3))
+
+    log = est._make_log(estimate, _EPOCH, np.zeros(3))  # noqa: SLF001
 
     lat, lon, alt = eci_to_geodedic(r)
     np.testing.assert_allclose(log.geodetic, np.array([lat, lon, alt]), rtol=1e-9)

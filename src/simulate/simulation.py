@@ -7,7 +7,7 @@ import numpy as np
 from tqdm import tqdm
 
 from .config import build_component, load_config
-from .logger import BaseLogger, CoreLog, create_logger
+from .logger import BaseLogger, create_logger
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -140,7 +140,7 @@ class Simulation:
         memory stays bounded for runs of any length. Call :meth:`export_results` to
         pack them into ``{prefix}.npz`` (compression is chosen there). With
         ``use_mmap=False`` the logs are kept in RAM and exposed via
-        ``self.logger.core_logs`` / ``component_logs``.
+        ``self.logger.signal(component, field)``.
         """
         u_k: np.ndarray = np.zeros(self.dynamics.n_inputs)
 
@@ -169,16 +169,6 @@ class Simulation:
                 # Advance the plant; ``self.dynamics.x`` becomes the next step's state.
                 _x_next, dynamics_log = self.dynamics.evaluate(t, u_k)
 
-                y_mea_val = sensor_logs[0][0] if len(self.sensors) == 1 else y_mea
-
-                core_log = CoreLog(
-                    t=t,
-                    x=x_k,
-                    x_hat=x_hat,
-                    u=u_k,
-                    ref=ref_k,
-                    y_mea=y_mea_val,
-                )
                 comp_logs: dict[str, Any] = {
                     "reference": ref_log,
                     "dynamics": dynamics_log,
@@ -187,7 +177,7 @@ class Simulation:
                 }
                 for i, (_, sen_log) in enumerate(sensor_logs):
                     comp_logs[f"sensor_{i}"] = sen_log
-                self.logger.log(core_log, comp_logs)
+                self.logger.log(t, comp_logs)
 
                 pbar.update(min(self.dt / divisor, max(0.0, self.t_end / divisor - pbar.n)))
 

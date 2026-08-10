@@ -1,10 +1,10 @@
 from pathlib import Path
 
-from .base import BaseLogger, CoreLog
+from .base import BaseLogger
 from .memmap import MmapLogger
 from .ram import RamLogger
 
-__all__ = ["BaseLogger", "CoreLog", "MmapLogger", "RamLogger", "create_logger"]
+__all__ = ["BaseLogger", "MmapLogger", "RamLogger", "create_logger"]
 
 
 def create_logger(
