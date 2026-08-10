@@ -11,7 +11,7 @@ class RamLogger(BaseLogger):
     Buffers live on the Python heap, so resident memory scales with the run length.
     :meth:`finalize` saves the accumulated arrays (sliced to the number of logged
     rows) with ``np.savez``. Suitable when the logs are small enough to hold in
-    memory or need to be inspected via ``core_logs`` / ``component_logs``.
+    memory or need to be inspected via ``signal()``.
     """
 
     def _make_buffer(self, arcname: str, shape: tuple[int, ...], dtype: np.dtype) -> np.ndarray:  # noqa: ARG002 - arcname is part of the backend interface, only the memmap backend needs it

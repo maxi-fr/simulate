@@ -104,8 +104,9 @@ sim = Simulation.from_yaml("examples/03_satellite/quat_feedback.yaml")
 sim.run(output_dir="results")
 
 # Results are available in-memory after the run:
-sim.logger.core_logs   # t, x, x_hat, u, ref, y, y_mea
-sim.logger.component_logs   # per-component internal logs
+sim.logger.t                              # run time axis
+sim.logger.signal("dynamics", "x")         # state trajectory
+sim.logger.signal("controller", "u")       # control input
 ```
 
 `Simulation.from_config(config_dict)` does the same from an already-parsed dict.
@@ -230,23 +231,14 @@ handed to the estimator, and each sensor logs its own clean `truth`.
 
 ### Logging
 
-Every step records a `CoreLog` ([`src/simulate/logger/`](src/simulate/logger/))
-of the standard signals — `t, x, x_hat, u, ref, y_mea` — plus each component's own
-log dataclass. Component logs are keyed by role (`dynamics`, `reference`, `estimator`,
-`controller`, and `sensor_0`, … per channel; each sensor log carries its clean `truth`)
-and hold **only** internal state not already in the core log.
+Every component owns the signals it logs, defined by the fields of its log dataclass. Component logs are keyed by role (`dynamics`, `reference`, `estimator`, `controller`, and `sensor_0`, … per channel). Signal trajectories are exposed after a run via `sim.logger.signal(component, field)` and `sim.logger.t`.
 
-Buffers are pre-allocated to the exact step count (`round(t_end / dt) + 1`), and two
-backends share one interface (`BaseLogger`), chosen automatically by `run`:
+Buffers are pre-allocated to the exact step count (`round(t_end / dt) + 1`), and two backends share one interface (`BaseLogger`), chosen automatically by `run`:
 
-- **`RamLogger`** (default, `output_dir=None`) keeps every signal in in-RAM arrays,
-  exposed after the run via `sim.logger.core_logs` and `sim.logger.component_logs`.
-- **`MmapLogger`** (`run(output_dir=...)`) streams each signal straight into a
-  memory-mapped `.npy` file, so resident memory stays bounded for runs of any length.
+- **`RamLogger`** (default, `output_dir=None`) keeps every signal in in-RAM arrays, accessed via `sim.logger.signal(component, field)`.
+- **`MmapLogger`** (`run(output_dir=...)`) streams each signal straight into a memory-mapped `.npy` file, so resident memory stays bounded for runs of any length.
 
-Either way, `export_results` packs the signals into a single `{prefix}.npz` (optionally
-`--compress`ed). A run logs exactly the pre-allocated number of rows; `finalize` raises
-on a partial fill rather than silently emitting zero-padded rows.
+Either way, `export_results` packs the signals into a single `{prefix}.npz` (optionally `--compress`ed) using dot-separated keys (e.g. `dynamics.x`, `controller.u`). A run logs exactly the pre-allocated number of rows; `finalize` raises on a partial fill rather than silently emitting zero-padded rows.
 
 ### Extending it: writing a new component
 
@@ -257,16 +249,14 @@ A custom component subclasses the role's base class and implements three things:
 2. `from_config(cls, config)` — a classmethod that pulls parameters out of the YAML
    dict (and resolves an `integrator` import string for dynamics).
 3. The role's update method, returning `(output, log)`:
-   - Dynamics: `dynamics(t, x, u)` returning $\dot{x}$ (or override `step` for
-     discrete-time), plus `_make_log()`.
+   - Dynamics: `dynamics(t, x, u)` returning $\dot{x}$ (or discrete transition), plus `_make_log()` snapshotting the **pre-step state** (before state advancement).
    - Sensor / Estimator / Controller / Reference: `update(t, ...)`.
 
 A **measurement model** is the exception: it is not a component but a plain callable
 `(t, x, u) -> y` (a module-level function, or a class with `__call__` when it carries
 parameters), owned by a `Sensor` and built from config via `build_measurement`.
 
-The log is a frozen dataclass holding **only** internal state not already captured by
-the core logs; use `simulate.component.NoLog` when there is nothing extra to log.
+The log is a frozen dataclass holding the component's logged signals; use `simulate.component.NoLog` when there is nothing to log.
 
 For complete, idiomatic references see
 [`examples/01_dc_motor/dc_motor.py`](examples/01_dc_motor/dc_motor.py) (a custom continuous-time `Dynamics`

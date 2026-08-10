@@ -153,10 +153,9 @@ def _(mo):
 
 @app.cell
 def _(STATE, np, plt, sim):
-    logs = sim.logger.core_logs
-    t = np.array([row["t"] for row in logs])
-    x = np.array([np.asarray(row["x"]) for row in logs])
-    u = np.array([np.asarray(row["u"]) for row in logs])
+    t = sim.logger.t
+    x = sim.logger.signal("dynamics", "x")
+    u = sim.logger.signal("controller", "u")
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 10))
 

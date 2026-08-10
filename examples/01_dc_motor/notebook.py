@@ -2,7 +2,7 @@
 
 import marimo
 
-__generated_with = "0.23.9"
+__generated_with = "0.23.6"
 app = marimo.App(width="medium")
 
 
@@ -13,7 +13,6 @@ def _():
 
     import marimo as mo
     import matplotlib.pyplot as plt
-    import numpy as np
     import yaml
 
     # Add workspace root to sys.path to allow importing 'examples' package
@@ -23,7 +22,7 @@ def _():
 
     from simulate.simulation import Simulation
 
-    return Path, Simulation, mo, np, plt, yaml
+    return Path, Simulation, mo, plt, yaml
 
 
 @app.cell
@@ -121,14 +120,13 @@ def _(mo):
 
 
 @app.cell
-def _(np, plt, sim):
-    logs = sim.logger.core_logs
-    t = np.array([row["t"] for row in logs])
-    x = np.array([np.asarray(row["x"]) for row in logs])  # true [omega, i]
-    x_hat = np.array([np.asarray(row["x_hat"]) for row in logs])  # observed [omega, i]
-    u = np.array([np.asarray(row["u"]) for row in logs])
-    ref = np.array([np.asarray(row["ref"]) for row in logs])
-    y_mea = np.array([np.atleast_1d(row["y_mea"]) for row in logs])
+def _(plt, sim):
+    t = sim.logger.t
+    x = sim.logger.signal("dynamics", "x")
+    x_hat = sim.logger.signal("estimator", "x_hat")
+    u = sim.logger.signal("controller", "u")
+    ref = sim.logger.signal("reference", "ref")
+    y_mea = sim.logger.signal("sensor_0", "y_mea")
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 10))
 

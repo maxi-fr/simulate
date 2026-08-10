@@ -25,12 +25,17 @@ def test_nadir_config_builds_and_runs() -> None:
     sim.run()
 
     assert sim.logger is not None
-    logs = sim.logger.core_logs
-    assert len(logs) > 0
-    x_hat = np.asarray(logs[-1]["x_hat"])
+    r = sim.logger.signal("estimator", "r")[-1]
+    v = sim.logger.signal("estimator", "v")[-1]
+    q = sim.logger.signal("estimator", "q")[-1]
+    omega = sim.logger.signal("estimator", "omega")[-1]
+    b_body = sim.logger.signal("estimator", "b_field_body")[-1]
+    h_wheel = sim.logger.signal("estimator", "wheel_momentum")[-1]
+    x_hat = np.concatenate([r, v, q, omega, b_body, h_wheel])
     assert x_hat.shape == (19,)  # [r, v, q, omega, b_body, h_wheel]
     assert np.all(np.isfinite(x_hat))
-    assert np.all(np.isfinite(np.asarray(logs[-1]["x"])))
+    x_last = sim.logger.signal("dynamics", "x")[-1]
+    assert np.all(np.isfinite(x_last))
 
 
 def test_nadir_config_drives_toward_nadir() -> None:
@@ -41,8 +46,8 @@ def test_nadir_config_drives_toward_nadir() -> None:
     sim.run()
 
     assert sim.logger is not None
-    logs = sim.logger.core_logs
-    angle0 = _nadir_angle(np.asarray(logs[0]["x"]))
-    angle_end = _nadir_angle(np.asarray(logs[-1]["x"]))
+    x_all = sim.logger.signal("dynamics", "x")
+    angle0 = _nadir_angle(x_all[0])
+    angle_end = _nadir_angle(x_all[-1])
     assert angle0 > np.deg2rad(10.0)  # starts well off nadir
     assert angle_end < np.deg2rad(3.0)  # acquires and holds nadir

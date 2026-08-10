@@ -74,6 +74,7 @@ class Sensor[L](Component[L], abc.ABC):
 class GaussianSensorLog:
     """Dataclass for internal GaussianSensor logging."""
 
+    y_mea: np.ndarray
     truth: np.ndarray
     noise: np.ndarray
 
@@ -115,18 +116,19 @@ class GaussianSensor(Sensor[GaussianSensorLog]):
         y_mea : numpy.ndarray
             Measured output with additive Gaussian noise.
         log : GaussianSensorLog
-            Snapshot of the noise-free truth and the sampled noise.
+            Snapshot of the measured output, noise-free truth and the sampled noise.
         """
         y = np.atleast_1d(self.measurement(t, x, u))
         noise = self.rng.normal(0, self.std_dev, size=y.shape)
         y_mea = y + noise
-        return y_mea, GaussianSensorLog(truth=y, noise=noise)
+        return y_mea, GaussianSensorLog(y_mea=y_mea.copy(), truth=y.copy(), noise=noise.copy())
 
 
 @dataclasses.dataclass(frozen=True)
 class RandomWalkBiasSensorLog:
     """Dataclass for internal RandomWalkBiasSensor logging."""
 
+    y_mea: np.ndarray
     truth: np.ndarray
     noise: np.ndarray
     bias: np.ndarray
@@ -209,7 +211,7 @@ class RandomWalkBiasSensor(Sensor[RandomWalkBiasSensorLog]):
         y_mea : numpy.ndarray
             Measured output vector.
         log : RandomWalkBiasSensorLog
-            Component log containing the truth, generated noise and current bias.
+            Component log containing the measured output, truth, generated noise and current bias.
         """
         y = np.atleast_1d(self.measurement(t, x, u))
         if self.bias is None or self.bias.shape != y.shape:
@@ -221,4 +223,9 @@ class RandomWalkBiasSensor(Sensor[RandomWalkBiasSensorLog]):
 
         noise = self.rng.normal(0, self.std_dev_noise, size=y.shape)
         y_mea = y + self.bias + noise
-        return y_mea, RandomWalkBiasSensorLog(truth=y, noise=noise, bias=self.bias.copy())
+        return y_mea, RandomWalkBiasSensorLog(
+            y_mea=y_mea.copy(),
+            truth=y.copy(),
+            noise=noise.copy(),
+            bias=self.bias.copy(),
+        )

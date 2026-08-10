@@ -181,6 +181,8 @@ class QuaternionFeedbackControllerLog:
 
     Attributes
     ----------
+    u : np.ndarray
+        Commanded actuator currents [A], shape ``(n_inputs,)``.
     q_err : np.ndarray
         Small-angle attitude error in the body frame, shape ``(3,)``.
     tau_rw : np.ndarray
@@ -189,6 +191,7 @@ class QuaternionFeedbackControllerLog:
         Commanded magnetorquer body torque [N*m], shape ``(3,)``.
     """
 
+    u: np.ndarray
     q_err: np.ndarray
     tau_rw: np.ndarray
     tau_mtq: np.ndarray
@@ -255,7 +258,7 @@ class QuaternionFeedbackController(Controller[QuaternionFeedbackControllerLog]):
         tau_mtq = -self.k_m * h_wheel
 
         u = to_current_commands(tau_rw, tau_mtq, b_body, self.alpha_rw, self.alpha_mtq)
-        return u, QuaternionFeedbackControllerLog(q_err=q_err, tau_rw=tau_rw, tau_mtq=tau_mtq)
+        return u, QuaternionFeedbackControllerLog(u=u.copy(), q_err=q_err, tau_rw=tau_rw, tau_mtq=tau_mtq)
 
 
 def _ensure_utc(epoch: datetime.datetime) -> datetime.datetime:
@@ -393,6 +396,8 @@ class AdaptiveLQRLog:
 
     Attributes
     ----------
+    u : np.ndarray
+        Commanded actuator currents [A], shape ``(n_inputs,)``.
     error : np.ndarray
         Stacked tracking error ``[q_err_vec(3), omega_err(3), h_w_err(3)]``.
     tau_rw : np.ndarray
@@ -410,6 +415,7 @@ class AdaptiveLQRLog:
         first step or the stabilizing-guard fallback).
     """
 
+    u: np.ndarray
     error: np.ndarray
     tau_rw: np.ndarray
     tau_mtq: np.ndarray
@@ -524,10 +530,8 @@ class AdaptiveLQR(Controller[AdaptiveLQRLog]):
             alpha_mtq=self.alpha_mtq,
         )
 
-        b_norm_sq = np.dot(b_body, b_body)
-        np.cross(b_body, control[CONTROL.tau_mtq]) / b_norm_sq if b_norm_sq > _EPS else np.zeros(3)
-
         return u, AdaptiveLQRLog(
+            u=u.copy(),
             error=error,
             tau_rw=control[CONTROL.tau_rw],
             tau_mtq=control[CONTROL.tau_mtq],
@@ -544,6 +548,8 @@ class MPCLog:
 
     Attributes
     ----------
+    u : np.ndarray
+        Commanded actuator currents [A], shape ``(n_inputs,)``.
     tau_rw : np.ndarray
         Commanded reaction-wheel torque [N*m], shape ``(3,)``.
     tau_mtq : np.ndarray
@@ -554,6 +560,7 @@ class MPCLog:
         ``True`` when the IPOPT solve converged this step.
     """
 
+    u: np.ndarray
     tau_rw: np.ndarray
     tau_mtq: np.ndarray
     cost: float
@@ -791,6 +798,7 @@ class MPC(Controller[MPCLog]):
         )
 
         return u, MPCLog(
+            u=u.copy(),
             tau_rw=tau_rw,
             tau_mtq=tau_mtq,
             cost=cost,

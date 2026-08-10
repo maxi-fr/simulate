@@ -1,9 +1,10 @@
 import abc
+import dataclasses
 from typing import Any, Self
 
 import numpy as np
 
-from .component import Component, NoLog
+from .component import Component
 
 
 class Reference[L](Component[L], abc.ABC):
@@ -22,7 +23,14 @@ class Reference[L](Component[L], abc.ABC):
         """Execute internal update dynamics to generate reference. Must be implemented by subclasses."""
 
 
-class StepReference(Reference[NoLog]):
+@dataclasses.dataclass(frozen=True)
+class StepReferenceLog:
+    """Log carrying the generated reference signal."""
+
+    ref: np.ndarray
+
+
+class StepReference(Reference[StepReferenceLog]):
     """Reference generator that provides a step signal (or trajectory)."""
 
     def __init__(
@@ -51,7 +59,7 @@ class StepReference(Reference[NoLog]):
             horizon=int(config.get("horizon", 1)),
         )
 
-    def update(self, t: float) -> tuple[np.ndarray, NoLog]:
+    def update(self, t: float) -> tuple[np.ndarray, StepReferenceLog]:
         """
         Generate a step signal or trajectory.
 
@@ -64,8 +72,8 @@ class StepReference(Reference[NoLog]):
         -------
         reference : numpy.ndarray
             Step value (or horizon trajectory) evaluated at time ``t``.
-        log : NoLog
-            Empty log placeholder.
+        log : StepReferenceLog
+            Component log carrying the reference signal.
         """
         if self.horizon == 1:
             if t >= self.start_time:
@@ -76,4 +84,5 @@ class StepReference(Reference[NoLog]):
             future_times = t + np.arange(self.horizon) * self.dt
             res = np.where(future_times >= self.start_time, self.step_value, 0.0)
 
-        return np.asarray(res), NoLog()
+        ref_arr = np.asarray(res)
+        return ref_arr, StepReferenceLog(ref=ref_arr.copy())

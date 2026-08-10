@@ -5,11 +5,10 @@ from typing import Any, Self
 
 import numpy as np
 
-from simulate.component import NoLog
-from simulate.dynamics import Dynamics
+from simulate.dynamics import Dynamics, StateLog
 
 
-class DCMotorDynamics(Dynamics[NoLog]):
+class DCMotorDynamics(Dynamics[StateLog]):
     """Custom DC Motor dynamics implementation."""
 
     def __init__(
@@ -69,9 +68,9 @@ class DCMotorDynamics(Dynamics[NoLog]):
 
         return np.array([d_omega, d_i])
 
-    def _make_log(self) -> NoLog:
-        """Build a snapshot log of the current state."""
-        return NoLog()
+    def _make_log(self) -> StateLog:
+        """Build a snapshot log of the pre-step state."""
+        return StateLog(x=self.x.copy())
 
 
 def dc_motor_measurement(_t: float, x: np.ndarray, _u: np.ndarray) -> np.ndarray:

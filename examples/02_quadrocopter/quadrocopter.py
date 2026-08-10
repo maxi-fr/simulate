@@ -1,11 +1,11 @@
 """Quadrocopter effectors and models for the example notebook."""
 
+import dataclasses
 from typing import Any, Self
 
 import numpy as np
 from numpy.typing import ArrayLike
 
-from simulate.component import NoLog
 from simulate.controller import Controller
 from spacecraft.effector import Effector, RigidBodyState
 from spacecraft.frames import euler_from_quaternion
@@ -160,7 +160,14 @@ class AerodynamicDragQuad(Effector):
         )
 
 
-class CascadedController(Controller[NoLog]):
+@dataclasses.dataclass(frozen=True)
+class CascadedControllerLog:
+    """Log carrying the quadrocopter control input."""
+
+    u: np.ndarray
+
+
+class CascadedController(Controller[CascadedControllerLog]):
     """Linear cascaded PID controller for quadrocopter position and attitude."""
 
     def __init__(  # noqa: PLR0913
@@ -221,7 +228,7 @@ class CascadedController(Controller[NoLog]):
         t: float,  # noqa: ARG002
         ref: np.ndarray,
         x_hat: np.ndarray,
-    ) -> tuple[np.ndarray, NoLog]:
+    ) -> tuple[np.ndarray, CascadedControllerLog]:
         """Compute the rotor thrust commands."""
         x = np.asarray(x_hat)
         r = x[STATE.r]
@@ -275,7 +282,7 @@ class CascadedController(Controller[NoLog]):
 
         f_rotors = np.clip(f_rotors, 0.0, self.max_thrust_per_rotor)
 
-        return f_rotors, NoLog()
+        return f_rotors, CascadedControllerLog(u=f_rotors.copy())
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> Self:

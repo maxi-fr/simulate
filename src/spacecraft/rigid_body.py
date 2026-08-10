@@ -32,8 +32,7 @@ from typing import Any, Self, cast
 import numpy as np
 from numpy.typing import ArrayLike
 
-from simulate.component import NoLog
-from simulate.dynamics import Dynamics
+from simulate.dynamics import Dynamics, StateLog
 from simulate.integrator import Integrator
 
 from .effector import Effector, RigidBodyState
@@ -63,7 +62,7 @@ def _load_class(class_path: str) -> type:
     return cast("type", getattr(module, cls_name))
 
 
-class RigidBodyDynamics(Dynamics[NoLog]):
+class RigidBodyDynamics(Dynamics[StateLog]):
     """Coupled attitude + position dynamics for a rigid body with composed effectors."""
 
     def __init__(
@@ -218,6 +217,6 @@ class RigidBodyDynamics(Dynamics[NoLog]):
 
         return np.concatenate([r_dot, v_dot, q_dot, omega_dot, *state_dots])
 
-    def _make_log(self) -> NoLog:
-        """Build a snapshot log of the current state."""
-        return NoLog()
+    def _make_log(self) -> StateLog:
+        """Build a snapshot log of the pre-step state."""
+        return StateLog(x=self.x.copy())

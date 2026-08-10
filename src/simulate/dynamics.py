@@ -1,12 +1,20 @@
 import abc
+import dataclasses
 import importlib
 from typing import Any, Self, cast
 
 import numpy as np
 from numpy.typing import ArrayLike
 
-from .component import Component, NoLog
+from .component import Component
 from .integrator import Integrator
+
+
+@dataclasses.dataclass(frozen=True)
+class StateLog:
+    """Log carrying the plant state as of the start of the step."""
+
+    x: np.ndarray
 
 
 class Dynamics[L](Component[L], abc.ABC):
@@ -38,14 +46,15 @@ class Dynamics[L](Component[L], abc.ABC):
         x : numpy.ndarray
             The state after advancing one time step.
         log : L
-            The component log snapshot for the new state.
+            The component log snapshot for the pre-step state.
         """
+        log = self._make_log()
         if self.integrator is not None:
             self.x = self.integrator(self.dynamics, t, self.dt, self.x, u)
         else:
             self.x = self.dynamics(t, self.x, u)
 
-        return self.x, self._make_log()
+        return self.x, log
 
     @abc.abstractmethod
     def dynamics(self, t: float, x: np.ndarray, u: np.ndarray) -> np.ndarray:
@@ -64,10 +73,10 @@ class Dynamics[L](Component[L], abc.ABC):
 
     @abc.abstractmethod
     def _make_log(self) -> L:
-        """Build the component-specific log snapshot for the current state."""
+        """Build the component-specific log snapshot for the pre-step state."""
 
 
-class LinearDynamics(Dynamics[NoLog]):
+class LinearDynamics(Dynamics[StateLog]):
     """Generic linear dynamics implementation using state space matrices A and B."""
 
     def __init__(
@@ -106,6 +115,6 @@ class LinearDynamics(Dynamics[NoLog]):
         """Linear dynamics kernel: Ax + Bu (interpreted as x_dot or x_next based on integrator)."""
         return cast("np.ndarray", self.a @ x + self.b @ u)
 
-    def _make_log(self) -> NoLog:
-        """Build a snapshot log of the current state."""
-        return NoLog()
+    def _make_log(self) -> StateLog:
+        """Build a snapshot log of the pre-step state."""
+        return StateLog(x=self.x.copy())
