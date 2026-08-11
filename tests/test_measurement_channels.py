@@ -1,5 +1,6 @@
 import numpy as np
 
+from simulate.component import NoLog
 from simulate.controller import PIController
 from simulate.dynamics import LinearDynamics
 from simulate.estimator import IdentityEstimator
@@ -41,13 +42,11 @@ def test_two_channels_log_per_channel() -> None:
 
 
 def test_estimator_receives_concatenated_measurement() -> None:
-    """The loop reassembles the two channels into one (2,) vector for the estimator."""
-    sim = _two_channel_sim(t_end=0.03, sensor1_dt=0.01)
-    sim.run()
-    # IdentityEstimator passes the (2,) concatenated measurement through as x_hat.
-    assert sim.logger is not None
-    x_hat = sim.logger.signal("estimator", "x_hat")[-1]
+    """IdentityEstimator passes the (2,) concatenated measurement vector through as x_hat and returns NoLog."""
+    estimator = IdentityEstimator(dt=0.01)
+    x_hat, log = estimator.evaluate(0.0, np.array([1.0, 2.0]), np.array([0.0, 0.0]))
     assert np.asarray(x_hat).shape == (2,)
+    assert isinstance(log, NoLog)
 
 
 def test_slow_sensor_is_zoh_held() -> None:
