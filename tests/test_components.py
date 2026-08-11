@@ -227,7 +227,6 @@ def test_simulation_execution_and_logging() -> None:
     assert len(sim.logger.signal("dynamics", "x")) == 11
     assert len(sim.logger.signal("reference", "ref")) == 11
     assert len(sim.logger.signal("sensor_0", "y_mea")) == 11
-    assert len(sim.logger.signal("estimator", "x_hat")) == 11
     assert len(sim.logger.signal("controller", "u")) == 11
 
     assert sim.logger.t[0] == 0.0

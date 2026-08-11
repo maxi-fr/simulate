@@ -6,7 +6,7 @@ from typing import Any, Self, cast
 import numpy as np
 from numpy.typing import ArrayLike
 
-from .component import Component
+from .component import Component, NoLog
 from .integrator import Integrator
 
 
@@ -26,15 +26,8 @@ class Estimator[L](Component[L], abc.ABC):
         """Execute internal update dynamics. Must be implemented by subclasses."""
 
 
-@dataclasses.dataclass(frozen=True)
-class IdentityEstimatorLog:
-    """Log carrying the estimated state vector."""
-
-    x_hat: np.ndarray
-
-
-class IdentityEstimator(Estimator[IdentityEstimatorLog]):
-    """Simple estimator that returns the measurement as the state estimate."""
+class IdentityEstimator(Estimator[NoLog]):
+    """Simple estimator that returns the measurement as the state estimate without logging internal states."""
 
     def __init__(self, dt: float) -> None:
         """Initialize the identity estimator."""
@@ -50,7 +43,7 @@ class IdentityEstimator(Estimator[IdentityEstimatorLog]):
         t: float,  # noqa: ARG002
         y_mea: np.ndarray,
         u: np.ndarray,  # noqa: ARG002
-    ) -> tuple[np.ndarray, IdentityEstimatorLog]:
+    ) -> tuple[np.ndarray, NoLog]:
         """
         Return the measurement as the state estimate.
 
@@ -67,11 +60,11 @@ class IdentityEstimator(Estimator[IdentityEstimatorLog]):
         -------
         x_hat : numpy.ndarray
             State estimate, equal to the measurement.
-        log : IdentityEstimatorLog
-            Log containing the estimated state vector.
+        log : NoLog
+            Placeholder log indicating no internal states are logged.
         """
         x_hat = y_mea.copy()
-        return x_hat, IdentityEstimatorLog(x_hat=x_hat.copy())
+        return x_hat, NoLog()
 
 
 @dataclasses.dataclass(frozen=True)
