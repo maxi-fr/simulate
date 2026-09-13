@@ -24,7 +24,7 @@ def test_logger_export_memmap(tmp_path: Path) -> None:
     assert npz_file.exists()
 
     data = np.load(npz_file)
-    assert data["t"][0] == 0.1
+    assert data["comp1.t"][0] == 0.1
     assert data["comp1.value"][0] == 42.0
     assert np.array_equal(data["comp1.vec"][0], np.array([1.0, 2.0]))
 
@@ -51,9 +51,9 @@ def test_logger_export_multiple_rows(tmp_path: Path) -> None:
     logger.finalize(tmp_path, prefix="test")
 
     data = np.load(tmp_path / "test.npz")
-    assert len(data["t"]) == 2
-    assert data["t"][0] == 0.0
-    assert data["t"][1] == 1.0
+    assert len(data["comp1.t"]) == 2
+    assert data["comp1.t"][0] == 0.0
+    assert data["comp1.t"][1] == 1.0
     assert data["comp1.value"][0] == 10.0
     assert data["comp1.value"][1] == 20.0
 

@@ -133,8 +133,8 @@ def test_export_produces_single_npz(tmp_path: Path) -> None:
     assert not list(tmp_path.glob("**/*.npy"))
 
     data = np.load(merged_file)
-    assert len(data["t"]) == steps + 1
-    assert data["t"][0] == 0.0
+    assert len(data["dynamics.t"]) == steps + 1
+    assert data["dynamics.t"][0] == 0.0
 
 
 def _archive_compress_types(npz_path: Path) -> set[int]:

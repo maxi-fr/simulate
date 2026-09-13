@@ -8,7 +8,7 @@ __all__ = ["BaseLogger", "MmapLogger", "RamLogger", "create_logger"]
 
 
 def create_logger(
-    total_steps: int,
+    total_steps: dict[str, int] | int,
     directory: str | Path | None = None,
     prefix: str = "log",
     *,
@@ -21,8 +21,8 @@ def create_logger(
 
     Parameters
     ----------
-    total_steps : int
-        Number of log rows the run will produce.
+    total_steps : dict[str, int] or int
+        Number of log rows per component (or default for all).
     directory : str or Path or None, optional
         The directory for the logger. Required if use_mmap is True.
     prefix : str, optional

@@ -133,9 +133,8 @@ def _(Path, Simulation, controller_select, load_config, np):
 def _(Quaternion, euler_from_quaternion, lvlh_from_orbit, np, orbital_rate):
     def extract(sim_obj) -> dict[str, np.ndarray]:
         """Pull component signals of a run into plain numpy arrays for plotting."""
-        t = sim_obj.logger.t
-        x = sim_obj.logger.signal("dynamics", "x")
-        u = sim_obj.logger.signal("controller", "u")
+        t, x = sim_obj.logger.signal("dynamics", "x")
+        t_u, u = sim_obj.logger.signal("controller", "u")
 
         # Pointing error as the body-vs-LVLH (nadir) attitude, in Euler angles [deg].
         euler_err = np.zeros((len(t), 3))
@@ -145,7 +144,7 @@ def _(Quaternion, euler_from_quaternion, lvlh_from_orbit, np, orbital_rate):
             q_err = Quaternion.from_array(row[6:10]).error_to(q_li)  # desired q_bo = identity
             euler_err[k] = np.degrees(euler_from_quaternion(q_err))
             rate_ff[k] = orbital_rate(row[0:3], row[3:6])
-        return {"t": t, "x": x, "u": u, "euler_err": euler_err, "rate_ff": rate_ff}
+        return {"t": t, "t_u": t_u, "x": x, "u": u, "euler_err": euler_err, "rate_ff": rate_ff}
 
     return (extract,)
 
@@ -211,9 +210,9 @@ def _(d, plt):
     axes2[0].set_title("Reaction-wheel relative speeds")
 
     for _j in range(3):
-        axes2[1].plot(d["t"], d["u"][:, 3 + _j], label=f"$i_{{rw,{_j}}}$")
+        axes2[1].plot(d["t_u"], d["u"][:, 3 + _j], label=f"$i_{{rw,{_j}}}$")
     for _j in range(3):
-        axes2[1].plot(d["t"], d["u"][:, _j], "--", lw=1, label=f"$i_{{mtq,{_j}}}$")
+        axes2[1].plot(d["t_u"], d["u"][:, _j], "--", lw=1, label=f"$i_{{mtq,{_j}}}$")
     axes2[1].set_ylabel("current command (A)")
     axes2[1].set_xlabel("time (s)")
     axes2[1].legend(ncol=3, fontsize=8)
@@ -237,9 +236,9 @@ def _(mo):
 
 @app.cell
 def _(Quaternion, d, np, plt, sim):
-    bias = sim.logger.signal("estimator", "gyro_bias")
-    r_est = sim.logger.signal("estimator", "r")
-    q_est = sim.logger.signal("estimator", "q")
+    _, bias = sim.logger.signal("estimator", "gyro_bias")
+    _, r_est = sim.logger.signal("estimator", "r")
+    _, q_est = sim.logger.signal("estimator", "q")
 
     pos_err = np.linalg.norm(r_est - d["x"][:, 0:3], axis=1)
     att_err = np.array(

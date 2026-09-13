@@ -75,19 +75,21 @@ class Simulation:
 
         base_dt = self.dynamics.dt
 
-        named_components: list[tuple[str, Component]] = [
+        self._named_components: list[tuple[str, Component]] = [
             ("dynamics", self.dynamics),
             ("reference", self.reference),
             ("estimator", self.estimator),
             ("controller", self.controller),
             *((f"sensor_{i}", sen) for i, sen in enumerate(self.sensors)),
         ]
-        for name, comp in named_components:
+        self._component_ratios: dict[str, int] = {}
+        for name, comp in self._named_components:
             dt = comp.dt
             ratio = dt / base_dt
             if not math.isclose(ratio, round(ratio), rel_tol=1e-9, abs_tol=1e-9):
                 msg = f"{name.capitalize()} dt ({dt}) must be an integer multiple of plant dt ({base_dt})"
                 raise ValueError(msg)
+            self._component_ratios[name] = round(ratio)
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> Simulation:
@@ -136,23 +138,26 @@ class Simulation:
         """Run the simulation loop until t_end.
 
         When ``use_mmap`` is True, each signal is logged straight into a
-        memory-mapped ``.npy`` file (sized to the known step count), so resident
-        memory stays bounded for runs of any length. Call :meth:`export_results` to
-        pack them into ``{prefix}.npz`` (compression is chosen there). With
-        ``use_mmap=False`` the logs are kept in RAM and exposed via
-        ``self.logger.signal(component, field)``.
+        memory-mapped ``.npy`` file (sized to that component's known step count),
+        so resident memory stays bounded for runs of any length. Call
+        :meth:`export_results` to pack them into ``{prefix}.npz`` (compression is
+        chosen there). With ``use_mmap=False`` the logs are kept in RAM and
+        exposed via ``t, vals = self.logger.signal(component, field)``.
         """
         u_k: np.ndarray = np.zeros(self.dynamics.n_inputs)
 
-        total_steps = round(self.t_end / self.dt) + 1
-        self.logger = create_logger(total_steps, directory=output_dir, prefix=prefix, use_mmap=use_mmap)
+        total_base_steps = round(self.t_end / self.dt) + 1
+        component_total_steps = {
+            name: (total_base_steps - 1) // self._component_ratios[name] + 1 for name, _ in self._named_components
+        }
+        self.logger = create_logger(component_total_steps, directory=output_dir, prefix=prefix, use_mmap=use_mmap)
 
         divisor, unit = _time_unit(self.t_end)
         bar_format = "{l_bar}{bar}| {n:.1f}/{total:.1f} {unit} [{elapsed}<{remaining}, {rate_fmt}{postfix}]"
         with tqdm(total=self.t_end / divisor, desc="Simulation time", unit=unit, bar_format=bar_format) as pbar:
             # Step by integer index so the run logs exactly total_steps rows; deriving t
             # from t += dt drifts with floating point and can drop (or add) the final step.
-            for step in range(total_steps):
+            for step in range(total_base_steps):
                 t = step * self.dt
                 x_k = self.dynamics.x
 
@@ -169,14 +174,19 @@ class Simulation:
                 # Advance the plant; ``self.dynamics.x`` becomes the next step's state.
                 _x_next, dynamics_log = self.dynamics.evaluate(t, u_k)
 
-                comp_logs: dict[str, Any] = {
-                    "reference": ref_log,
-                    "dynamics": dynamics_log,
-                    "estimator": estim_log,
-                    "controller": ctrl_log,
-                }
+                comp_logs: dict[str, Any] = {}
+                if step % self._component_ratios["dynamics"] == 0:
+                    comp_logs["dynamics"] = dynamics_log
+                if step % self._component_ratios["reference"] == 0:
+                    comp_logs["reference"] = ref_log
+                if step % self._component_ratios["estimator"] == 0:
+                    comp_logs["estimator"] = estim_log
+                if step % self._component_ratios["controller"] == 0:
+                    comp_logs["controller"] = ctrl_log
                 for i, (_, sen_log) in enumerate(sensor_logs):
-                    comp_logs[f"sensor_{i}"] = sen_log
+                    if step % self._component_ratios[f"sensor_{i}"] == 0:
+                        comp_logs[f"sensor_{i}"] = sen_log
+
                 self.logger.log(t, comp_logs)
 
                 pbar.update(min(self.dt / divisor, max(0.0, self.t_end / divisor - pbar.n)))
