@@ -121,31 +121,30 @@ def _(mo):
 
 @app.cell
 def _(plt, sim):
-    t = sim.logger.t
-    x = sim.logger.signal("dynamics", "x")
-    x_hat = sim.logger.signal("estimator", "x_hat")
-    u = sim.logger.signal("controller", "u")
-    ref = sim.logger.signal("reference", "ref")
-    y_mea = sim.logger.signal("sensor_0", "y_mea")
+    t_x, x = sim.logger.signal("dynamics", "x")
+    t_xhat, x_hat = sim.logger.signal("estimator", "x_hat")
+    t_u, u = sim.logger.signal("controller", "u")
+    t_ref, ref = sim.logger.signal("reference", "ref")
+    t_y, y_mea = sim.logger.signal("sensor_0", "y_mea")
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 10))
 
-    axes[0].plot(t, ref[:, 0], "k--", label="Reference (rad/s)")
-    axes[0].plot(t, x[:, 0], "b-", label="Actual Speed (rad/s)")
-    axes[0].plot(t, y_mea[:, 0], "r.", alpha=0.1, label="Measured Speed (rad/s)")
-    axes[0].plot(t, x_hat[:, 0], "c-", lw=1, label="Observed Speed (rad/s)")
+    axes[0].plot(t_ref, ref[:, 0], "k--", label="Reference (rad/s)")
+    axes[0].plot(t_x, x[:, 0], "b-", label="Actual Speed (rad/s)")
+    axes[0].plot(t_y, y_mea[:, 0], "r.", alpha=0.1, label="Measured Speed (rad/s)")
+    axes[0].plot(t_xhat, x_hat[:, 0], "c-", lw=1, label="Observed Speed (rad/s)")
     axes[0].set_title("DC Motor Speed Control")
     axes[0].set_ylabel("Speed (rad/s)")
     axes[0].legend()
     axes[0].grid(visible=True)
 
-    axes[1].plot(t, u[:, 0], "m-", label="Control Input (V)")
+    axes[1].plot(t_u, u[:, 0], "m-", label="Control Input (V)")
     axes[1].set_ylabel("Voltage (V)")
     axes[1].legend()
     axes[1].grid(visible=True)
 
-    axes[2].plot(t, x[:, 1], "g-", label="Actual Current (A)")
-    axes[2].plot(t, x_hat[:, 1], "y--", label="Observed Current (A)")
+    axes[2].plot(t_x, x[:, 1], "g-", label="Actual Current (A)")
+    axes[2].plot(t_xhat, x_hat[:, 1], "y--", label="Observed Current (A)")
     axes[2].set_xlabel("Time (s)")
     axes[2].set_ylabel("Current (A)")
     axes[2].legend()

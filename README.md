@@ -104,9 +104,8 @@ sim = Simulation.from_yaml("examples/03_satellite/quat_feedback.yaml")
 sim.run(output_dir="results")
 
 # Results are available in-memory after the run:
-sim.logger.t                              # run time axis
-sim.logger.signal("dynamics", "x")         # state trajectory
-sim.logger.signal("controller", "u")       # control input
+t_x, x = sim.logger.signal("dynamics", "x")         # state trajectory with timestamps
+t_u, u = sim.logger.signal("controller", "u")       # control input with timestamps
 ```
 
 `Simulation.from_config(config_dict)` does the same from an already-parsed dict.
@@ -231,14 +230,14 @@ handed to the estimator, and each sensor logs its own clean `truth`.
 
 ### Logging
 
-Every component owns the signals it logs, defined by the fields of its log dataclass. Component logs are keyed by role (`dynamics`, `reference`, `estimator`, `controller`, and `sensor_0`, … per channel). Signal trajectories are exposed after a run via `sim.logger.signal(component, field)` and `sim.logger.t`.
+Every component owns the signals it logs, defined by the fields of its log dataclass, and logs at its own frequency (`comp.dt`) with its own timestamps. Component logs are keyed by role (`dynamics`, `reference`, `estimator`, `controller`, and `sensor_0`, … per channel). Signal trajectories and timestamps are exposed after a run via `t, values = sim.logger.signal(component, field)` or `sim.logger.time(component)`.
 
-Buffers are pre-allocated to the exact step count (`round(t_end / dt) + 1`), and two backends share one interface (`BaseLogger`), chosen automatically by `run`:
+Buffers are pre-allocated to each component's exact step count, and two backends share one interface (`BaseLogger`), chosen automatically by `run`:
 
-- **`RamLogger`** (default, `output_dir=None`) keeps every signal in in-RAM arrays, accessed via `sim.logger.signal(component, field)`.
+- **`RamLogger`** (default, `output_dir=None`) keeps every signal in in-RAM arrays, accessed via `t, values = sim.logger.signal(component, field)`.
 - **`MmapLogger`** (`run(output_dir=...)`) streams each signal straight into a memory-mapped `.npy` file, so resident memory stays bounded for runs of any length.
 
-Either way, `export_results` packs the signals into a single `{prefix}.npz` (optionally `--compress`ed) using dot-separated keys (e.g. `dynamics.x`, `controller.u`). A run logs exactly the pre-allocated number of rows; `finalize` raises on a partial fill rather than silently emitting zero-padded rows.
+Either way, `export_results` packs the signals into a single `{prefix}.npz` (optionally `--compress`ed) using dot-separated keys (e.g. `dynamics.t`, `dynamics.x`, `controller.t`, `controller.u`). A run logs exactly the pre-allocated number of rows per component; `finalize` raises on a partial fill rather than silently emitting zero-padded rows.
 
 ### Extending it: writing a new component
 

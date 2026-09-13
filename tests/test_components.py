@@ -222,18 +222,27 @@ def test_simulation_execution_and_logging() -> None:
     sim.run()
 
     assert sim.logger is not None
-    assert len(sim.logger.t) == 11
+    t_dyn, x = sim.logger.signal("dynamics", "x")
+    t_ref, ref = sim.logger.signal("reference", "ref")
+    t_sen, y_mea = sim.logger.signal("sensor_0", "y_mea")
+    t_ctrl, u = sim.logger.signal("controller", "u")
 
-    assert len(sim.logger.signal("dynamics", "x")) == 11
-    assert len(sim.logger.signal("reference", "ref")) == 11
-    assert len(sim.logger.signal("sensor_0", "y_mea")) == 11
-    assert len(sim.logger.signal("controller", "u")) == 11
+    assert len(t_dyn) == 11
+    assert len(x) == 11
+    assert len(t_ref) == 11
+    assert len(ref) == 11
+    assert len(t_sen) == 11
+    assert len(y_mea) == 11
+    assert len(t_ctrl) == 6
+    assert len(u) == 6
 
-    assert sim.logger.t[0] == 0.0
-    assert np.allclose(sim.logger.signal("controller", "u")[0], 0.0)
+    assert t_dyn[0] == 0.0
+    assert t_ctrl[0] == 0.0
+    assert np.allclose(u[0], 0.0)
 
-    assert math.isclose(sim.logger.t[-1], 1.0, rel_tol=1e-9)
-    assert not np.allclose(sim.logger.signal("controller", "u")[-1], 0.0)
+    assert math.isclose(t_dyn[-1], 1.0, rel_tol=1e-9)
+    assert math.isclose(t_ctrl[-1], 1.0, rel_tol=1e-9)
+    assert not np.allclose(u[-1], 0.0)
 
 
 def test_simulation_single_sensor() -> None:
@@ -255,7 +264,8 @@ def test_simulation_single_sensor() -> None:
     sim.run()
 
     assert sim.logger is not None
-    assert len(sim.logger.t) == 11
+    t_dyn, _ = sim.logger.signal("dynamics", "x")
+    assert len(t_dyn) == 11
     assert len(sim.sensors) == 1
     assert sim.sensors[0] is sensor
 

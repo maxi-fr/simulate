@@ -153,15 +153,14 @@ def _(mo):
 
 @app.cell
 def _(STATE, np, plt, sim):
-    t = sim.logger.t
-    x = sim.logger.signal("dynamics", "x")
-    u = sim.logger.signal("controller", "u")
+    t_x, x = sim.logger.signal("dynamics", "x")
+    t_u, u = sim.logger.signal("controller", "u")
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 10))
 
-    axes[0].plot(t, x[:, STATE.r][:, 0], "r-", label="x (m)")
-    axes[0].plot(t, x[:, STATE.r][:, 1], "g-", label="y (m)")
-    axes[0].plot(t, x[:, STATE.r][:, 2], "b-", label="z (m)")
+    axes[0].plot(t_x, x[:, STATE.r][:, 0], "r-", label="x (m)")
+    axes[0].plot(t_x, x[:, STATE.r][:, 1], "g-", label="y (m)")
+    axes[0].plot(t_x, x[:, STATE.r][:, 2], "b-", label="z (m)")
     axes[0].axhline(1.0, color="k", linestyle="--", label="setpoint")
     axes[0].set_ylabel("Position (m)")
     axes[0].legend()
@@ -173,18 +172,18 @@ def _(STATE, np, plt, sim):
     from spacecraft.quaternion import Quaternion
 
     euler_angles = np.array([euler_from_quaternion(Quaternion.from_array(q)) for q in x[:, STATE.q]])
-    axes[1].plot(t, np.rad2deg(euler_angles[:, 1]), "r-", label="roll (deg)")
-    axes[1].plot(t, np.rad2deg(euler_angles[:, 0]), "g-", label="pitch (deg)")
-    axes[1].plot(t, np.rad2deg(euler_angles[:, 2]), "b-", label="yaw (deg)")
+    axes[1].plot(t_x, np.rad2deg(euler_angles[:, 1]), "r-", label="roll (deg)")
+    axes[1].plot(t_x, np.rad2deg(euler_angles[:, 0]), "g-", label="pitch (deg)")
+    axes[1].plot(t_x, np.rad2deg(euler_angles[:, 2]), "b-", label="yaw (deg)")
     axes[1].set_ylabel("Attitude (deg)")
     axes[1].legend()
     axes[1].grid(visible=True)
     axes[1].set_title("Attitude")
 
-    axes[2].plot(t, u[:, 0], "r-", label="Rotor 1")
-    axes[2].plot(t, u[:, 1], "g-", label="Rotor 2")
-    axes[2].plot(t, u[:, 2], "b-", label="Rotor 3")
-    axes[2].plot(t, u[:, 3], "y-", label="Rotor 4")
+    axes[2].plot(t_u, u[:, 0], "r-", label="Rotor 1")
+    axes[2].plot(t_u, u[:, 1], "g-", label="Rotor 2")
+    axes[2].plot(t_u, u[:, 2], "b-", label="Rotor 3")
+    axes[2].plot(t_u, u[:, 3], "y-", label="Rotor 4")
     axes[2].set_xlabel("Time (s)")
     axes[2].set_ylabel("Thrust (N)")
     axes[2].legend()

@@ -35,10 +35,12 @@ def test_two_channels_log_per_channel() -> None:
     sim.run()
 
     assert sim.logger is not None
-    n = len(sim.logger.t)
     for name in ("sensor_0", "sensor_1"):
-        assert len(sim.logger.signal(name, "truth")) == n
-        assert len(sim.logger.signal(name, "y_mea")) == n
+        t_sen, truth = sim.logger.signal(name, "truth")
+        _, y_mea = sim.logger.signal(name, "y_mea")
+        assert len(t_sen) == 6
+        assert len(truth) == 6
+        assert len(y_mea) == 6
 
 
 def test_estimator_receives_concatenated_measurement() -> None:
@@ -49,19 +51,17 @@ def test_estimator_receives_concatenated_measurement() -> None:
     assert isinstance(log, NoLog)
 
 
-def test_slow_sensor_is_zoh_held() -> None:
-    """A sensor at 2x the base dt holds its sample between updates (ZOH), unlike the base sensor."""
+def test_slow_sensor_logs_at_own_rate() -> None:
+    """A sensor at 2x base dt logs only at its own update times, not every base step."""
     sim = _two_channel_sim(t_end=0.06, sensor1_dt=0.02)
     sim.run()
 
     assert sim.logger is not None
-    fast = sim.logger.signal("sensor_0", "y_mea")[:, 0]
-    slow = sim.logger.signal("sensor_1", "y_mea")[:, 0]
+    t_fast, fast = sim.logger.signal("sensor_0", "y_mea")
+    t_slow, slow = sim.logger.signal("sensor_1", "y_mea")
 
-    # The fast channel updates every base step once the truth starts moving.
-    assert fast[2] != fast[1]
-    # The slow channel (dt = 2 * base) updates at steps 0, 2, 4 and holds in between,
-    # so it repeats its sample in consecutive pairs.
-    assert slow[1] == slow[0]
-    assert slow[3] == slow[2]
-    assert slow[2] != slow[1]
+    assert len(t_fast) == 7
+    assert len(t_slow) == 4
+    assert np.allclose(t_slow, [0.0, 0.02, 0.04, 0.06])
+    assert fast[:, 0][2] != fast[:, 0][1]
+    assert slow[:, 0][1] != slow[:, 0][0]

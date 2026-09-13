@@ -17,13 +17,13 @@ class MmapLogger(BaseLogger):
     packs those files into a single ``{prefix}.npz`` (a byte copy, no re-serialization).
     """
 
-    def __init__(self, total_steps: int, directory: str | Path, prefix: str = "log") -> None:
+    def __init__(self, total_steps: dict[str, int] | int, directory: str | Path, prefix: str = "log") -> None:
         """Initialize the logger, backing signal buffers with files under *directory*.
 
         Parameters
         ----------
-        total_steps : int
-            Number of log rows the run will produce; each memmap is sized to this.
+        total_steps : dict[str, int] or int
+            Number of log rows per component (or default for all); each memmap is sized to this.
         directory : str or Path
             Directory under which the temporary ``.{prefix}_arrays`` folder is created.
         prefix : str, optional
@@ -62,7 +62,7 @@ class MmapLogger(BaseLogger):
         for _, mmap_arr in buffers:
             self._release_memmap(mmap_arr)
         # Drop references to the (now closed) memmaps so the files are fully unlocked.
-        self._t_buffer = np.empty(0, dtype=np.float64)
+        self._t_buffers = {}
         self._component_buffers = {}
         del buffers
 
