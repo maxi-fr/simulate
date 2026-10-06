@@ -48,10 +48,12 @@ class MmapLogger(BaseLogger):
         return mmap_arr
 
     def _finalize(self, zip_path: Path, *, compress: bool) -> None:
-        """Flush and close the memmaps, then pack them into ``zip_path``.
+        """Flush the memmaps, stream them directly into ``zip_path``, and clean up.
 
         The memmaps are sized to the exact run length (``finalize`` rejects a partial
-        fill), so each ``.npy`` is packed as-is with no trimming or re-serialization.
+        fill), so each memory-mapped buffer contains the complete formatted ``.npy`` file.
+        Streaming directly from the memory-mapped buffers avoids re-opening each file from
+        disk while keeping resident memory bounded via chunked writes.
         """
         buffers = list(self._iter_buffers())
         for _, mmap_arr in buffers:
@@ -59,17 +61,27 @@ class MmapLogger(BaseLogger):
             if callable(flush):
                 with contextlib.suppress(Exception):
                     flush()
-        for _, mmap_arr in buffers:
-            self._release_memmap(mmap_arr)
-        # Drop references to the (now closed) memmaps so the files are fully unlocked.
-        self._t_buffers = {}
-        self._component_buffers = {}
-        del buffers
 
         zip_mode = zipfile.ZIP_DEFLATED if compress else zipfile.ZIP_STORED
-        with zipfile.ZipFile(zip_path, mode="w", compression=zip_mode) as zip_file:
-            for arcname, path in self._memmap_paths.items():
-                zip_file.write(path, arcname=f"{arcname}.npy")
+        chunk_size = 1024 * 1024  # 1 MB chunks to stream without loading entire large buffers into RAM
+        try:
+            with zipfile.ZipFile(zip_path, mode="w", compression=zip_mode) as zip_file:
+                for arcname, mmap_arr in buffers:
+                    base_mmap = getattr(mmap_arr, "base", None)
+                    if base_mmap is not None and hasattr(base_mmap, "seek"):
+                        base_mmap.seek(0)
+                        with zip_file.open(f"{arcname}.npy", mode="w") as zf:
+                            while chunk := base_mmap.read(chunk_size):
+                                zf.write(chunk)
+                    elif (path := self._memmap_paths.get(arcname)) is not None:
+                        zip_file.write(path, arcname=f"{arcname}.npy")
+        finally:
+            for _, mmap_arr in buffers:
+                self._release_memmap(mmap_arr)
+            # Drop references to the (now closed) memmaps so the files are fully unlocked.
+            self._t_buffers = {}
+            self._component_buffers = {}
+            del buffers
 
         self._cleanup()
 
