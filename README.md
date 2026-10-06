@@ -67,6 +67,7 @@ simulate/
 │   │   ├── integrator.py    #   euler / midpoint / rk4
 │   │   ├── logger/          #   Core + per-component logging (RAM + memmap backends)
 │   │   ├── experiment.py    #   Parallel batch runner
+│   │   ├── main.py          #   CLI entry point
 │   │   └── simulation.py    #   Simulation orchestrator
 │   └── spacecraft/          #   Aerospace domain extension
 │       ├── rigid_body.py    #   RigidBodyDynamics
@@ -79,20 +80,20 @@ simulate/
 │       ├── disturbances.py  #   Aero drag, solar radiation, and gravity gradient torques
 │       └── surface.py       #   Spacecraft flat panel geometry definition
 ├── examples/                #   Marimo notebooks + runnable YAML configs
-├── tests/                   #   Test suite
-└── main.py                  #   CLI entry point
+└── tests/                   #   Test suite
 ```
 
 ### Running a simulation
 
-**From the command line**, point `main.py` at a YAML config:
+**From the command line**, point the `simulate` CLI at a YAML config:
 
 ```bash
-uv run python main.py --config examples/03_satellite/quat_feedback.yaml
+uv run simulate examples/03_satellite/quat_feedback.yaml
 ```
 
-- `--config` — path to the YAML configuration (required).
-- `--output-dir` — directory for results (default: `results`).
+- `<config_file>` — path to the YAML configuration (positional).
+- `--output-dir` — directory for results (default: `simulation_<current_datetime>`).
+- `--mmap` — use memory-mapped files for logging during simulation (default: RAM).
 - `--compress` — enable zlib compression for output `.npz` files (default: off).
 
 **Programmatically**, build a `Simulation` from a file or a dict:
@@ -355,4 +356,4 @@ The [`examples/03_satellite/`](examples/03_satellite/) directory contains a comp
 
 This example contatins the implementations for the Adaptive Satelite Control project, see [Adaptive_Satellite_Control_Report.pdf](examples/03_satellite/Adaptive_Satellite_Control_Report.pdf)
 
-Drive the simulations from the command line using `main.py` or explore them interactively in the notebook at [`examples/03_satellite/notebook.py`](examples/03_satellite/notebook.py). The domain-specific components like the `FullStateEstimator` and the various controllers reside directly in the example package, demonstrating how to build a complete custom ADCS application on top of the generic `simulate` engine.
+Drive the simulations from the command line using `simulate` or explore them interactively in the notebook at [`examples/03_satellite/notebook.py`](examples/03_satellite/notebook.py). The domain-specific components like the `FullStateEstimator` and the various controllers reside directly in the example package, demonstrating how to build a complete custom ADCS application on top of the generic `simulate` engine.

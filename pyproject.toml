@@ -21,6 +21,9 @@ dependencies = [
     "types-tqdm>=4.68.0.20260608",
 ]
 
+[project.scripts]
+simulate = "simulate.main:main"
+
 [dependency-groups]
 dev = [
     "pytest>=8.0.0",

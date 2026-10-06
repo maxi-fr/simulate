@@ -39,6 +39,7 @@ def main() -> None:
     if not config_path.exists():
         sys.exit(1)
 
+    sys.path.insert(0, str(Path.cwd().resolve()))
     sys.path.insert(0, str(config_path.parent.resolve()))
 
     config = load_config(config_path)
