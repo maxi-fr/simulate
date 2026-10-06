@@ -6,12 +6,12 @@ dynamics:
   mass: 1.5
   inertia: [0.015, 0.015, 0.03]
   effectors:
-    - class_path: examples.02_quadrocopter.quadrocopter.Quadrocopter
+    - class_path: examples.quadrocopter.quadrocopter.Quadrocopter
       rotor_positions: [[0.2, 0.2, 0.0], [-0.2, -0.2, 0.0], [0.2, -0.2, 0.0], [-0.2, 0.2, 0.0]]
       rotor_directions: [-1, -1, 1, 1]
       torque_to_thrust_ratio: 0.015
       thrust_axis: [0.0, 0.0, 1.0]
-    - class_path: examples.02_quadrocopter.quadrocopter.FlatGravity
+    - class_path: examples.quadrocopter.quadrocopter.FlatGravity
       gravity_acceleration: [0.0, 0.0, -9.81]
 
 reference:
@@ -32,7 +32,7 @@ sensors:
       class_path: simulate.sensor.full_state_measurement
 
 controller:
-  class_path: examples.02_quadrocopter.quadrocopter.CascadedController
+  class_path: examples.quadrocopter.quadrocopter.CascadedController
   dt: 0.01
   mass: 1.5
   inertia: [0.015, 0.015, 0.03]

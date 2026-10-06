@@ -6,7 +6,7 @@ input ``u`` - the currents to the 6 actuators. Because
 interpret their command slice as **current commands** (amperes), the feedback law's desired control
 *torque* is converted to currents with :func:`to_current_commands` before being returned.
 
-``x_hat`` layout (see :mod:`examples.03_satellite.estimator`)::
+``x_hat`` layout (see :mod:`examples.satellite.estimator`)::
 
     [ r(3), v(3), q(4), omega(3), b_body(3), h_wheel(3) ]   # length 19
       0:3   3:6   6:10  10:13     13:16      16:19
@@ -30,13 +30,13 @@ from spacecraft.frames import lvlh_from_orbit, orbital_rate
 from spacecraft.orbit_dynamics import MU, SGP4
 from spacecraft.quaternion import Quaternion
 
-from .controller_models import (  # ty:ignore[unresolved-import]
+from .controller_models import (
     build_reduced_system_dynamics,
     quaternion_conjugate,
     quaternion_product,
     quaternion_rotation,
 )
-from .signals import CONTROL, ESTIMATE, MODEL, REFERENCE  # ty:ignore[unresolved-import]
+from .signals import CONTROL, ESTIMATE, MODEL, REFERENCE
 
 _EPS = 1e-12
 _LQR_STABLE_MARGIN = 1e-9  # closed-loop spectral radius must stay below 1 - this for the Lyapunov solve

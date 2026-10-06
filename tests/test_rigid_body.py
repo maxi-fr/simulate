@@ -1,8 +1,12 @@
 import datetime
-import importlib
 
 import numpy as np
 
+from examples.quadrocopter.quadrocopter import (
+    AerodynamicDragQuad,
+    FlatGravity,
+    Quadrocopter,
+)
 from spacecraft.effector import (
     EarthGravity,
     ReactionWheelArray,
@@ -13,11 +17,6 @@ from spacecraft.frames import eci_attitude_from_lvlh, lvlh_from_orbit
 from spacecraft.orbit_dynamics import SGP4
 from spacecraft.quaternion import Quaternion, QuaternionRK4
 from spacecraft.rigid_body import RigidBodyDynamics
-
-_qc_module = importlib.import_module("examples.02_quadrocopter.quadrocopter")
-AerodynamicDragQuad = _qc_module.AerodynamicDragQuad
-FlatGravity = _qc_module.FlatGravity
-Quadrocopter = _qc_module.Quadrocopter
 
 
 def _run(dynamics: RigidBodyDynamics, cmd: np.ndarray, n_steps: int) -> None:
@@ -255,17 +254,17 @@ def test_quad_from_config() -> None:
         "inertia": [0.015, 0.015, 0.03],
         "effectors": [
             {
-                "class_path": "examples.02_quadrocopter.quadrocopter.Quadrocopter",
+                "class_path": "examples.quadrocopter.quadrocopter.Quadrocopter",
                 "rotor_positions": [[0.2, 0.2, 0.0], [-0.2, -0.2, 0.0], [0.2, -0.2, 0.0], [-0.2, 0.2, 0.0]],
                 "rotor_directions": [-1, -1, 1, 1],
                 "torque_to_thrust_ratio": 0.015,
                 "thrust_axis": [0.0, 0.0, 1.0],
             },
             {
-                "class_path": "examples.02_quadrocopter.quadrocopter.FlatGravity",
+                "class_path": "examples.quadrocopter.quadrocopter.FlatGravity",
                 "gravity_acceleration": [0.0, 0.0, -9.81],
             },
-            {"class_path": "examples.02_quadrocopter.quadrocopter.AerodynamicDragQuad", "c_d": 0.1, "c_rot": 0.05},
+            {"class_path": "examples.quadrocopter.quadrocopter.AerodynamicDragQuad", "c_d": 0.1, "c_rot": 0.05},
         ],
     }
     dynamics = RigidBodyDynamics.from_config(config)

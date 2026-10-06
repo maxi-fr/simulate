@@ -1,6 +1,6 @@
 # simulate
 
-A Python framework for control-system simulation, originally designed for the attitude determination and control (ADCS) simulation of a 3U CubeSat in Low Earth Orbit (showcased in [`examples/03_satellite`](examples/03_satellite/)).
+A Python framework for control-system simulation, originally designed for the attitude determination and control (ADCS) simulation of a 3U CubeSat in Low Earth Orbit (showcased in [`examples/satellite`](examples/satellite/)).
 
 This repository ships **two packages**:
 
@@ -19,7 +19,7 @@ as well.
 
 > **Origin & Scope:** This framework was built around a specific target mission:
 > simulating the attitude determination and control system of a 3U CubeSat in LEO
-> holding nadir pointing. That project lives in [`examples/03_satellite`](examples/03_satellite/)
+> holding nadir pointing. That project lives in [`examples/satellite`](examples/satellite/)
 > and is used for the quickstart examples below.
 
 ---
@@ -113,7 +113,7 @@ simulate/
 **From the command line**, point the `simulate` CLI at a YAML config:
 
 ```bash
-uv run simulate examples/03_satellite/quat_feedback.yaml
+uv run simulate examples/satellite/quat_feedback.yaml
 ```
 
 - `<config_file>` — path to the YAML configuration (positional).
@@ -126,7 +126,7 @@ uv run simulate examples/03_satellite/quat_feedback.yaml
 ```python
 from simulate.simulation import Simulation
 
-sim = Simulation.from_yaml("examples/03_satellite/quat_feedback.yaml")
+sim = Simulation.from_yaml("examples/satellite/quat_feedback.yaml")
 sim.run(output_dir="results")
 
 # Results are available in-memory after the run:
@@ -137,12 +137,11 @@ t_u, u = sim.logger.signal("controller", "u")       # control input with timesta
 `Simulation.from_config(config_dict)` does the same from an already-parsed dict.
 
 The [`examples/`](examples/) directory holds interactive [marimo](https://marimo.io)
-notebooks (`01_dc_motor/notebook.py`, `02_quadrocopter/notebook.py`,
-`03_satellite/notebook.py`). Open one for editing, or serve it read-only as an app, with:
+notebooks (`dc_motor/notebook.py`, `quadrocopter/notebook.py`,
+`satellite/notebook.py`). Open one with:
 
 ```bash
-uv run marimo edit examples/01_dc_motor/notebook.py   # interactive editing
-uv run marimo run examples/01_dc_motor/notebook.py    # run as an app
+uv run marimo edit examples/dc_motor/notebook.pyW
 ```
 
 ### Configuration format
@@ -284,11 +283,11 @@ parameters), owned by a `Sensor` and built from config via `build_measurement`.
 The log is a frozen dataclass holding the component's logged signals; use `simulate.component.NoLog` when there is nothing to log.
 
 For complete, idiomatic references see
-[`examples/01_dc_motor/dc_motor.py`](examples/01_dc_motor/dc_motor.py) (a custom continuous-time `Dynamics`
+[`examples/dc_motor/dc_motor.py`](examples/dc_motor/dc_motor.py) (a custom continuous-time `Dynamics`
 and a measurement callable) and `PIController` in
 [`src/simulate/controller.py`](src/simulate/controller.py) (the logging-dataclass
 pattern). The matching notebook is
-[`examples/01_dc_motor/notebook.py`](examples/01_dc_motor/notebook.py).
+[`examples/dc_motor/notebook.py`](examples/dc_motor/notebook.py).
 
 ---
 
@@ -349,12 +348,12 @@ spacecraft-specific. Read inputs and write outputs through the signal layouts so
 index conventions stay in one place.
 
 **A new controller** — subclass `simulate.controller.Controller[L]`. `QuaternionFeedbackController` in
-[`examples/03_satellite/controller.py`](examples/03_satellite/controller.py) is a complete reference; reuse the
+[`examples/satellite/controller.py`](examples/satellite/controller.py) is a complete reference; reuse the
 `_attitude_error`, `allocation_matrix`, and `to_current_commands` helpers there to
 turn desired torques into actuator currents.
 
 **A new estimator** — subclass `simulate.estimator.Estimator[L]` and output your state estimate. `FullStateEstimator` in
-[`examples/03_satellite/estimator.py`](examples/03_satellite/estimator.py) shows how to compose sub-filters
+[`examples/satellite/estimator.py`](examples/satellite/estimator.py) shows how to compose sub-filters
 (`OrbitKalmanFilter`, `AttitudeMEKF`) and map a concatenated measurement vector to
 named channels via `MeasurementLayout`.
 
@@ -373,12 +372,12 @@ and pass it as a sensor's `measurement` in the `sensors` list.
 
 ### End-to-end example
 
-The [`examples/03_satellite/`](examples/03_satellite/) directory contains a complete ADCS stack for a 3U CubeSat in LEO holding nadir pointing. It includes realistic disturbances, a full-state estimator (orbit KF + attitude MEKF), and multiple attitude control strategies:
+The [`examples/satellite/`](examples/satellite/) directory contains a complete ADCS stack for a 3U CubeSat in LEO holding nadir pointing. It includes realistic disturbances, a full-state estimator (orbit KF + attitude MEKF), and multiple attitude control strategies:
 
-- [`quat_feedback.yaml`](examples/03_satellite/quat_feedback.yaml): A baseline quaternion-feedback PD controller with magnetorquer momentum dumping.
-- [`adaptive_lqr.yaml`](examples/03_satellite/adaptive_lqr.yaml): A discrete LQR that re-solves the Riccati equation at each step to adapt to the changing magnetic field.
-- [`mpc.yaml`](examples/03_satellite/mpc.yaml): A nonlinear model-predictive controller built on CasADi that explicitly handles actuator saturation limits.
+- [`quat_feedback.yaml`](examples/satellite/quat_feedback.yaml): A baseline quaternion-feedback PD controller with magnetorquer momentum dumping.
+- [`adaptive_lqr.yaml`](examples/satellite/adaptive_lqr.yaml): A discrete LQR that re-solves the Riccati equation at each step to adapt to the changing magnetic field.
+- [`mpc.yaml`](examples/satellite/mpc.yaml): A nonlinear model-predictive controller built on CasADi that explicitly handles actuator saturation limits.
 
-This example contatins the implementations for the Adaptive Satelite Control project, see [Adaptive_Satellite_Control_Report.pdf](examples/03_satellite/Adaptive_Satellite_Control_Report.pdf)
+This example contatins the implementations for the Adaptive Satelite Control project, see [Adaptive_Satellite_Control_Report.pdf](examples/satellite/Adaptive_Satellite_Control_Report.pdf)
 
-Drive the simulations from the command line using `simulate` or explore them interactively in the notebook at [`examples/03_satellite/notebook.py`](examples/03_satellite/notebook.py). The domain-specific components like the `FullStateEstimator` and the various controllers reside directly in the example package, demonstrating how to build a complete custom ADCS application on top of the generic `simulate` engine.
+Drive the simulations from the command line using `simulate` or explore them interactively in the notebook at [`examples/satellite/notebook.py`](examples/satellite/notebook.py). The domain-specific components like the `FullStateEstimator` and the various controllers reside directly in the example package, demonstrating how to build a complete custom ADCS application on top of the generic `simulate` engine.

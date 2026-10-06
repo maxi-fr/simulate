@@ -1,8 +1,8 @@
 import datetime
-import importlib
 
 import numpy as np
 
+from examples.satellite.estimator import FullStateEstimator, StateEstimate
 from simulate.integrator import rk4
 from spacecraft.estimator import (
     AttitudeMEKF,
@@ -11,10 +11,6 @@ from spacecraft.estimator import (
 )
 from spacecraft.frames import eci_to_geodedic
 from spacecraft.quaternion import Quaternion
-
-_est_mod = importlib.import_module("examples.03_satellite.estimator")
-FullStateEstimator = _est_mod.FullStateEstimator
-StateEstimate = _est_mod.StateEstimate
 
 _EPOCH = datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC)
 _R0 = np.array([7.0e6, 0.0, 0.0])
@@ -210,7 +206,7 @@ def test_full_state_estimator_tracks_truth_and_is_deterministic() -> None:
             gyro = omega_true + bias_true + local_rng.normal(0.0, 1e-4, size=3)
             star = q_true_next.to_array() + local_rng.normal(0.0, 1e-3, size=4)
             y_mea = np.concatenate([gps, gyro, star])
-            x_hat, _ = est.update(float(k) * dt, y_mea, 0.0)
+            x_hat, _ = est.update(float(k) * dt, y_mea, np.zeros(0))
             q_true = q_true_next
         return np.asarray(x_hat), truth_orbit, q_true
 

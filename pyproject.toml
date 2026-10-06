@@ -107,10 +107,10 @@ convention = "numpy"
     "S607",     # partial executable path ("git"/"uv" resolved from PATH)
     "PLC0415",  # `simulate` import is deferred until after sys.path is set
 ]
-"examples/01_dc_motor/dc_motor.py" = ["N803", "PLR0913"]
+"examples/dc_motor/dc_motor.py" = ["N803", "PLR0913"]
 # Marimo notebooks: cells are functions, imports live in cells, and the final
 # expression of a cell is the displayed output.
-"examples/[0-9]*/notebook.py" = [
+"examples/*/notebook.py" = [
     "ANN001",   # missing type annotation for cell args (marimo passes refs untyped)
     "ANN202",   # missing return type for cell `_` functions
     "PLC0415",  # imports inside cells (marimo idiom)
@@ -138,7 +138,7 @@ testpaths = ["tests"]
 [tool.ty.src]
 # benchmarks/ are operational scripts (sibling-module imports, deferred engine
 # import after sys.path rewiring) rather than importable library code.
-exclude = ["examples/[0-9]*/notebook.py", "benchmarks"]
+exclude = ["examples/*/notebook.py", "benchmarks"]
 
 [tool.ty.rules]
 # In ty, you control strictness by setting individual rules to "error", "warn", or "ignore".
@@ -161,5 +161,5 @@ not-iterable = "error"               # Trying to use a non-iterable object in a 
 not-subscriptable = "error"          # Trying to index an object that doesn't support it
 
 [[tool.ty.overrides]]
-include = ["examples/[0-9]*/notebook.py"]
+include = ["examples/*/notebook.py"]
 rules = { unresolved-reference = "ignore" }

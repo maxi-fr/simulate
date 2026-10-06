@@ -37,14 +37,14 @@ WORKLOADS: dict[str, Workload] = {
     # Light, core-deps-only loop (~2000 steps): RK4 + Luenberger observer + PI.
     "dc_motor": Workload(
         name="dc_motor",
-        config="examples/01_dc_motor/config.yaml",
+        config="examples/dc_motor/config.yaml",
         repeats=5,
     ),
     # Heavy, memory-relevant case (~500 steps): 6-DOF rigid body with many
     # effectors/sensors and large per-step logs. Needs the ``spacecraft`` group.
     "satellite": Workload(
         name="satellite",
-        config="examples/03_satellite/quat_feedback.yaml",
+        config="examples/satellite/quat_feedback.yaml",
         repeats=3,
     ),
 }

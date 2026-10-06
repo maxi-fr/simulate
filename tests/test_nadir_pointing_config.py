@@ -8,7 +8,7 @@ from simulate.simulation import Simulation
 from spacecraft.frames import lvlh_from_orbit
 from spacecraft.quaternion import Quaternion
 
-_CONFIG = Path(__file__).resolve().parents[1] / "examples" / "03_satellite" / "quat_feedback.yaml"
+_CONFIG = Path(__file__).resolve().parents[1] / "examples" / "satellite" / "quat_feedback.yaml"
 
 
 def _nadir_angle(x: np.ndarray) -> float:

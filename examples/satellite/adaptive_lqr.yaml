@@ -1,23 +1,14 @@
-# End-to-end nadir-pointing satellite simulation (Phase 6) - Short version for profiling.
+# End-to-end nadir-pointing satellite simulation (AdaptiveLQR) - Short version for profiling.
 #
 # A 3U-class CubeSat holding nadir pointing in LEO with reaction wheels (+ magnetorquer momentum
 # dumping) under real disturbances, a full-state estimator (orbit KF + attitude MEKF + exposed
-# environment variables) and a quaternion-feedback controller. Parameters are ported from the legacy
-# `simulation_config.json`. Drives `Simulation.from_yaml`.
-#
-# Frames: position/velocity inertial [m, m/s]; attitude q is scalar-last inertial->body. The nadir
-# reference is expressed relative to the orbital (LVLH) frame; the controller reconstructs the LVLH
-# frame and orbital feedforward from x_hat's r, v (see rigid_body.controller._attitude_error).
+# environment variables) and an AdaptiveLQR controller.
 
-t_end: 100.0  # short period for profiling [s]
+t_end: 5673.5  # short period for profiling [s]
 
-# Initial orbit + attitude, shared (via the &init anchor) by the dynamics truth and the estimator's
-# initial guess so they start consistent. SGP4 propagates the TLE to the epoch for r/v; the attitude
-# is given relative to the orbital (LVLH) frame -- 15 deg yaw off nadir, at rest wrt LVLH -- and
-# converted to the inertial q/omega by rigid_body.frames.eci_attitude_from_lvlh.
 initial_state: &init
-  epoch: "2024-01-01T12:00:00"
-  tle:
+  epoch: &epoch "2024-01-01T12:00:00"
+  tle: &tle
     - "1 25544U 98067A   24001.50000000  .00000000  00000-0  00000-0 2    07"
     - "2 25544 097.6000 010.0000 0001000 000.0000 000.0000 15.25000000000009"
   attitude_lvlh: {roll: 15.0, pitch: 10.0, yaw: -15.0}  # body wrt LVLH [deg], intrinsic Y-X-Z
@@ -27,7 +18,7 @@ dynamics:
   class_path: spacecraft.rigid_body.RigidBodyDynamics
   dt: 0.2
   mass: 2.304
-  inertia:
+  inertia: &inertia
     - [0.012286, -0.000065, -0.000236]
     - [-0.000065, 0.012726, -0.000039]
     - [-0.000236, -0.000039, 0.005707]
@@ -102,7 +93,7 @@ reference:
   step_value: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
 
 estimator:
-  class_path: examples.03_satellite.estimator.FullStateEstimator
+  class_path: examples.satellite.estimator.FullStateEstimator
   dt: 0.2
   # Epoch and the initial orbit/attitude guess come from the shared anchor (same as the truth).
   initial_state: *init
@@ -126,11 +117,28 @@ estimator:
     tach_channel: tachometer
 
 controller:
-  class_path: examples.03_satellite.controller.QuaternionFeedbackController
+  class_path: examples.satellite.controller.AdaptiveLQR
   dt: 0.2
-  kp: [0.02, 0.02, 0.01]
-  kd: [0.15, 0.15, 0.08]
-  k_m: 1.0e-4
+  tle: *tle
+  epoch: *epoch
+  inertia: *inertia
+  Q:
+    - [50.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 50.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 50.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 5.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 5.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 10.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 10.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 10.0]
+  R:
+    - [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 1.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
   reaction_wheels:
     axes: [[-1, 0, 0], [0, 1, 0], [0, 0, 1]]
     torque_constant: [0.01, 0.01, 0.01]

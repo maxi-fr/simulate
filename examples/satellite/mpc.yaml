@@ -1,11 +1,15 @@
-# End-to-end nadir-pointing satellite simulation (AdaptiveLQR) - Short version for profiling.
+# End-to-end nadir-pointing satellite simulation (MPC) - Short version for profiling.
 #
 # A 3U-class CubeSat holding nadir pointing in LEO with reaction wheels (+ magnetorquer momentum
 # dumping) under real disturbances, a full-state estimator (orbit KF + attitude MEKF + exposed
-# environment variables) and an AdaptiveLQR controller.
+# environment variables) and a model-predictive (MPC) controller.
 
 t_end: 5673.5  # short period for profiling [s]
 
+# Initial orbit + attitude, shared (via the &init anchor) by the dynamics truth and the estimator's
+# initial guess so they start consistent. SGP4 propagates the TLE to the epoch for r/v; the attitude
+# is given relative to the orbital (LVLH) frame -- 15 deg yaw off nadir, at rest wrt LVLH -- and
+# converted to the inertial q/omega by rigid_body.frames.eci_attitude_from_lvlh.
 initial_state: &init
   epoch: &epoch "2024-01-01T12:00:00"
   tle: &tle
@@ -93,7 +97,7 @@ reference:
   step_value: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
 
 estimator:
-  class_path: examples.03_satellite.estimator.FullStateEstimator
+  class_path: examples.satellite.estimator.FullStateEstimator
   dt: 0.2
   # Epoch and the initial orbit/attitude guess come from the shared anchor (same as the truth).
   initial_state: *init
@@ -117,31 +121,46 @@ estimator:
     tach_channel: tachometer
 
 controller:
-  class_path: examples.03_satellite.controller.AdaptiveLQR
+  class_path: examples.satellite.controller.MPC
   dt: 0.2
-  tle: *tle
-  epoch: *epoch
+  n_steps: 20  # prediction horizon (steps); horizon length = n_steps * dt = 4 s
   inertia: *inertia
+  # Stage/terminal state weight on the reduced error [q_err(3), omega(3), h_w(3)]
   Q:
-    - [50.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    - [0.0, 50.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    - [0.0, 0.0, 50.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    - [0.0, 0.0, 0.0, 5.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    - [0.0, 0.0, 0.0, 0.0, 5.0, 0.0, 0.0, 0.0, 0.0]
-    - [0.0, 0.0, 0.0, 0.0, 0.0, 5.0, 0.0, 0.0, 0.0]
-    - [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 10.0, 0.0, 0.0]
-    - [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 10.0, 0.0]
-    - [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 10.0]
+    - [8.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 8.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 8.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 20.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 20.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 20.0]
   R:
-    - [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    - [0.0, 1.0, 0.0, 0.0, 0.0, 0.0]
-    - [0.0, 0.0, 1.0, 0.0, 0.0, 0.0]
-    - [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
-    - [0.0, 0.0, 0.0, 0.0, 1.0, 0.0]
-    - [0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    - [300000.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 300000.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 300000.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 30000.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 30000.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 30000.0]
+  Qf:
+    - [160.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 160.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 160.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 40.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 40.0, 0.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 40.0, 0.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 400.0, 0.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 400.0, 0.0]
+    - [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 400.0]
+
   reaction_wheels:
     axes: [[-1, 0, 0], [0, 1, 0], [0, 0, 1]]
     torque_constant: [0.01, 0.01, 0.01]
+    inertia: 2.82e-6
+    max_current: 0.2
+    max_rpm: 6000
   magnetorquers:
     axes: [[-1, 0, 0], [0, 1, 0], [0, 0, 1]]
     dipole_constant: [0.3, 0.3, 0.2]
+    max_current: 1.0
