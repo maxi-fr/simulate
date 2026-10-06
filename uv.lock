@@ -106,7 +106,7 @@ name = "cffi"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pycparser", marker = "implementation_name != 'PyPy'" },
+    { name = "pycparser" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/eb/56/b1ba7935a17738ae8453301356628e8147c79dbb825bcbc73dc7401f9846/cffi-2.0.0.tar.gz", hash = "sha256:44d1b5909021139fe36001ae048dbdde8214afa20200eda0f64c068cac5d5529", size = 523588, upload-time = "2025-09-08T23:24:04.541Z" }
 wheels = [
@@ -1109,7 +1109,7 @@ name = "pexpect"
 version = "4.9.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "ptyprocess", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "ptyprocess" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/42/92/cc564bf6381ff43ce1f4d06852fc19a2f11d180f23dc32d9588bee2f149d/pexpect-4.9.0.tar.gz", hash = "sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f", size = 166450, upload-time = "2023-11-25T09:07:26.339Z" }
 wheels = [
@@ -1828,8 +1828,19 @@ dependencies = [
     { name = "types-tqdm" },
 ]
 
+[package.optional-dependencies]
+spacecraft = [
+    { name = "astropy" },
+    { name = "pyigrf" },
+    { name = "pymap3d" },
+    { name = "pymsis" },
+    { name = "scipy" },
+    { name = "sgp4" },
+]
+
 [package.dev-dependencies]
 dev = [
+    { name = "casadi" },
     { name = "marimo" },
     { name = "pre-commit" },
     { name = "pytest" },
@@ -1841,18 +1852,10 @@ dev = [
     { name = "types-tqdm" },
     { name = "validate-pyproject" },
 ]
-spacecraft = [
-    { name = "astropy" },
-    { name = "casadi" },
-    { name = "pyigrf" },
-    { name = "pymap3d" },
-    { name = "pymsis" },
-    { name = "scipy" },
-    { name = "sgp4" },
-]
 
 [package.metadata]
 requires-dist = [
+    { name = "astropy", marker = "extra == 'spacecraft'", specifier = ">=7.2.0" },
     { name = "ipython", specifier = ">=9.13.0" },
     { name = "matplotlib", specifier = ">=3.10.9" },
     { name = "numpy", specifier = ">=2.4.4" },
@@ -1860,14 +1863,21 @@ requires-dist = [
     { name = "pandas-stubs", specifier = ">=3.0.0.260204" },
     { name = "polars", specifier = ">=1.41.2" },
     { name = "pydantic", specifier = ">=2.13.4" },
+    { name = "pyigrf", marker = "extra == 'spacecraft'", specifier = ">=0.3.3" },
+    { name = "pymap3d", marker = "extra == 'spacecraft'", specifier = ">=3.2.0" },
+    { name = "pymsis", marker = "extra == 'spacecraft'", specifier = ">=0.12.0" },
     { name = "pyyaml", specifier = ">=6.0.3" },
+    { name = "scipy", marker = "extra == 'spacecraft'", specifier = ">=1.17.1" },
+    { name = "sgp4", marker = "extra == 'spacecraft'", specifier = ">=2.25" },
     { name = "tqdm", specifier = ">=4.68.1" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20260508" },
     { name = "types-tqdm", specifier = ">=4.68.0.20260608" },
 ]
+provides-extras = ["spacecraft"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "casadi", specifier = ">=3.7.2" },
     { name = "marimo", specifier = ">=0.23.6" },
     { name = "pre-commit", specifier = ">=3.0.0" },
     { name = "pytest", specifier = ">=8.0.0" },
@@ -1878,15 +1888,6 @@ dev = [
     { name = "types-pyyaml", specifier = ">=6.0.12.20260508" },
     { name = "types-tqdm", specifier = ">=4.68.0.20260608" },
     { name = "validate-pyproject", specifier = ">=0.23" },
-]
-spacecraft = [
-    { name = "astropy", specifier = ">=7.2.0" },
-    { name = "casadi", specifier = ">=3.7.2" },
-    { name = "pyigrf", specifier = ">=0.3.3" },
-    { name = "pymap3d", specifier = ">=3.2.0" },
-    { name = "pymsis", specifier = ">=0.12.0" },
-    { name = "scipy", specifier = ">=1.17.1" },
-    { name = "sgp4", specifier = ">=2.25" },
 ]
 
 [[package]]

@@ -24,8 +24,19 @@ dependencies = [
 [project.scripts]
 simulate = "simulate.main:main"
 
+[project.optional-dependencies]
+spacecraft = [
+    "astropy>=7.2.0",
+    "pyigrf>=0.3.3",
+    "pymap3d>=3.2.0",
+    "pymsis>=0.12.0",
+    "scipy>=1.17.1",
+    "sgp4>=2.25",
+]
+
 [dependency-groups]
 dev = [
+    "casadi>=3.7.2",
     "pytest>=8.0.0",
     "pytest-cov>=4.1.0", # Added for coverage reporting
     "ruff>=0.3.0",
@@ -36,15 +47,6 @@ dev = [
     "ty>=0.0.46",
     "types-pyyaml>=6.0.12.20260508",
     "types-tqdm>=4.68.0.20260608",
-]
-spacecraft = [
-    "astropy>=7.2.0",
-    "casadi>=3.7.2",
-    "pyigrf>=0.3.3",
-    "pymap3d>=3.2.0",
-    "pymsis>=0.12.0",
-    "scipy>=1.17.1",
-    "sgp4>=2.25",
 ]
 
 [build-system]

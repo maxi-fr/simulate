@@ -55,7 +55,7 @@ def test_cli_run_single(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None
         },
     }
     config_file = tmp_path / "sim.yaml"
-    with open(config_file, "w") as f:
+    with config_file.open("w") as f:
         yaml.safe_dump(config, f)
 
     output_dir = tmp_path / "out"

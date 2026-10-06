@@ -1,6 +1,6 @@
 # simulate
 
-A Python framework for control-system simulation, designed for flexibility, extensibility.
+A Python framework for control-system simulation, originally designed for the attitude determination and control (ADCS) simulation of a 3U CubeSat in Low Earth Orbit (showcased in [`examples/03_satellite`](examples/03_satellite/)).
 
 This repository ships **two packages**:
 
@@ -17,13 +17,38 @@ This repository ships **two packages**:
 [Part 2](#part-2--the-simulate-package) applies to [Part 3](#part-3--the-spacecraft-package)
 as well.
 
+> **Origin & Scope:** This framework was built around a specific target mission:
+> simulating the attitude determination and control system of a 3U CubeSat in LEO
+> holding nadir pointing. That project lives in [`examples/03_satellite`](examples/03_satellite/)
+> and is used for the quickstart examples below.
+
 ---
 
 ## Part 1 — Getting Started
 
 ### Installation
 
-This project uses [uv](https://github.com/astral-sh/uv) for dependency management.
+#### Using the packages (installing into a `.venv`)
+
+To use `simulate` and `spacecraft` in an external project or an existing virtual environment, install directly from GitHub:
+
+- **With `uv`** (recommended):
+
+  ```bash
+  uv add git+https://github.com/TUDSaT/simulate --extra spacecraft
+  ```
+
+- **With standard `pip`**:
+
+  ```bash
+  pip install "simulate[spacecraft] @ git+https://github.com/TUDSaT/simulate"
+  ```
+
+*(To install only the core `simulate` engine without heavy aerospace dependencies, omit `--extra spacecraft` / `[spacecraft]`. For local development against a cloned repository, replace the URL with `-e ".[spacecraft]"`).*
+
+#### Repository development
+
+If you are developing or contributing to `simulate` itself:
 
 1. **Install `uv`**:
 
@@ -31,7 +56,7 @@ This project uses [uv](https://github.com/astral-sh/uv) for dependency managemen
    curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
 
-   See [uv install](https://docs.astral.sh/uv/getting-started/installation/) for windows and mac installation.
+   See [uv install](https://docs.astral.sh/uv/getting-started/installation/) for Windows and macOS installation.
 
 2. **Sync dependencies**:
 
@@ -39,11 +64,11 @@ This project uses [uv](https://github.com/astral-sh/uv) for dependency managemen
    uv sync
    ```
 
-   The heavy aerospace dependencies (astropy, sgp4, casadi, pyigrf, pymap3d, pymsis,
-   scipy) live in the `spacecraft` dependency group. Include them with:
+   The heavy aerospace dependencies (astropy, sgp4, pyigrf, pymap3d, pymsis,
+   scipy) live in the `spacecraft` extra. Include them with:
 
    ```bash
-   uv sync --group spacecraft
+   uv sync --extra spacecraft
    ```
 
 3. **Set up pre-commit hooks** (optional, but recommended):
